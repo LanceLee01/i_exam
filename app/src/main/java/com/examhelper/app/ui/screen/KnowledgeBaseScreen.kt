@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,12 +22,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.examhelper.app.ExamApplication
+import com.examhelper.app.knowledge.KBEngine
 import com.examhelper.app.knowledge.KnowledgeBase
 import com.examhelper.app.knowledge.KnowledgeBaseManager
 import kotlinx.coroutines.Dispatchers
@@ -64,9 +66,11 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var showNewDialog by remember { mutableStateOf(false) }
     var newKBName by remember { mutableStateOf("") }
+    var isImportingDoc by remember { mutableStateOf(false) }
     val kbs = KnowledgeBaseManager.allKBs
+    val kbEngine = remember { KBEngine(ExamApplication.instance) }
 
-    val pickerLauncher = rememberLauncherForActivityResult(
+    val excelLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -85,6 +89,31 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    Toast.makeText(ExamApplication.instance, "出错: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    val docLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        isImportingDoc = true
+        scope.launch(Dispatchers.IO) {
+            try {
+                val result = kbEngine.importFile(uri)
+                withContext(Dispatchers.Main) {
+                    isImportingDoc = false
+                    when {
+                        result.skipped -> Toast.makeText(ExamApplication.instance, "内容未变化，已跳过", Toast.LENGTH_SHORT).show()
+                        result.success -> Toast.makeText(ExamApplication.instance, "导入成功: 生成 ${result.pagesGenerated} 个知识页", Toast.LENGTH_SHORT).show()
+                        else -> Toast.makeText(ExamApplication.instance, result.error ?: "导入失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isImportingDoc = false
                     Toast.makeText(ExamApplication.instance, "出错: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -133,14 +162,28 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                                 Text("${kb.count} 条题目", color = Color.White.copy(0.5f), style = MaterialTheme.typography.bodySmall)
                                 if (isActive) Text("激活", color = Color(0xFF22C55E), style = MaterialTheme.typography.labelSmall)
                             }
+                            if (isImportingDoc) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = Color(0xFF22C55E),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
                             IconButton(onClick = {
                                 KnowledgeBaseManager.selectKB(index)
-                                pickerLauncher.launch(arrayOf(
+                                excelLauncher.launch(arrayOf(
                                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                     "application/vnd.ms-excel"
                                 ))
                             }) {
-                                Icon(Icons.Filled.UploadFile, contentDescription = "导入", tint = Color(0xFF22C55E), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Filled.UploadFile, contentDescription = "导入Excel", tint = Color(0xFF22C55E), modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = {
+                                KnowledgeBaseManager.selectKB(index)
+                                docLauncher.launch(arrayOf("text/plain", "text/markdown", "text/x-markdown"))
+                            }) {
+                                Icon(Icons.Filled.Description, contentDescription = "导入文档", tint = Color(0xFF3B82F6), modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = {
                                 KnowledgeBaseManager.deleteKB(index)
@@ -153,15 +196,36 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
             }
 
             Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = { showNewDialog = true },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E))
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { showNewDialog = true },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF22C55E))
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("新建", fontWeight = FontWeight.Bold)
+                }
                 Spacer(Modifier.width(8.dp))
-                Text("新建知识库", fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        KnowledgeBaseManager.selectKB(KnowledgeBaseManager.allKBs.indexOf(KnowledgeBaseManager.activeKB))
+                        docLauncher.launch(arrayOf("text/plain", "text/markdown", "text/x-markdown"))
+                    },
+                    enabled = KnowledgeBaseManager.activeKB != null && !isImportingDoc,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B82F6))
+                ) {
+                    if (isImportingDoc) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Filled.Description, contentDescription = null, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Text("导入文档", fontWeight = FontWeight.Bold)
+                }
             }
         }
 

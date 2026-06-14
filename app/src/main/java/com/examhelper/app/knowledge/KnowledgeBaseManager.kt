@@ -29,6 +29,13 @@ data class KBEntry(
             }
             return result
         }
+
+        fun jaccard(a: Set<String>, b: Set<String>): Float {
+            if (a.isEmpty() || b.isEmpty()) return 0f
+            val intersection = (a intersect b).size
+            val union = (a union b).size
+            return intersection.toFloat() / union.toFloat()
+        }
     }
 }
 
@@ -68,18 +75,11 @@ data class KnowledgeBase(
         val qTrigrams = KBEntry.computeTrigrams(query)
 
         return entries.map { entry ->
-            entry to jaccard(qTrigrams, entry.trigrams)
+            entry to KBEntry.jaccard(qTrigrams, entry.trigrams)
         }
         .filter { it.second > 0.15f }
         .sortedByDescending { it.second }
         .take(topN)
-    }
-
-    private fun jaccard(a: Set<String>, b: Set<String>): Float {
-        if (a.isEmpty() || b.isEmpty()) return 0f
-        val intersection = (a intersect b).size
-        val union = (a union b).size
-        return intersection.toFloat() / union.toFloat()
     }
 }
 
