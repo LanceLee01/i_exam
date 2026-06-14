@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">考试助手</string>
+    <string name="accessibility_service_description">考试助手无障碍服务，用于读取考试界面文字内容以辅助答题。</string>
+    <string name="notification_channel_sidebar">侧边栏服务</string>
+    <string name="notification_sidebar_running">考试助手正在运行</string>
+    <string name="permission_overlay_title">悬浮窗权限</string>
+    <string name="permission_overlay_desc">需要在其他应用上方显示答案侧边栏</string>
+    <string name="permission_accessibility_title">无障碍服务</string>
+    <string name="permission_accessibility_desc">需要读取考试界面的文字内容</string>
+    <string name="permission_network_title">网络权限</string>
+    <string name="permission_network_desc">需要联网调用大模型 API 获取答案</string>
+    <string name="btn_next">下一步</string>
+    <string name="btn_skip">跳过</string>
+    <string name="btn_start">开始使用</string>
+    <string name="btn_read_screen">读取屏幕</string>
+    <string name="btn_answer">解答</string>
+    <string name="btn_settings">设置</string>
+    <string name="label_no_text">未检测到文字，请确认考试页面已打开</string>
+    <string name="label_no_accessibility">请先开启无障碍服务</string>
+    <string name="label_no_api_key">请先在设置中配置 API Key</string>
+    <string name="label_network_error">网络请求失败，请检查网络连接</string>
+    <string name="label_api_error">API 返回错误</string>
+</resources>
