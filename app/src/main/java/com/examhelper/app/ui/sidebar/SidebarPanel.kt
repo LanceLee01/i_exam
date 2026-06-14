@@ -49,12 +49,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.examhelper.app.ExamApplication
+import com.examhelper.app.knowledge.KBEngine
 import com.examhelper.app.knowledge.KnowledgeBaseManager
 import com.examhelper.app.network.LLMClient
 import com.examhelper.app.ui.theme.TextCorrect
 import com.examhelper.app.ui.theme.TextError
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
+import com.examhelper.app.util.ExtractedTextBus.AnswerSource
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 import kotlinx.coroutines.launch
 
@@ -63,6 +65,7 @@ fun SidebarPanel(onHide: () -> Unit) {
     val state by ExtractedTextBus.sidebarState.collectAsState()
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val kbEngine = remember { KBEngine(ExamApplication.instance) }
 
     val isAccessibilityConnected by ExtractedTextBus.accessibilityConnected.collectAsState()
 
@@ -216,36 +219,70 @@ fun SidebarPanel(onHide: () -> Unit) {
                                 val client = LLMClient()
                                 val userMessage = "以下是考试界面提取的文字，请根据内容答题：\n\n${s.text}"
 
-                                // 先查知识库
-                                val kbHits = KnowledgeBaseManager.activeKB?.search(s.text, topN = 5) ?: emptyList()
+                                // L1: Excel 题库精准匹配
+                                val excelHits = KnowledgeBaseManager.activeKB?.search(s.text, topN = 5) ?: emptyList()
+                                val excelDirectHit = excelHits.firstOrNull()?.takeIf { (_, score) -> score >= 0.70f }
 
-                                val directHit = kbHits.firstOrNull()?.takeIf { (_, score) -> score >= 0.70f }
-
-                                if (directHit != null) {
-                                    // 高置信度直接返回，不走 LLM
-                                    val (entry, _) = directHit
-                                    Log.d("SidebarPanel", "KB direct hit: ${entry.answer}")
+                                if (excelDirectHit != null) {
+                                    val (entry, _) = excelDirectHit
+                                    Log.d("SidebarPanel", "Excel direct hit: ${entry.answer}")
                                     ExtractedTextBus.updateSidebarState(
-                                        SidebarState.Done(s.text, entry.answer, kbUsed = true)
+                                        SidebarState.Done(s.text, entry.answer, AnswerSource.EXCEL_MATCH)
                                     )
                                     return@launch
                                 }
 
-                                val effectiveMessage = if (kbHits.isNotEmpty()) {
-                                    val kbHints = kbHits.filter { (_, score) -> score >= 0.40f }
-                                    if (kbHints.isNotEmpty()) {
-                                        val kbContext = kbHints.joinToString("\n") { (e, _) ->
+                                // L2: Wiki 知识库检索
+                                val wikiResult = kbEngine.searchByQuestion(s.text)
+                                val combinedPages = (wikiResult.ftsPages + wikiResult.trigramPages).distinctBy { it.id }
+                                val wikiTopScore = combinedPages.maxOfOrNull { page ->
+                                    val pTri = com.examhelper.app.knowledge.KBEntry.computeTrigrams(page.title + page.summary.take(200))
+                                    val qTri = com.examhelper.app.knowledge.KBEntry.computeTrigrams(s.text)
+                                    com.examhelper.app.knowledge.KBEntry.jaccard(qTri, pTri)
+                                } ?: 0f
+
+                                if (wikiTopScore >= 0.50f && combinedPages.isNotEmpty()) {
+                                    val answer = kbEngine.getAnswerFromKB(s.text, combinedPages) ?: ""
+                                    Log.d("SidebarPanel", "Wiki KB direct hit, score=$wikiTopScore pages=${combinedPages.size}")
+                                    ExtractedTextBus.updateSidebarState(
+                                        SidebarState.Done(s.text, answer, AnswerSource.KB_MATCH)
+                                    )
+                                    return@launch
+                                }
+
+                                // Build context for LLM (L3: KB推断 / L4: 纯AI)
+                                var llmSource = AnswerSource.LLM_DIRECT
+                                var effectiveMessage = userMessage
+
+                                val excelHints = excelHits.filter { (_, score) -> score >= 0.40f }
+                                val wikiHints = if (wikiTopScore >= 0.20f) combinedPages else emptyList()
+
+                                if (excelHints.isNotEmpty() || wikiHints.isNotEmpty()) {
+                                    val parts = mutableListOf<String>()
+
+                                    if (excelHints.isNotEmpty()) {
+                                        val excelCtx = excelHints.joinToString("\n") { (e, _) ->
                                             "题目: ${e.question}\n答案: ${e.answer}"
                                         }
-                                        "以下是知识库中匹配的题目和答案，请优先参考：\n\n$kbContext\n\n$userMessage"
-                                    } else userMessage
-                                } else userMessage
+                                        parts.add("以下是题库中匹配的题目和答案，请优先参考：\n\n$excelCtx")
+                                        llmSource = AnswerSource.KB_INFER
+                                    }
+
+                                    if (wikiHints.isNotEmpty()) {
+                                        val wikiCtx = wikiHints.joinToString("\n\n") { page ->
+                                            "【${page.title}】\n${page.summary}\n${page.content.take(300)}"
+                                        }
+                                        parts.add("以下是知识库中的相关知识点，请参考后作答：\n\n$wikiCtx")
+                                        llmSource = AnswerSource.KB_INFER
+                                    }
+
+                                    effectiveMessage = parts.joinToString("\n\n") + "\n\n$userMessage"
+                                }
 
                                 ExtractedTextBus.updateSidebarState(
                                     SidebarState.Loading("正在调用 LLM 解答...", requestStartMs, maxTokens)
                                 )
                                 try {
-                                    // 客户端估算 prompt token 数
                                     val textLen = effectiveMessage.length
                                     val estTokens = (textLen / 1.5).toInt().coerceAtLeast(50)
                                     ExtractedTextBus.lastPromptTokens = estTokens
@@ -266,7 +303,6 @@ fun SidebarPanel(onHide: () -> Unit) {
                                             firstChunk = false
                                             streamStartMs = System.currentTimeMillis()
                                             ExtractedTextBus.lastTtftMs = streamStartMs - requestStartMs
-                                            Log.d("SidebarPanel", "First chunk received, TTFT=${ExtractedTextBus.lastTtftMs}ms")
                                         }
                                         accumulated.append(chunk)
                                         val roughTokenEstimate = accumulated.length * 2
@@ -279,10 +315,9 @@ fun SidebarPanel(onHide: () -> Unit) {
                                             SidebarState.Streaming(s.text, accumulated.toString(), progress, requestStartMs, maxTokens)
                                         )
                                     }
-                                    Log.d("SidebarPanel", "Stream completed, total chars=${accumulated.length}, reasoning=${client.reasoningBuffer.length}")
                                     val finalAnswer = if (accumulated.isEmpty()) client.reasoningBuffer.toString() else accumulated.toString()
                                     ExtractedTextBus.updateSidebarState(
-                                        SidebarState.Done(s.text, finalAnswer, kbHits.isNotEmpty())
+                                        SidebarState.Done(s.text, finalAnswer, llmSource)
                                     )
                                 } catch (e: Exception) {
                                     ExtractedTextBus.updateSidebarState(
@@ -326,15 +361,13 @@ fun SidebarPanel(onHide: () -> Unit) {
                     Log.d("SidebarPanel", "Done state rendered, answer length=${s.answer.length}")
                     Spacer(Modifier.height(12.dp))
                     SectionHeader("答案")
-                    if (s.kbUsed) {
-                        Text(
-                            text = "来源: 知识库参考",
-                            color = Color(0xFF22C55E).copy(alpha = 0.7f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                    }
+                    Text(
+                        text = "来源: ${s.source.label}",
+                        color = Color(0xFF22C55E).copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                     val lines = s.answer.lines()
                     lines.forEach { line ->
                         val isAnswerLine = line.contains("✓") ||

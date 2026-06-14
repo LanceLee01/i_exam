@@ -25,8 +25,15 @@ object ExtractedTextBus {
         data class Preview(val text: String) : SidebarState()
         data class Streaming(val text: String, val partialAnswer: String, val progress: Float, val startTimeMs: Long, val maxTokens: Int = 2048) : SidebarState()
         data class Answering(val text: String) : SidebarState()
-        data class Done(val text: String, val answer: String, val kbUsed: Boolean = false) : SidebarState()
+        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT) : SidebarState()
         data class Error(val message: String) : SidebarState()
+    }
+
+    enum class AnswerSource(val label: String) {
+        EXCEL_MATCH("\uD83D\uDCCB 题库匹配"),
+        KB_MATCH("\uD83D\uDCD6 知识库匹配"),
+        KB_INFER("\uD83D\uDCD6 知识库推断"),
+        LLM_DIRECT("\uD83E\uDD16 AI解答")
     }
 
     private val _events = MutableSharedFlow<Event>(extraBufferCapacity = 16)
