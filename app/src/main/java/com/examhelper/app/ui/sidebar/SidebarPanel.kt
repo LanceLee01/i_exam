@@ -1,6 +1,7 @@
 package com.examhelper.app.ui.sidebar
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessibilityNew
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inventory2
@@ -38,7 +40,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,9 +53,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.examhelper.app.ExamApplication
-import com.examhelper.app.knowledge.KBEngine
+import com.examhelper.app.knowledge.KBEntry
 import com.examhelper.app.knowledge.KnowledgeBaseManager
-import com.examhelper.app.network.LLMClient
+import com.examhelper.app.pipeline.SolvePipeline
 import com.examhelper.app.ui.theme.TextCorrect
 import com.examhelper.app.ui.theme.TextError
 import com.examhelper.app.ui.theme.TextSecondary
@@ -65,7 +69,7 @@ fun SidebarPanel(onHide: () -> Unit) {
     val state by ExtractedTextBus.sidebarState.collectAsState()
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
-    val kbEngine = remember { KBEngine(ExamApplication.instance) }
+    val pipeline = remember { SolvePipeline(ExamApplication.instance) }
 
     val isAccessibilityConnected by ExtractedTextBus.accessibilityConnected.collectAsState()
 
@@ -211,121 +215,7 @@ fun SidebarPanel(onHide: () -> Unit) {
                     Spacer(Modifier.height(12.dp))
 
                     Button(
-                        onClick = {
-                            scope.launch {
-                                val requestStartMs = System.currentTimeMillis()
-                                val config = ExamApplication.instance.appConfig.getSnapshot()
-                                val maxTokens = config.maxTokens
-                                val client = LLMClient()
-                                val userMessage = "以下是考试界面提取的文字，请根据内容答题：\n\n${s.text}"
-
-                                // L1: Excel 题库精准匹配
-                                val excelHits = KnowledgeBaseManager.activeKB?.search(s.text, topN = 5) ?: emptyList()
-                                val excelDirectHit = excelHits.firstOrNull()?.takeIf { (_, score) -> score >= 0.70f }
-
-                                if (excelDirectHit != null) {
-                                    val (entry, _) = excelDirectHit
-                                    Log.d("SidebarPanel", "Excel direct hit: ${entry.answer}")
-                                    ExtractedTextBus.updateSidebarState(
-                                        SidebarState.Done(s.text, entry.answer, AnswerSource.EXCEL_MATCH)
-                                    )
-                                    return@launch
-                                }
-
-                                // L2: Wiki 知识库检索
-                                val wikiResult = kbEngine.searchByQuestion(s.text)
-                                val combinedPages = (wikiResult.ftsPages + wikiResult.trigramPages).distinctBy { it.id }
-                                val wikiTopScore = combinedPages.maxOfOrNull { page ->
-                                    val pTri = com.examhelper.app.knowledge.KBEntry.computeTrigrams(page.title + page.summary.take(200))
-                                    val qTri = com.examhelper.app.knowledge.KBEntry.computeTrigrams(s.text)
-                                    com.examhelper.app.knowledge.KBEntry.jaccard(qTri, pTri)
-                                } ?: 0f
-
-                                if (wikiTopScore >= 0.50f && combinedPages.isNotEmpty()) {
-                                    val answer = kbEngine.getAnswerFromKB(s.text, combinedPages) ?: ""
-                                    Log.d("SidebarPanel", "Wiki KB direct hit, score=$wikiTopScore pages=${combinedPages.size}")
-                                    ExtractedTextBus.updateSidebarState(
-                                        SidebarState.Done(s.text, answer, AnswerSource.KB_MATCH)
-                                    )
-                                    return@launch
-                                }
-
-                                // Build context for LLM (L3: KB推断 / L4: 纯AI)
-                                var llmSource = AnswerSource.LLM_DIRECT
-                                var effectiveMessage = userMessage
-
-                                val excelHints = excelHits.filter { (_, score) -> score >= 0.40f }
-                                val wikiHints = if (wikiTopScore >= 0.20f) combinedPages else emptyList()
-
-                                if (excelHints.isNotEmpty() || wikiHints.isNotEmpty()) {
-                                    val parts = mutableListOf<String>()
-
-                                    if (excelHints.isNotEmpty()) {
-                                        val excelCtx = excelHints.joinToString("\n") { (e, _) ->
-                                            "题目: ${e.question}\n答案: ${e.answer}"
-                                        }
-                                        parts.add("以下是题库中匹配的题目和答案，请优先参考：\n\n$excelCtx")
-                                        llmSource = AnswerSource.KB_INFER
-                                    }
-
-                                    if (wikiHints.isNotEmpty()) {
-                                        val wikiCtx = wikiHints.joinToString("\n\n") { page ->
-                                            "【${page.title}】\n${page.summary}\n${page.content.take(300)}"
-                                        }
-                                        parts.add("以下是知识库中的相关知识点，请参考后作答：\n\n$wikiCtx")
-                                        llmSource = AnswerSource.KB_INFER
-                                    }
-
-                                    effectiveMessage = parts.joinToString("\n\n") + "\n\n$userMessage"
-                                }
-
-                                ExtractedTextBus.updateSidebarState(
-                                    SidebarState.Loading("正在调用 LLM 解答...", requestStartMs, maxTokens)
-                                )
-                                try {
-                                    val textLen = effectiveMessage.length
-                                    val estTokens = (textLen / 1.5).toInt().coerceAtLeast(50)
-                                    ExtractedTextBus.lastPromptTokens = estTokens
-                                    val accumulated = StringBuilder()
-                                    val estimatedTotalTokens = maxTokens.coerceAtLeast(1)
-                                    var firstChunk = true
-                                    var streamStartMs = 0L
-                                    client.chatStream(
-                                        endpoint = config.apiEndpoint,
-                                        apiKey = config.apiKey,
-                                        model = config.modelName,
-                                        temperature = config.temperature,
-                                        maxTokens = maxTokens,
-                                        systemPrompt = config.systemPrompt,
-                                        userMessage = effectiveMessage
-                                    ).collect { chunk ->
-                                        if (firstChunk) {
-                                            firstChunk = false
-                                            streamStartMs = System.currentTimeMillis()
-                                            ExtractedTextBus.lastTtftMs = streamStartMs - requestStartMs
-                                        }
-                                        accumulated.append(chunk)
-                                        val roughTokenEstimate = accumulated.length * 2
-                                        val progress = (roughTokenEstimate.toFloat() / estimatedTotalTokens)
-                                            .coerceIn(0f, 0.95f)
-                                        val elapsed = ((System.currentTimeMillis() - streamStartMs) / 1000).toInt() + 1
-                                        val speed = roughTokenEstimate.toFloat() / elapsed
-                                        if (speed > 0) ExtractedTextBus.lastTokensPerSec = speed
-                                        ExtractedTextBus.updateSidebarState(
-                                            SidebarState.Streaming(s.text, accumulated.toString(), progress, requestStartMs, maxTokens)
-                                        )
-                                    }
-                                    val finalAnswer = if (accumulated.isEmpty()) client.reasoningBuffer.toString() else accumulated.toString()
-                                    ExtractedTextBus.updateSidebarState(
-                                        SidebarState.Done(s.text, finalAnswer, llmSource)
-                                    )
-                                } catch (e: Exception) {
-                                    ExtractedTextBus.updateSidebarState(
-                                        SidebarState.Error("请求异常: ${e.message}")
-                                    )
-                                }
-                            }
-                        },
+                        onClick = { scope.launch { pipeline.solve(s.text) } },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -400,6 +290,38 @@ fun SidebarPanel(onHide: () -> Unit) {
                         )
                         Spacer(Modifier.width(4.dp))
                         Text("重新解答", fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                val kb = KnowledgeBaseManager.activeKB
+                                if (kb == null) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(ExamApplication.instance, "请先激活知识库", Toast.LENGTH_SHORT).show()
+                                    }
+                                    return@launch
+                                }
+                                kb.entries.add(KBEntry(s.text, s.answer))
+                                KnowledgeBaseManager.save()
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(ExamApplication.instance, "已保存到「${kb.name}」(${kb.count}条)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF59E0B)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("保存到题库", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(8.dp))
                     Button(
