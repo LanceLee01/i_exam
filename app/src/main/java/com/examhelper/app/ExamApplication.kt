@@ -5,16 +5,20 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import com.examhelper.app.data.AppConfig
 import com.examhelper.app.knowledge.KnowledgeBaseManager
+import com.examhelper.app.knowledge.db.AppDatabase
 
 class ExamApplication : Application() {
 
     lateinit var appConfig: AppConfig
+        private set
+    lateinit var database: AppDatabase
         private set
 
     override fun onCreate() {
         super.onCreate()
         instance = this
         appConfig = AppConfig(this)
+        database = AppDatabase.getInstance(this)
         KnowledgeBaseManager.init(this)
         createNotificationChannel()
     }
