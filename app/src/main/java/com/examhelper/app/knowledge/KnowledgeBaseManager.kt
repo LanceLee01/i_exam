@@ -7,6 +7,7 @@ import com.google.gson.reflect.TypeToken
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.File
 import java.io.FileInputStream
+import java.security.MessageDigest
 import java.util.UUID
 
 data class KBEntry(
@@ -36,6 +37,12 @@ data class KBEntry(
             val union = (a union b).size
             return intersection.toFloat() / union.toFloat()
         }
+
+        fun computeSHA256(bytes: ByteArray): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(bytes)
+            return hash.joinToString("") { "%02x".format(it) }
+        }
     }
 }
 
@@ -44,6 +51,7 @@ data class KnowledgeBase(
     val name: String = ""
 ) {
     val entries = mutableListOf<KBEntry>()
+    val importedHashes = mutableSetOf<String>()
     val count: Int get() = entries.size
 
     fun importExcel(path: String): Int {
@@ -62,6 +70,41 @@ data class KnowledgeBase(
                 imported++
             }
             stream.close()
+            Log.d("KnowledgeBase", "[$name] imported $imported entries, total=${entries.size}")
+            imported
+        } catch (e: Exception) {
+            Log.e("KnowledgeBase", "[$name] import failed", e)
+            -1
+        }
+    }
+
+    fun importExcelWithDedup(path: String): Int {
+        return try {
+            val file = File(path)
+            val bytes = file.readBytes()
+            val hash = KBEntry.computeSHA256(bytes)
+
+            if (hash in importedHashes) {
+                Log.d("KnowledgeBase", "[$name] SHA256 match, skipping duplicate import")
+                return -2
+            }
+
+            val stream = FileInputStream(file)
+            val workbook = WorkbookFactory.create(stream)
+            val sheet = workbook.getSheetAt(0)
+            var imported = 0
+            for (row in sheet) {
+                if (row.rowNum == 0) continue
+                val question = row.getCell(0)?.toString()?.trim() ?: continue
+                val answer = row.getCell(1)?.toString()?.trim()
+                if (question.isBlank() || answer.isNullOrBlank()) continue
+                val source = try { row.getCell(2)?.toString()?.trim() } catch (_: Exception) { null }
+                entries.add(KBEntry(question, answer, source ?: ""))
+                imported++
+            }
+            stream.close()
+
+            importedHashes.add(hash)
             Log.d("KnowledgeBase", "[$name] imported $imported entries, total=${entries.size}")
             imported
         } catch (e: Exception) {
@@ -126,7 +169,17 @@ object KnowledgeBaseManager {
 
     fun save() {
         try {
-            val data = KBStorageData(kbs.toList(), activeIndex)
+            val data = KBStorageData(
+                kbs = kbs.map { kb ->
+                    KBData(
+                        id = kb.id,
+                        name = kb.name,
+                        entries = kb.entries,
+                        importedHashes = kb.importedHashes.toList()
+                    )
+                },
+                activeKbIndex = activeIndex
+            )
             storageFile.writeText(gson.toJson(data))
         } catch (e: Exception) {
             Log.e("KBManager", "save failed", e)
@@ -139,7 +192,12 @@ object KnowledgeBaseManager {
             val json = storageFile.readText()
             val data = gson.fromJson(json, KBStorageData::class.java)
             kbs.clear()
-            kbs.addAll(data.kbs)
+            for (kd in data.kbs) {
+                val kb = KnowledgeBase(id = kd.id, name = kd.name)
+                kb.entries.addAll(kd.entries)
+                kb.importedHashes.addAll(kd.importedHashes)
+                kbs.add(kb)
+            }
             activeIndex = data.activeKbIndex.coerceIn(-1, kbs.size - 1)
             Log.d("KBManager", "Loaded ${kbs.size} KBs, active=$activeIndex")
         } catch (e: Exception) {
@@ -148,7 +206,14 @@ object KnowledgeBaseManager {
     }
 }
 
+private data class KBData(
+    val id: String,
+    val name: String,
+    val entries: List<KBEntry>,
+    val importedHashes: List<String>
+)
+
 private data class KBStorageData(
-    val kbs: List<KnowledgeBase>,
+    val kbs: List<KBData>,
     val activeKbIndex: Int
 )

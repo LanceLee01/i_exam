@@ -80,12 +80,15 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                 val inputStream = ctx.contentResolver.openInputStream(uri)
                 val tmpFile = java.io.File(ctx.cacheDir, "kb_import.xlsx")
                 tmpFile.outputStream().use { inputStream?.copyTo(it) }
-                val count = KnowledgeBaseManager.activeKB?.importExcel(tmpFile.absolutePath) ?: -1
+                val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(tmpFile.absolutePath) ?: -1
                 tmpFile.delete()
-                KnowledgeBaseManager.save()
+                if (count >= 0) KnowledgeBaseManager.save()
                 withContext(Dispatchers.Main) {
-                    if (count >= 0) Toast.makeText(ctx, "导入成功: $count 条", Toast.LENGTH_SHORT).show()
-                    else Toast.makeText(ctx, "导入失败", Toast.LENGTH_SHORT).show()
+                    when {
+                        count == -2 -> Toast.makeText(ctx, "文件已导入过，已跳过", Toast.LENGTH_SHORT).show()
+                        count >= 0 -> Toast.makeText(ctx, "导入成功: $count 条", Toast.LENGTH_SHORT).show()
+                        else -> Toast.makeText(ctx, "导入失败", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
