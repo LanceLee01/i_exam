@@ -468,13 +468,17 @@ class SolvePipeline(private val context: Context) {
 
     private fun parseL4Answer(l4Answer: String, expectedNumbers: List<Int>): Map<Int, String> {
         val result = mutableMapOf<Int, String>()
-        val pattern = Regex("""(?:[\\[【第]?(\d+)[\\]】题]?[\s.、:：)）]*)([^\\[【第\n]+?)(?=\s*[\\[【第]?\d+[\\]】题]?[\s.、:：)）]|$)""", RegexOption.MULTILINE)
-        pattern.findAll(l4Answer).forEach { match ->
-            val qNum = match.groupValues[1].toIntOrNull() ?: return@forEach
-            val raw = match.groupValues[2].trim()
-            val normalized = normalizeAnswer(raw)
-            if (qNum in expectedNumbers && normalized.isNotBlank()) {
-                result[qNum] = normalized
+        for (line in l4Answer.lines()) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) continue
+            // Match: [1] A  /  【1】A  /  1. A  /  1)A  /  第1题：A  /  答案1: A
+            val match = Regex("""[\\[【第]?(\d+)[\\]】题]?[\s.、:：)）]*(?:答案)?[:：\s]+(.+?)$""").find(trimmed)
+            if (match != null) {
+                val qNum = match.groupValues[1].toIntOrNull() ?: continue
+                val ans = normalizeAnswer(match.groupValues[2].trim())
+                if (qNum in expectedNumbers && ans.isNotBlank()) {
+                    result[qNum] = ans
+                }
             }
         }
         return result

@@ -147,8 +147,16 @@ fun SidebarStateRenderer(
             }
             // 引用链接展示（如果有）
             if (s.references.isNotEmpty()) {
+                val llmQuestions = s.questionSources
+                    .filterValues { it.contains("AI") || it.contains("LLM") }
+                    .keys
+                    .sorted()
+                
                 Spacer(Modifier.height(8.dp))
-                SectionHeader("参考资料")
+                SectionHeader(
+                    if (llmQuestions.isNotEmpty()) "🔍 参考资料（题 ${llmQuestions.joinToString(", ")}）"
+                    else "🔍 参考资料"
+                )
                 Column {
                     s.references.take(5).forEachIndexed { index, ref ->
                         Row(modifier = Modifier.padding(vertical = 2.dp)) {
