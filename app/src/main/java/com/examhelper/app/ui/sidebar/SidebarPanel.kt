@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,6 +75,9 @@ fun SidebarPanel(onHide: () -> Unit) {
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
 
     val isAccessibilityConnected by ExtractedTextBus.accessibilityConnected.collectAsState()
+
+    var lastAnswer: String by remember { mutableStateOf("") }
+    var lastExamText: String by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -178,6 +182,29 @@ fun SidebarPanel(onHide: () -> Unit) {
                 }
             }
 
+            // 自动填入按钮（有答案时显示在读取屏幕下方）
+            if (lastAnswer.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(lastAnswer, lastExamText))
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF22C55E)
+                    )
+                ) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("自动填入", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
             // 根据状态显示内容
             when (val s = state) {
                 is SidebarState.Idle -> {
@@ -251,6 +278,11 @@ fun SidebarPanel(onHide: () -> Unit) {
 
                 is SidebarState.Done -> {
                     Log.d("SidebarPanel", "Done state rendered, answer length=${s.answer.length}")
+                    lastAnswer = s.answer
+                    lastExamText = s.text
+
+                    val optionMap = remember(s.text) { parseOptionMap(s.text) }
+
                     Spacer(Modifier.height(12.dp))
                     SectionHeader("答案")
                     Text(
@@ -297,7 +329,7 @@ fun SidebarPanel(onHide: () -> Unit) {
                         val isAnswerLine = line.contains("✓") ||
                             Regex("""^\s*[\[【]?\d+[\]】]?\s*[A-Da-d]\b""").containsMatchIn(line)
                         Text(
-                            text = line,
+                            text = appendOptionText(line, optionMap),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White,
                             fontWeight = if (isAnswerLine) FontWeight.Bold else FontWeight.Normal,
@@ -356,25 +388,6 @@ fun SidebarPanel(onHide: () -> Unit) {
                         )
                         Spacer(Modifier.width(6.dp))
                         Text("保存到题库", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(s.answer, s.text))
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF22C55E)
-                        )
-                    ) {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("自动填入", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -463,6 +476,33 @@ private fun StatusHint(message: String, isError: Boolean = false) {
             textAlign = TextAlign.Center
         )
     }
+}
+
+/** 从题目文本中提取选项字母到选项文字的映射 */
+private fun parseOptionMap(text: String): Map<String, String> {
+    val map = mutableMapOf<String, String>()
+    val regex = Regex("""^([A-D])[.、．\s]\s*(.+)""", RegexOption.MULTILINE)
+    regex.findAll(text).forEach { match ->
+        val text2 = match.groupValues[2].trim().replace(Regex("\\s+"), "")
+        if (text2.length in 2..30) {
+            map[match.groupValues[1]] = text2
+        }
+    }
+    return map
+}
+
+/** 在答案行中，将选项字母替换为"字母.选项文字" */
+private fun appendOptionText(line: String, optionMap: Map<String, String>): String {
+    if (optionMap.isEmpty()) return line
+    var result = line
+    for ((letter, text) in optionMap) {
+        val hint = text.take(20)
+        // "答案：A" → "答案：A.施工方案"
+        result = result.replace(Regex("""(?<=答案[：:]\s*)$letter(?![.\w])"""), ".$hint")
+        // 行首或行尾的单独字母 "A" → "A.施工方案"
+        result = result.replace(Regex("""(?<=^|\s)$letter(?=\s*$)"""), "$letter.$hint")
+    }
+    return result
 }
 
 @Composable
