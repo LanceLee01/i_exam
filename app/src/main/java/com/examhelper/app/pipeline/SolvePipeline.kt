@@ -10,6 +10,8 @@ import com.examhelper.app.network.LLMClient
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.AnswerSource
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
+import com.examhelper.app.network.TavilyClient
+import com.examhelper.app.pipeline.SearchManager
 
 class SolvePipeline(private val context: Context) {
 
@@ -55,6 +57,8 @@ class SolvePipeline(private val context: Context) {
         // Build context for LLM
         var llmSource = AnswerSource.LLM_DIRECT
         var effectiveMessage = userMessage
+        var searchEnhanced = false
+        var searchReferences: List<com.examhelper.app.network.Reference> = emptyList()
 
         val excelHints = excelHits.filter { (_, score) -> score >= 0.40f }
         val wikiHints = if (wikiTopScore >= 0.20f) combinedPages else emptyList()
@@ -80,7 +84,33 @@ class SolvePipeline(private val context: Context) {
             effectiveMessage = parts.joinToString("\n\n") + "\n\n$userMessage"
         }
 
-        // L3/L4: LLM 答题
+        // L3: Tavily 联网搜索（在 KB 上下文之后追加，不覆盖）
+        if (config.tavilyApiKey.isNotBlank()) {
+            ExtractedTextBus.updateSidebarState(
+                SidebarState.Loading("正在搜索相关参考资料...", requestStartMs, maxTokens)
+            )
+            val tavilyClient = com.examhelper.app.network.TavilyClient(config.tavilyApiKey)
+            val searchManager = SearchManager(tavilyClient)
+            val enhancement = searchManager.searchQuestions(text)
+
+            if (enhancement.found) {
+                searchEnhanced = true
+                searchReferences = enhancement.references
+                // Build search context for LLM injection
+                val searchCtx = enhancement.references.take(5).joinToString("\n") { ref ->
+                    "【${ref.title}】\n${ref.snippet.take(300)}"
+                }
+                val searchSummary = if (enhancement.summary.isNotBlank()) {
+                    "搜索结果摘要：\n${enhancement.summary.take(500)}"
+                } else ""
+                val combined = listOfNotNull(searchSummary, "参考资料：", searchCtx)
+                    .joinToString("\n\n")
+                effectiveMessage = "$combined\n\n$effectiveMessage"
+            }
+            // search failed or skipped -> silent degradation, continue to LLM
+        }
+
+        // L4: LLM 答题
         ExtractedTextBus.updateSidebarState(
             SidebarState.Loading("正在调用 LLM 解答...", requestStartMs, maxTokens)
         )
@@ -119,10 +149,13 @@ class SolvePipeline(private val context: Context) {
                 )
             }
             val finalAnswer = if (accumulated.isEmpty()) client.reasoningBuffer.toString() else accumulated.toString()
+            val finalSource = if (searchEnhanced) AnswerSource.SEARCH_MATCH else llmSource
+            val finalRefs = if (searchEnhanced) searchReferences else emptyList()
             ExtractedTextBus.updateSidebarState(
-                SidebarState.Done(text, finalAnswer, llmSource)
+                SidebarState.Done(text, finalAnswer, finalSource, finalRefs)
             )
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Error("请求异常: ${e.message}")
             )

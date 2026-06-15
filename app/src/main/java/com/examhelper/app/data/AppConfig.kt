@@ -21,6 +21,7 @@ class AppConfig(private val context: Context) {
     companion object {
         private val KEY_API_ENDPOINT = stringPreferencesKey("api_endpoint")
         private val KEY_API_KEY = stringPreferencesKey("api_key")
+        private val KEY_TAVILY_API_KEY = stringPreferencesKey("tavily_api_key")
         private val KEY_MODEL_NAME = stringPreferencesKey("model_name")
         private val KEY_TEMPERATURE = floatPreferencesKey("temperature")
         private val KEY_MAX_TOKENS = intPreferencesKey("max_tokens")
@@ -62,6 +63,10 @@ class AppConfig(private val context: Context) {
         prefs[KEY_API_KEY] ?: ""
     }
 
+    val tavilyApiKey: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_TAVILY_API_KEY] ?: ""
+    }
+
     val modelName: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[KEY_MODEL_NAME] ?: DEFAULT_MODEL
     }
@@ -98,6 +103,10 @@ class AppConfig(private val context: Context) {
         context.dataStore.edit { it[KEY_API_KEY] = key }
     }
 
+    suspend fun setTavilyApiKey(key: String) {
+        context.dataStore.edit { it[KEY_TAVILY_API_KEY] = key }
+    }
+
     suspend fun setModelName(model: String) {
         context.dataStore.edit { it[KEY_MODEL_NAME] = model }
     }
@@ -131,6 +140,7 @@ class AppConfig(private val context: Context) {
         return ConfigSnapshot(
             apiEndpoint = prefs[KEY_API_ENDPOINT] ?: DEFAULT_ENDPOINT,
             apiKey = prefs[KEY_API_KEY] ?: "",
+            tavilyApiKey = prefs[KEY_TAVILY_API_KEY] ?: "",
             modelName = prefs[KEY_MODEL_NAME] ?: DEFAULT_MODEL,
             temperature = prefs[KEY_TEMPERATURE] ?: DEFAULT_TEMPERATURE,
             maxTokens = prefs[KEY_MAX_TOKENS] ?: DEFAULT_MAX_TOKENS,
@@ -143,6 +153,7 @@ class AppConfig(private val context: Context) {
 data class ConfigSnapshot(
     val apiEndpoint: String,
     val apiKey: String,
+    val tavilyApiKey: String = "",
     val modelName: String,
     val temperature: Float,
     val maxTokens: Int,

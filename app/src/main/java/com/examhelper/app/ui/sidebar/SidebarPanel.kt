@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.examhelper.app.ExamApplication
@@ -60,6 +61,7 @@ import com.examhelper.app.ui.theme.TextCorrect
 import com.examhelper.app.ui.theme.TextError
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
+import com.examhelper.app.network.Reference
 import com.examhelper.app.util.ExtractedTextBus.AnswerSource
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 import kotlinx.coroutines.launch
@@ -258,6 +260,38 @@ fun SidebarPanel(onHide: () -> Unit) {
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
+                    // 引用链接展示（如果有）
+                    if (s.references.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        SectionHeader("参考资料")
+                        Column {
+                            s.references.take(5).forEachIndexed { index, ref ->
+                                Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                                    Text(
+                                        text = "[${index + 1}] ",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = ref.title,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Text(
+                                    text = ref.url,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
                     val lines = s.answer.lines()
                     lines.forEach { line ->
                         val isAnswerLine = line.contains("✓") ||

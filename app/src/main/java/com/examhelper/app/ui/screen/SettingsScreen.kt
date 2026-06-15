@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Api
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
@@ -77,6 +78,7 @@ fun SettingsScreen(
 
     var endpoint by remember { mutableStateOf(AppConfig.DEFAULT_ENDPOINT) }
     var apiKey by remember { mutableStateOf("") }
+    var tavilyApiKey by remember { mutableStateOf("") }
     var modelName by remember { mutableStateOf(AppConfig.DEFAULT_MODEL) }
     var temperature by remember { mutableFloatStateOf(AppConfig.DEFAULT_TEMPERATURE) }
     var maxTokens by remember { mutableIntStateOf(AppConfig.DEFAULT_MAX_TOKENS) }
@@ -88,6 +90,7 @@ fun SettingsScreen(
         val snapshot = appConfig.getSnapshot()
         endpoint = snapshot.apiEndpoint
         apiKey = snapshot.apiKey
+        tavilyApiKey = snapshot.tavilyApiKey
         modelName = snapshot.modelName
         temperature = snapshot.temperature
         maxTokens = snapshot.maxTokens
@@ -139,6 +142,16 @@ fun SettingsScreen(
                 value = apiKey,
                 placeholder = "sk-...",
                 onValueChange = { apiKey = it },
+                isPassword = true
+            )
+
+            // Tavily API Key（联网搜索）
+            SettingsCard(
+                icon = Icons.Filled.Search,
+                title = "Tavily API Key（联网搜索）",
+                value = tavilyApiKey,
+                placeholder = "tvly-...（可选，免费 1000 次/月）",
+                onValueChange = { tavilyApiKey = it },
                 isPassword = true
             )
 
@@ -244,6 +257,7 @@ fun SettingsScreen(
                         try {
                             appConfig.setApiEndpoint(endpoint)
                             appConfig.setApiKey(apiKey)
+                            appConfig.setTavilyApiKey(tavilyApiKey)
                             appConfig.setModelName(modelName)
                             appConfig.setTemperature(temperature)
                             appConfig.setMaxTokens(maxTokens)

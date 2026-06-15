@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.examhelper.app.network.Reference
 
 object ExtractedTextBus {
 
@@ -25,7 +26,7 @@ object ExtractedTextBus {
         data class Preview(val text: String) : SidebarState()
         data class Streaming(val text: String, val partialAnswer: String, val progress: Float, val startTimeMs: Long, val maxTokens: Int = 2048) : SidebarState()
         data class Answering(val text: String) : SidebarState()
-        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT) : SidebarState()
+        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList()) : SidebarState()
         data class Error(val message: String) : SidebarState()
     }
 
@@ -33,6 +34,7 @@ object ExtractedTextBus {
         EXCEL_MATCH("\uD83D\uDCCB 题库匹配"),
         KB_MATCH("\uD83D\uDCD6 知识库匹配"),
         KB_INFER("\uD83D\uDCD6 知识库推断"),
+        SEARCH_MATCH("\uD83D\uDD0D 网络搜索"),
         LLM_DIRECT("\uD83E\uDD16 AI解答")
     }
 
