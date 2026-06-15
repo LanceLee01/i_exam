@@ -138,17 +138,21 @@ class SolvePipeline(private val context: Context) {
                     ExtractedTextBus.lastTtftMs = streamStartMs - requestStartMs
                 }
                 accumulated.append(chunk)
-                val roughTokenEstimate = accumulated.length * 2
+                val displayText = if (accumulated.isNotEmpty()) accumulated.toString() else client.reasoningBuffer.toString()
+                val roughTokenEstimate = (accumulated.length + client.reasoningBuffer.length) * 2
                 val progress = (roughTokenEstimate.toFloat() / estimatedTotalTokens)
                     .coerceIn(0f, 0.95f)
                 val elapsed = ((System.currentTimeMillis() - streamStartMs) / 1000).toInt() + 1
                 val speed = roughTokenEstimate.toFloat() / elapsed
                 if (speed > 0) ExtractedTextBus.lastTokensPerSec = speed
                 ExtractedTextBus.updateSidebarState(
-                    SidebarState.Streaming(text, accumulated.toString(), progress, requestStartMs, maxTokens)
+                    SidebarState.Streaming(text, displayText, progress, requestStartMs, maxTokens)
                 )
             }
-            val finalAnswer = if (accumulated.isEmpty()) client.reasoningBuffer.toString() else accumulated.toString()
+            val reasoning = client.reasoningBuffer.toString()
+            val finalAnswer = if (accumulated.isNotEmpty()) accumulated.toString()
+                else if (reasoning.isNotEmpty()) "【思考过程】\n$reasoning"
+                else ""
             val finalSource = if (searchEnhanced) AnswerSource.SEARCH_MATCH else llmSource
             val finalRefs = if (searchEnhanced) searchReferences else emptyList()
             ExtractedTextBus.updateSidebarState(

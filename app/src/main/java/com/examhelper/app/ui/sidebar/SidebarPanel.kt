@@ -498,9 +498,13 @@ private fun appendOptionText(line: String, optionMap: Map<String, String>): Stri
     for ((letter, text) in optionMap) {
         val hint = text.take(20)
         // "答案：A" → "答案：A.施工方案"
-        result = result.replace(Regex("""(?<=答案[：:]\s*)$letter(?![.\w])"""), ".$hint")
+        result = result.replace(Regex("""答案[：:]\s*$letter(?![.\w])""")) {
+            "答案：" + letter + "." + hint
+        }
         // 行首或行尾的单独字母 "A" → "A.施工方案"
-        result = result.replace(Regex("""(?<=^|\s)$letter(?=\s*$)"""), "$letter.$hint")
+        result = result.replace(Regex("""(^|\s)$letter(\s*$)""")) {
+            it.groupValues[1] + letter + "." + hint + it.groupValues[2]
+        }
     }
     return result
 }
