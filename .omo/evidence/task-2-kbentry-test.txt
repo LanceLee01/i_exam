@@ -1,0 +1,59 @@
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:bundleDebugClassesToRuntimeJar UP-TO-DATE
+> Task :app:bundleDebugClassesToCompileJar UP-TO-DATE
+> Task :app:kspDebugUnitTestKotlin UP-TO-DATE
+> Task :app:compileDebugUnitTestKotlin UP-TO-DATE
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest UP-TO-DATE
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:processDebugUnitTestJavaRes UP-TO-DATE
+> Task :app:testDebugUnitTest UP-TO-DATE
+
+BUILD SUCCESSFUL in 605ms
+25 actionable tasks: 25 up-to-date
+=== TEST RESULTS XML ===
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.examhelper.app.knowledge.KBEntryTest" tests="19" skipped="0" failures="0" errors="0" timestamp="2026-06-15T12:13:08" hostname="LikedeMac-mini.local" time="0.071">
+  <properties/>
+  <testcase name="computeTrigrams Chinese characters generates correct trigrams()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.02"/>
+  <testcase name="jaccard disjoint sets returns 0()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.005"/>
+  <testcase name="computeTrigrams whitespace is filtered before trigrams()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.0"/>
+  <testcase name="jaccard partial overlap returns value between 0 and 1 exclusive()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.0"/>
+  <testcase name="computeTrigrams empty string returns empty set()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.001"/>
+  <testcase name="computeSHA256 same input produces same hash()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.003"/>
+  <testcase name="computeSHA256 non-empty produces 64 char hex string()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.001"/>
+  <testcase name="computeSHA256 known vector()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.001"/>
+  <testcase name="computeSHA256 different input produces different hash()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.0"/>
+  <testcase name="computeTrigrams multiple punctuation and whitespace combined()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.0"/>
+  <testcase name="jaccard one element overlap()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.0"/>
+  <testcase name="jaccard same set returns 1()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.001"/>
+  <testcase name="[1] [], [a, b]" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.003"/>
+  <testcase name="[2] [a, b], []" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.0"/>
+  <testcase name="[3] [], []" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.001"/>
+  <testcase name="computeTrigrams longer string produces correct trigram count()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.001"/>
+  <testcase name="computeTrigrams exact 3 chars returns set with one trigram()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.0"/>
+  <testcase name="computeTrigrams punctuation is filtered before trigrams()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.001"/>
+  <testcase name="computeTrigrams length less than 3 returns empty set()" classname="com.examhelper.app.knowledge.KBEntryTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

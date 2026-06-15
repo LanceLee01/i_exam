@@ -71,29 +71,37 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
     val kbEngine = remember { KBEngine(ExamApplication.instance) }
 
     val excelLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNullOrEmpty()) return@rememberLauncherForActivityResult
         scope.launch(Dispatchers.IO) {
-            try {
-                val ctx = ExamApplication.instance.applicationContext
-                val inputStream = ctx.contentResolver.openInputStream(uri)
-                val tmpFile = java.io.File(ctx.cacheDir, "kb_import.xlsx")
-                tmpFile.outputStream().use { inputStream?.copyTo(it) }
-                val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(tmpFile.absolutePath) ?: -1
-                tmpFile.delete()
-                if (count >= 0) KnowledgeBaseManager.save()
-                withContext(Dispatchers.Main) {
+            var totalImported = 0
+            var totalSkipped = 0
+            var totalFailed = 0
+            for (uri in uris) {
+                try {
+                    val ctx = ExamApplication.instance.applicationContext
+                    val inputStream = ctx.contentResolver.openInputStream(uri)
+                    val tmpFile = java.io.File(ctx.cacheDir, "kb_import_${System.currentTimeMillis()}_${uris.indexOf(uri)}.xlsx")
+                    tmpFile.outputStream().use { inputStream?.copyTo(it) }
+                    val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(tmpFile.absolutePath) ?: -1
+                    tmpFile.delete()
                     when {
-                        count == -2 -> Toast.makeText(ctx, "文件已导入过，已跳过", Toast.LENGTH_SHORT).show()
-                        count >= 0 -> Toast.makeText(ctx, "导入成功: $count 条", Toast.LENGTH_SHORT).show()
-                        else -> Toast.makeText(ctx, "导入失败", Toast.LENGTH_SHORT).show()
+                        count == -2 -> totalSkipped++
+                        count >= 0 -> { totalImported += count; KnowledgeBaseManager.save() }
+                        else -> totalFailed++
                     }
+                } catch (e: Exception) {
+                    totalFailed++
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(ExamApplication.instance, "出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            withContext(Dispatchers.Main) {
+                val msg = buildString {
+                    if (totalImported > 0) append("导入成功: $totalImported 条")
+                    if (totalSkipped > 0) append("，跳过: $totalSkipped 个文件")
+                    if (totalFailed > 0) append("，失败: $totalFailed 个文件")
                 }
+                Toast.makeText(ExamApplication.instance, msg, Toast.LENGTH_LONG).show()
             }
         }
     }

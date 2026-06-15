@@ -1,0 +1,14 @@
+=== Verification: New KB methods exist ===
+
+$ grep -n "fun processSearchToKB" SolvePipeline.kt
+149:    private suspend fun processSearchToKB(
+
+$ grep -n "fun trySearchKBWithLLM" SolvePipeline.kt
+202:    private suspend fun trySearchKBWithLLM(
+
+$ grep -n "fun parseKBEntries" SolvePipeline.kt
+138:    private fun parseKBEntries(text: String): List<KBEntry> {
+
+$ grep -n "SEARCH_KB_MATCH_THRESHOLD" SolvePipeline.kt
+214:        }.filter { it.second >= SEARCH_KB_MATCH_THRESHOLD }
+306:        const val SEARCH_KB_MATCH_THRESHOLD = 0.70f

@@ -1,7 +1,7 @@
 {
-  "active_plan": "C:\\Users\\lasal\\i_exam\\.omo\\plans\\tavily-integration.md",
-  "started_at": "2026-06-15T06:36:30.626Z",
-  "session_ids": ["opencode:ses_1365639e4ffeAc34l7utSyCCAn"],
-  "plan_name": "tavily-integration",
+  "active_plan": "/Users/like/projects/i_exam/.omo/plans/fix-tavily-llm-to-kb.md",
+  "started_at": "2026-06-15T13:19:28.245Z",
+  "session_ids": ["opencode:ses_135207a79ffel9wCSWO7rv7p8C"],
+  "plan_name": "fix-tavily-llm-to-kb",
   "worktree_path": null
 }

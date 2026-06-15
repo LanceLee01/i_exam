@@ -1,0 +1,9 @@
+=== Build & Test Results ===
+
+$ ./gradlew assembleDebug
+BUILD SUCCESSFUL in 14s
+37 actionable tasks: 21 executed, 16 up-to-date
+
+$ ./gradlew test
+BUILD SUCCESSFUL in 9s
+51 actionable tasks: 12 executed, 39 up-to-date

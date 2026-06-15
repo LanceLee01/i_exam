@@ -1,0 +1,9 @@
+22:    suspend fun solve(text: String) {
+64:    private suspend fun tryExcelMatch(text: String, config: ConfigSnapshot): AnswerSource? {
+77:    private suspend fun tryWikiMatch(text: String, config: ConfigSnapshot): AnswerSource? {
+97:    private fun getExcelHints(text: String): List<Pair<KBEntry, Float>> {
+102:    private suspend fun getWikiScore(text: String): Pair<List<WikiPage>, Float> {
+113:    private fun buildBaseMessage(
+137:    private suspend fun trySearchEnhancement(config: ConfigSnapshot, text: String): SearchEnhancement {
+147:    private fun enhanceWithSearch(enhancement: SearchEnhancement, baseMessage: String): String {
+161:    private suspend fun callLLM(

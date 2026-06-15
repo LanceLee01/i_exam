@@ -8,8 +8,11 @@ import com.examhelper.app.network.Reference
 
 object ExtractedTextBus {
 
+    @Volatile
     var lastTokensPerSec: Float = 0f
+    @Volatile
     var lastPromptTokens: Int = 0
+    @Volatile
     var lastTtftMs: Long = 0L
 
     sealed class Event {
@@ -26,7 +29,7 @@ object ExtractedTextBus {
         data class Preview(val text: String) : SidebarState()
         data class Streaming(val text: String, val partialAnswer: String, val progress: Float, val startTimeMs: Long, val maxTokens: Int = 2048) : SidebarState()
         data class Answering(val text: String) : SidebarState()
-        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList()) : SidebarState()
+        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList(), val questionSources: Map<Int, String> = emptyMap()) : SidebarState()
         data class Error(val message: String) : SidebarState()
     }
 

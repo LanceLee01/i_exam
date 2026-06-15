@@ -1,0 +1,22 @@
+Task 10: Build & Test Results
+==============================
+
+# ./gradlew assembleDebug
+BUILD SUCCESSFUL in 5s
+37 actionable tasks: 4 executed, 33 up-to-date
+Warnings only (pre-existing): recycle() deprecation, always-true conditions
+
+# ./gradlew testDebugUnitTest
+BUILD SUCCESSFUL in 4s
+25 actionable tasks: 6 executed, 19 up-to-date
+All 64 tests passed (28 new for AccessibilityParseUtilsTest + 36 existing)
+
+# ./gradlew test
+BUILD SUCCESSFUL in 10s
+51 actionable tasks: 10 executed, 41 up-to-date
+All debug + release unit tests pass
+
+Test breakdown (AccessibilityParseUtilsTest):
+- parseAnswerPairs: 11 tests (single, multiple, brackets, separators, 正确/错误/对/错, empty, lowercase)
+- countOptionsPerQuestion: 6 tests (3-option, multi-question, true-false, mix, empty, Japanese paren)
+- matchesSelection: 11 tests (letter+dot, letter+paren, bare letter, rejection, 正确/错误/对/错, case insensitive, plain text)

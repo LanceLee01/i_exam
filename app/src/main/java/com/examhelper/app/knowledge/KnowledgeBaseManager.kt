@@ -62,10 +62,10 @@ data class KnowledgeBase(
             var imported = 0
             for (row in sheet) {
                 if (row.rowNum == 0) continue
-                val question = row.getCell(0)?.toString()?.trim() ?: continue
-                val answer = row.getCell(1)?.toString()?.trim()
+                val question = row.getCell(5)?.toString()?.trim() ?: continue  // F列
+                val answer = row.getCell(7)?.toString()?.trim()                // H列
                 if (question.isBlank() || answer.isNullOrBlank()) continue
-                val source = try { row.getCell(2)?.toString()?.trim() } catch (_: Exception) { null }
+                val source = try { row.getCell(6)?.toString()?.trim() } catch (_: Exception) { null }  // G列（选项，作来源）
                 entries.add(KBEntry(question, answer, source ?: ""))
                 imported++
             }
@@ -95,10 +95,10 @@ data class KnowledgeBase(
             var imported = 0
             for (row in sheet) {
                 if (row.rowNum == 0) continue
-                val question = row.getCell(0)?.toString()?.trim() ?: continue
-                val answer = row.getCell(1)?.toString()?.trim()
+                val question = row.getCell(5)?.toString()?.trim() ?: continue  // F列
+                val answer = row.getCell(7)?.toString()?.trim()                // H列
                 if (question.isBlank() || answer.isNullOrBlank()) continue
-                val source = try { row.getCell(2)?.toString()?.trim() } catch (_: Exception) { null }
+                val source = try { row.getCell(6)?.toString()?.trim() } catch (_: Exception) { null }  // G列（选项，作来源）
                 entries.add(KBEntry(question, answer, source ?: ""))
                 imported++
             }
@@ -113,10 +113,22 @@ data class KnowledgeBase(
         }
     }
 
-    fun search(query: String, topN: Int = 5): List<Pair<KBEntry, Float>> {
+    fun search(query: String, topN: Int = 50): List<Pair<KBEntry, Float>> {
         if (entries.isEmpty()) return emptyList()
-        val qTrigrams = KBEntry.computeTrigrams(query)
 
+        // 规范化括号内空格，兼容不同数量的空格
+        val normalizedQuery = query.replace(Regex("（\\s*）"), "（）")
+
+        val exactMatches = entries.filter {
+            val normalizedQuestion = it.question.replace(Regex("（\\s*）"), "（）")
+            normalizedQuery.contains(normalizedQuestion)
+        }
+        if (exactMatches.isNotEmpty()) {
+            return exactMatches.map { it to 1.0f }.take(topN)
+        }
+
+        // 无精确匹配，回退到 trigram Jaccard
+        val qTrigrams = KBEntry.computeTrigrams(query)
         return entries.map { entry ->
             entry to KBEntry.jaccard(qTrigrams, entry.trigrams)
         }

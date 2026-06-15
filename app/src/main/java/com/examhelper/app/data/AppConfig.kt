@@ -30,10 +30,12 @@ class AppConfig(private val context: Context) {
         private val KEY_SETUP_COMPLETE = booleanPreferencesKey("setup_complete")
         private val KEY_SIDEBAR_RUNNING = booleanPreferencesKey("sidebar_running")
 
-        const val DEFAULT_ENDPOINT = "https://api.deepseek.com"
-        const val DEFAULT_MODEL = "deepseek-chat"
+        const val DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1"
+        const val DEFAULT_API_KEY = "sk-nzwiwWiLqYyT5dxG9DXSUSAvm9uOlyYZgn4gQC5LqWNl8r5clhfqCWFZxGMOsxm7"
+        const val DEFAULT_TAVILY_API_KEY = "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"
+        const val DEFAULT_MODEL = "deepseek-v4-flash"
         const val DEFAULT_TEMPERATURE = 0.3f
-        const val DEFAULT_MAX_TOKENS = 2048
+        const val DEFAULT_MAX_TOKENS = 10240
 
         val DEFAULT_WATERMARK_KEYWORDS = setOf(
             "非涉密平台",
@@ -60,11 +62,11 @@ class AppConfig(private val context: Context) {
     }
 
     val apiKey: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_API_KEY] ?: ""
+        prefs[KEY_API_KEY] ?: DEFAULT_API_KEY
     }
 
     val tavilyApiKey: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_TAVILY_API_KEY] ?: ""
+        prefs[KEY_TAVILY_API_KEY] ?: DEFAULT_TAVILY_API_KEY
     }
 
     val modelName: Flow<String> = context.dataStore.data.map { prefs ->
@@ -139,8 +141,8 @@ class AppConfig(private val context: Context) {
         val prefs = context.dataStore.data.first()
         return ConfigSnapshot(
             apiEndpoint = prefs[KEY_API_ENDPOINT] ?: DEFAULT_ENDPOINT,
-            apiKey = prefs[KEY_API_KEY] ?: "",
-            tavilyApiKey = prefs[KEY_TAVILY_API_KEY] ?: "",
+            apiKey = prefs[KEY_API_KEY] ?: DEFAULT_API_KEY,
+            tavilyApiKey = prefs[KEY_TAVILY_API_KEY] ?: DEFAULT_TAVILY_API_KEY,
             modelName = prefs[KEY_MODEL_NAME] ?: DEFAULT_MODEL,
             temperature = prefs[KEY_TEMPERATURE] ?: DEFAULT_TEMPERATURE,
             maxTokens = prefs[KEY_MAX_TOKENS] ?: DEFAULT_MAX_TOKENS,

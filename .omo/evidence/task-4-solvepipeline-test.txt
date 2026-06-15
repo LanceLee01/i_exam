@@ -1,0 +1,27 @@
+=== SolvePipelineTest Results ===
+Date: 2026-06-15T12:19:24
+Test file: app/src/test/java/com/examhelper/app/pipeline/SolvePipelineTest.kt
+
+=== Gradle Output ===
+BUILD SUCCESSFUL in 9s
+
+=== Test Results (XML) ===
+testsuite name="com.examhelper.app.pipeline.SolvePipelineTest"
+tests="8" skipped="0" failures="0" errors="0" time="0.67"
+
+=== Test Cases ===
+✓ L1 excel match returns EXCEL_MATCH early when search score is 0 dot 70 or above (0.005s)
+✓ L1 excel match preserves input text and answer in Done state (0.004s)
+✓ L2 KB match returns KB_MATCH early when wiki Jaccard score is 0 dot 50 or above (0.008s)
+✓ L2 KB match preserves input text in Done state (0.011s)
+✓ search skip when tavilyApiKey is blank does not emit search loading state (0.614s)
+✓ LLM fallback calls chatStream when L1 and L2 miss (0.009s)
+✓ LLM fallback Done state has LLM_DIRECT source when no hints match (0.006s)
+✓ LLM fallback Done state has KB_INFER source when KB hints are present (0.009s)
+
+=== Coverage ===
+- L1 early-return (EXCEL_MATCH): ✓
+- L2 early-return (KB_MATCH): ✓
+- Search skip when API key blank: ✓
+- LLM fallback (LLM_DIRECT): ✓
+- LLM fallback (KB_INFER with hints): ✓

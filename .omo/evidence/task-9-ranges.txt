@@ -1,0 +1,72 @@
+=== ExamConstants.kt ===
+package com.examhelper.app.util
+
+/**
+ * Central source of truth for exam option letter ranges.
+ *
+ * OPTION_LETTERS is a `var` (not val) to allow runtime extension to A-G or beyond.
+ * Both OPTION_RANGE_REGEX and ANSWER_PARSE_REGEX dynamically derive from it.
+ */
+object ExamConstants {
+    var OPTION_LETTERS = 'A'..'F'
+
+    val OPTION_RANGE_REGEX: Regex
+        get() = Regex("""^[${OPTION_LETTERS.first}-${OPTION_LETTERS.last}]\s*[.、:：)）]""")
+
+    val ANSWER_PARSE_REGEX: Regex
+        get() = Regex("""[\[【]?(\d+)[\]】]?\s*([${OPTION_LETTERS.first}-${OPTION_LETTERS.last}\s、,，;]+|正确|错误|对|错)""")
+}
+
+=== OptionTextUtils.kt parseOptionMap (uses ExamConstants.OPTION_LETTERS) ===
+internal fun parseOptionMap(text: String): Map<String, String> {
+    val map = mutableMapOf<String, String>()
+    val letters = ExamConstants.OPTION_LETTERS
+
+=== ExamAccessibilityService.kt isOptionNode (uses ExamConstants.OPTION_RANGE_REGEX) ===
+    private fun isOptionNode(text: String): Boolean {
+        if (text == "正确" || text == "错误") return true
+        return ExamConstants.OPTION_RANGE_REGEX.containsMatchIn(text)
+    }
+
+=== ExamAccessibilityService.kt import (ExamConstants) ===
+import com.examhelper.app.util.ExamConstants
+        return ExamConstants.OPTION_RANGE_REGEX.containsMatchIn(text)
+
+=== AccessibilityParseUtils.kt parseAnswerPairs (uses ExamConstants) ===
+    return ExamConstants.ANSWER_PARSE_REGEX.findAll(answer).mapNotNull { match ->
+        val raw = match.groupValues[2].uppercase().filter { it in ExamConstants.OPTION_LETTERS || "正确错误对".indexOf(it) >= 0 }
+internal fun parseAnswerPairs(answer: String): List<Pair<Int, List<String>>> {
+    return ExamConstants.ANSWER_PARSE_REGEX.findAll(answer).mapNotNull { match ->
+
+=== KBEngine.kt extractFrontmatter (fixed --- delimiter parsing) ===
+    private fun extractFrontmatter(text: String, out: MutableMap<String, String>): Int {
+        // Find first --- delimiter
+        val firstDelim = text.indexOf("---")
+        if (firstDelim < 0) return 0
+
+        // Find second --- delimiter (after the first)
+        val secondDelim = text.indexOf("---", firstDelim + 3)
+        if (secondDelim < 0) return 0
+
+        // Parse YAML key-value pairs between the delimiters
+        val fmBlock = text.substring(firstDelim + 3, secondDelim).trim()
+        for (line in fmBlock.lines()) {
+            val trimmed = line.trim()
+            val colonIdx = trimmed.indexOf(':')
+            if (colonIdx > 0) {
+                val key = trimmed.substring(0, colonIdx).trim().lowercase()
+                val value = trimmed.substring(colonIdx + 1).trim()
+                if (key in setOf("type", "title", "tags", "summary")) {
+                    out[key] = value
+                }
+            }
+        }
+
+        // Return position after the second --- and its trailing newline
+        var pos = secondDelim + 3
+        while (pos < text.length && text[pos] == '\n') pos++
+        return pos
+    }
+
+    private fun extractWikilinks(content: String): List<Pair<String, String>> {
+        val regex = Regex("""\[\[(.+?)\]\]""")

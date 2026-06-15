@@ -1,0 +1,14 @@
+Task: Extract parseOptionMap() and appendOptionText() from SidebarPanel.kt to util/OptionTextUtils.kt
+
+Result: BUILD SUCCESSFUL in 9s
+
+Changes:
+1. Created: app/src/main/java/com/examhelper/app/util/OptionTextUtils.kt
+   - Contains parseOptionMap() and appendOptionText() as internal functions
+
+2. Modified: app/src/main/java/com/examhelper/app/ui/sidebar/SidebarPanel.kt
+   - Removed private function definitions (lines 481-510)
+   - Added imports: com.examhelper.app.util.parseOptionMap
+   - Added imports: com.examhelper.app.util.appendOptionText
+
+Build: ./gradlew assembleDebug → BUILD SUCCESSFUL (8 executed, 29 up-to-date)

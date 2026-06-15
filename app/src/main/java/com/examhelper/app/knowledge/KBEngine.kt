@@ -301,28 +301,32 @@ summary: 一句话概述
     }
 
     private fun extractFrontmatter(text: String, out: MutableMap<String, String>): Int {
-        val lines = text.lines()
-        var i = 0
+        // Find first --- delimiter
+        val firstDelim = text.indexOf("---")
+        if (firstDelim < 0) return 0
 
-        while (i < lines.size) {
-            val line = lines[i].trim()
-            i++
+        // Find second --- delimiter (after the first)
+        val secondDelim = text.indexOf("---", firstDelim + 3)
+        if (secondDelim < 0) return 0
 
-            if (line.startsWith("#") || line.isNotEmpty() && !line.contains(":")) {
-                return text.indexOf(line)
-            }
-
-            val colonIdx = line.indexOf(':')
+        // Parse YAML key-value pairs between the delimiters
+        val fmBlock = text.substring(firstDelim + 3, secondDelim).trim()
+        for (line in fmBlock.lines()) {
+            val trimmed = line.trim()
+            val colonIdx = trimmed.indexOf(':')
             if (colonIdx > 0) {
-                val key = line.substring(0, colonIdx).trim().lowercase()
-                val value = line.substring(colonIdx + 1).trim()
+                val key = trimmed.substring(0, colonIdx).trim().lowercase()
+                val value = trimmed.substring(colonIdx + 1).trim()
                 if (key in setOf("type", "title", "tags", "summary")) {
                     out[key] = value
                 }
             }
         }
 
-        return text.length
+        // Return position after the second --- and its trailing newline
+        var pos = secondDelim + 3
+        while (pos < text.length && text[pos] == '\n') pos++
+        return pos
     }
 
     private fun extractWikilinks(content: String): List<Pair<String, String>> {
@@ -343,6 +347,7 @@ summary: 一句话概述
         if (cleaned.isBlank()) return "*"
         return cleaned.split(" ")
             .filter { it.length >= 2 }
+            .take(10)
             .joinToString(" OR ") { "$it*" }
     }
 

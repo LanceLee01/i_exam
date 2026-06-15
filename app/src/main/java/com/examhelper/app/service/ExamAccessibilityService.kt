@@ -6,7 +6,11 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.examhelper.app.ExamApplication
 import com.examhelper.app.filter.WatermarkFilter
+import com.examhelper.app.util.ExamConstants
 import com.examhelper.app.util.ExtractedTextBus
+import com.examhelper.app.util.countOptionsPerQuestion
+import com.examhelper.app.util.matchesSelection
+import com.examhelper.app.util.parseAnswerPairs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -254,7 +258,7 @@ class ExamAccessibilityService : AccessibilityService() {
 
     private fun isOptionNode(text: String): Boolean {
         if (text == "正确" || text == "错误") return true
-        return Regex("""^[A-Fa-f]\s*[.、:：)）]""").containsMatchIn(text)
+        return ExamConstants.OPTION_RANGE_REGEX.containsMatchIn(text)
     }
 
     private fun clickToggleOption(root: AccessibilityNodeInfo, targetText: String, skipCount: Int): Boolean {
@@ -299,54 +303,6 @@ class ExamAccessibilityService : AccessibilityService() {
             val child = node.getChild(i) ?: continue
             searchMatches(child, results, targets)
         }
-    }
-
-    private fun parseAnswerPairs(answer: String): List<Pair<Int, List<String>>> {
-        val regex = Regex("""[\[【]?(\d+)[\]】]?\s*([A-Fa-f\s、,，;]+|正确|错误|对|错)""")
-        return regex.findAll(answer).mapNotNull { match ->
-            val qNum = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-            val raw = match.groupValues[2].uppercase().filter { it in 'A'..'F' || "正确错误对".indexOf(it) >= 0 }
-            if (raw.isEmpty()) return@mapNotNull null
-            val selections = if (raw.all { it in 'A'..'F' }) {
-                raw.map { it.toString() }
-            } else {
-                listOf(raw)
-            }
-            qNum to selections
-        }.toList()
-    }
-
-    private fun countOptionsPerQuestion(sourceText: String): List<Int> {
-        val lines = sourceText.lines()
-        val counts = mutableListOf<Int>()
-        var currentCount = 0
-        val questionRegex = Regex("""^\s*\d+\s*[.、]""")
-        val optionRegex = Regex("""^\s*[A-Fa-f]\s*[.、:：)）]""")
-
-        for (line in lines) {
-            val trimmed = line.trim()
-            if (questionRegex.containsMatchIn(trimmed)) {
-                if (currentCount > 0) counts.add(currentCount)
-                currentCount = 0
-            } else if (optionRegex.containsMatchIn(trimmed) || trimmed == "正确" || trimmed == "错误") {
-                currentCount++
-            }
-        }
-        if (currentCount > 0) counts.add(currentCount)
-        return counts
-    }
-
-    private fun matchesSelection(nodeText: String, selection: String): Boolean {
-        val letter = selection.first().uppercaseChar()
-        if (letter in 'A'..'F') {
-            val t = nodeText.uppercase().trim()
-            return t.firstOrNull() == letter && (
-                t.length == 1 || Regex("""^[A-F]\s*[.、:：)）]""").containsMatchIn(t)
-            )
-        }
-        val tf = listOf("正确", "错误", "对", "错")
-        if (selection in tf) return nodeText in tf
-        return nodeText.contains(selection, ignoreCase = true)
     }
 
     private fun cleanAndFormat(lines: List<String>): String {

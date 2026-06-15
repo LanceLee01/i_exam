@@ -1,0 +1,11 @@
+=== Verification: enhancement.references still passed to callLLM ===
+
+$ grep -n "enhancement.references" SolvePipeline.kt
+56:            references = enhancement.references
+207:        if (enhancement.references.isEmpty()) return null
+208:        val entries = processSearchToKB(text, enhancement.references, config)
+229:        val searchCtx = enhancement.references.take(5).joinToString("\n") { ref ->
+
+Line 56 confirms references still passed to callLLM for reference sidebar display.
+Lines 207-208 are inside trySearchKBWithLLM (correct new usage).
+Line 229 is inside existing enhanceWithSearch method (preserved as required).

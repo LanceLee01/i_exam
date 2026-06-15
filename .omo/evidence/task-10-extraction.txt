@@ -1,0 +1,28 @@
+Task 10: Function Extraction Summary
+=====================================
+Extracted 3 pure logic functions from ExamAccessibilityService.kt
+into app/src/main/java/com/examhelper/app/util/AccessibilityParseUtils.kt
+
+Functions extracted:
+1. parseAnswerPairs(answer: String): List<Pair<Int, List<String>>>
+   - Parses answer string using regex to extract (questionNumber, selections) pairs
+   - Now references ExamConstants.ANSWER_PARSE_REGEX
+
+2. countOptionsPerQuestion(sourceText: String): List<Int>
+   - Counts options per question from source text
+   - Identical logic, moved as-is
+
+3. matchesSelection(nodeText: String, selection: String): Boolean
+   - Checks if node text matches a selection letter or special string (正确/错误/对/错)
+   - Identical logic, moved as-is
+
+Files modified:
+- Created: app/src/main/java/com/examhelper/app/util/AccessibilityParseUtils.kt
+- Created: app/src/test/java/com/examhelper/app/util/AccessibilityParseUtilsTest.kt
+  - 28 tests covering all 3 functions
+- Modified: app/src/main/java/com/examhelper/app/service/ExamAccessibilityService.kt
+  - Added imports for the 3 utility functions
+  - Removed the 3 private function definitions
+- Modified: app/src/main/java/com/examhelper/app/ui/sidebar/SidebarStateRenderer.kt
+  - Fixed pre-existing MutableIntState delegation issue
+  - (Pre-existing, not part of extraction task)

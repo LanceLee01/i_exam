@@ -1,0 +1,7 @@
+=== assembleDebug ===
+BUILD SUCCESSFUL in 3s
+37 actionable tasks: 5 executed, 32 up-to-date
+
+=== test ===
+BUILD SUCCESSFUL in 3s
+51 actionable tasks: 10 executed, 41 up-to-date
