@@ -1,0 +1,23 @@
+Task 2 Evidence — AppConfig.kt extension (tavilyApiKey)
+
+File: app/src/main/java/com/examhelper/app/data/AppConfig.kt
+
+Changes (5 insertions, all mirroring existing apiKey pattern):
+
+  L24   companion:  private val KEY_TAVILY_API_KEY = stringPreferencesKey("tavily_api_key")
+  L66-68  Flow:     val tavilyApiKey: Flow<String> = context.dataStore.data.map { prefs ->
+                          prefs[KEY_TAVILY_API_KEY] ?: "" }
+  L106-108 setter:  suspend fun setTavilyApiKey(key: String) {
+                          context.dataStore.edit { it[KEY_TAVILY_API_KEY] = key } }
+  L143  snapshot:   tavilyApiKey = prefs[KEY_TAVILY_API_KEY] ?: "",
+  L156  data class: val tavilyApiKey: String = "",   (in ConfigSnapshot)
+
+Verification:
+  - grep tavily_api_key|tavilyApiKey|KEY_TAVILY_API_KEY|setTavilyApiKey -> 7 matches in 1 file
+  - ConfigSnapshot is only constructed in this file (getSnapshot, L138-150)
+    so adding a field with default "" is non-breaking.
+  - No imports needed (stringPreferencesKey already imported at L10).
+  - No changes to existing API Key storage; EncryptedSharedPreferences NOT introduced.
+  - LSP (kotlin-ls) not installed in this env; declined install.
+    Manual structural verification: code follows the exact apiKey pattern at
+    L22-23 (key), L61-63 (Flow), L96-99 (setter), L129-140 (getSnapshot), L143-151 (Snapshot).

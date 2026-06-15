@@ -1,0 +1,25 @@
+=== Task 3: SearchManager.kt Verification ===
+
+1. class SearchManager
+   → C:\Users\lasal\i_exam\app\src\main\java\com\examhelper\app\pipeline\SearchManager.kt:14
+   class SearchManager(private val tavilyClient: TavilyClient?) {
+   ✅ FOUND
+
+2. fun searchQuestions
+   → C:\Users\lasal\i_exam\app\src\main\java\com\examhelper\app\pipeline\SearchManager.kt:16
+   suspend fun searchQuestions(extractedText: String): SearchEnhancement {
+   ✅ FOUND
+
+3. fun extractSearchQueries
+   → C:\Users\lasal\i_exam\app\src\main\java\com\examhelper\app\pipeline\SearchManager.kt:51
+   fun extractSearchQueries(text: String): List<String> {
+   ✅ FOUND
+
+4. distinctBy
+   → C:\Users\lasal\i_exam\app\src\main\java\com\examhelper\app\pipeline\SearchManager.kt:47
+   references = allReferences.distinctBy { it.url }
+   ✅ FOUND
+
+=== Summary ===
+All 4 required patterns confirmed. File created at correct path.
+Package: com.examhelper.app.pipeline

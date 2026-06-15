@@ -1,0 +1,17 @@
+=== TavilyClient existence & key configuration patterns ===
+Verification date: 2026-06-15
+File: app/src/main/java/com/examhelper/app/network/TavilyClient.kt
+
+Pattern 1: class TavilyClient
+  -> class TavilyClient(private val apiKey: String) {
+
+Pattern 2: api.tavily.com/search
+  -> private const val SEARCH_URL = "https://api.tavily.com/search"
+
+Pattern 3: connectTimeout.*10
+  -> .connectTimeout(10, TimeUnit.SECONDS)
+
+Pattern 4: readTimeout.*15
+  -> .readTimeout(15, TimeUnit.SECONDS)
+
+ALL 4 PATTERNS FOUND — PASS
