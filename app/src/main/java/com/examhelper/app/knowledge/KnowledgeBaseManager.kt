@@ -20,7 +20,9 @@ data class KBEntry(
     val answer: String,
     val source: String = ""
 ) {
-    val trigrams: Set<String> by lazy { computeTrigrams(question) }
+    // NOTE: trigrams is NOT a cached property (by lazy or eager) because Gson
+    // deserialization via UnsafeAllocator bypasses all initialization.
+    // Compute on demand via companion KBEntry.computeTrigrams() when needed.
 
     companion object {
         fun computeTrigrams(text: String): Set<String> {
@@ -185,7 +187,7 @@ data class KnowledgeBase(
             .filter { it !in exactSet }
             .map { entry ->
                 val bestScore = blockTrigrams.maxOfOrNull { blockTri ->
-                    KBEntry.jaccard(blockTri, entry.trigrams)
+                    KBEntry.jaccard(blockTri, KBEntry.computeTrigrams(entry.question))
                 } ?: 0f
                 entry to bestScore
             }
