@@ -162,14 +162,21 @@ object KnowledgeBaseManager {
             addKB("安规")
         }
 
-        // Auto-import 安规题库 if KB is empty
+        // Auto-import 安规题库 from assets (first launch only)
         val anGuiKb = kbs.firstOrNull { it.name == "安规" }
         if (anGuiKb != null && anGuiKb.entries.isEmpty()) {
-            val excelFile = java.io.File("/sdcard/33-通信安规.xls")
-            if (excelFile.exists()) {
-                Log.d("KBManager", "Auto-importing 安规题库 from /sdcard/33-通信安规.xls")
-                anGuiKb.importExcelWithDedup(excelFile.absolutePath)
+            try {
+                val dstFile = java.io.File(context.filesDir, "33-通信安规.xls")
+                context.assets.open("33-通信安规.xls").use { input ->
+                    dstFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                anGuiKb.importExcelWithDedup(dstFile.absolutePath)
                 save()
+                Log.d("KBManager", "Auto-imported 安规题库 from assets (${anGuiKb.entries.size} entries)")
+            } catch (e: Exception) {
+                Log.e("KBManager", "Auto-import 安规题库 failed", e)
             }
         }
     }
