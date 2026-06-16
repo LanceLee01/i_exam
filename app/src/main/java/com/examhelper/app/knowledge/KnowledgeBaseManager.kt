@@ -46,6 +46,20 @@ data class KBEntry(
     }
 }
 
+/** Split exam text into individual question blocks by "N、" pattern */
+private fun extractQuestionBlocks(text: String): List<String> {
+    val pattern = Regex("""(\d+)、""")
+    val matches = pattern.findAll(text).toList()
+    if (matches.size <= 1) return listOf(text)  // Single question or no clear split
+    val blocks = mutableListOf<String>()
+    for (i in matches.indices) {
+        val start = matches[i].range.first
+        val end = if (i + 1 < matches.size) matches[i + 1].range.first else text.length
+        blocks.add(text.substring(start, end).trim())
+    }
+    return blocks
+}
+
 data class KnowledgeBase(
     val id: String = UUID.randomUUID().toString().take(8),
     val name: String = ""
@@ -127,10 +141,14 @@ data class KnowledgeBase(
             return exactMatches.map { it to 1.0f }.take(topN)
         }
 
-        // 无精确匹配，回退到 trigram Jaccard
-        val qTrigrams = KBEntry.computeTrigrams(query)
+        // 无精确匹配，回退到逐题 trigram Jaccard
+        val blocks = extractQuestionBlocks(query)
+        val blockTrigrams = blocks.map { KBEntry.computeTrigrams(it) }
         return entries.map { entry ->
-            entry to KBEntry.jaccard(qTrigrams, entry.trigrams)
+            val bestScore = blockTrigrams.maxOfOrNull { blockTri ->
+                KBEntry.jaccard(blockTri, entry.trigrams)
+            } ?: 0f
+            entry to bestScore
         }
         .filter { it.second > 0.15f }
         .sortedByDescending { it.second }
