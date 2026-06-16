@@ -85,6 +85,7 @@ class SolvePipeline(private val context: Context) {
             qNum to normalizeTfAnswer(entry.answer, entry.source)
         }
         
+        // Detect conflicts: same question number with different answers
         val conflictQ = mutableSetOf<Int>()
         val answerByQ = mutableMapOf<Int, MutableSet<String>>()
         for ((q, ans) in numberedPairs) {
@@ -93,13 +94,55 @@ class SolvePipeline(private val context: Context) {
             if (answers.size > 1) conflictQ.add(q)
         }
         
-        val numbered = numberedPairs
-            .filter { (q, _) -> q !in conflictQ }
-            .distinctBy { it.first }
-            .toMap()
+        // Build result: non-conflicted questions first
+        val numbered = mutableMapOf<Int, String>()
+        for ((q, ans) in numberedPairs) {
+            if (q in conflictQ) continue
+            if (q !in numbered) numbered[q] = ans
+        }
+        
+        // Try type-based resolution for conflicted questions
+        if (conflictQ.isNotEmpty()) {
+            // Extract question blocks from exam text
+            val qPattern = Regex("""(\d+)、""")
+            val qMatches = qPattern.findAll(text).toList()
+            val blocks = if (qMatches.size <= 1) {
+                listOf(text)
+            } else {
+                qMatches.indices.map { i ->
+                    val start = qMatches[i].range.first
+                    val end = if (i + 1 < qMatches.size) qMatches[i + 1].range.first else text.length
+                    text.substring(start, end).trim()
+                }
+            }
+            
+            for (qNum in conflictQ.toMutableSet()) {
+                val block = blocks.firstOrNull { it.startsWith("$qNum、") } ?: continue
+                val isMulti = "多选题" in block
+                val isSingle = "单选题" in block
+                if (!isMulti && !isSingle) continue
+                
+                val entriesForQ = numberedPairs.filter { it.first == qNum }
+                val matching = if (isMulti) {
+                    // 多选题 → prefer answers with 2+ letters
+                    entriesForQ.filter { it.second.replace(" ", "").length >= 2 }
+                } else {
+                    // 单选题 → prefer answers with 1 letter
+                    entriesForQ.filter { it.second.replace(" ", "").length == 1 }
+                }
+                
+                // Only keep if unique answer after type filtering
+                val uniqueAnswers = matching.map { it.second }.toSet()
+                if (uniqueAnswers.size == 1) {
+                    conflictQ.remove(qNum)
+                    numbered[qNum] = uniqueAnswers.first()
+                    Log.d(TAG, "L1 type resolution: Q$qNum type=${if(isMulti)"multi" else "single"} answer=${uniqueAnswers.first()}")
+                }
+            }
+        }
         
         if (conflictQ.isNotEmpty()) {
-            Log.d(TAG, "L1 conflict detected for questions: $conflictQ — will fall through to LLM")
+            Log.d(TAG, "L1 unresolved conflicts for questions: $conflictQ — will fall through to LLM")
         }
         
         Log.d(TAG, "L1 matched ${numbered.size} questions: ${numbered.keys.sorted()}")
