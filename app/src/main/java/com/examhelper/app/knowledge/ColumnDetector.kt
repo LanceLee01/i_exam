@@ -28,7 +28,8 @@ class ColumnDetector {
 
         private val QUESTION_KEYWORDS = setOf("题目", "问题", "试题", "考题", "question")
         private val ANSWER_KEYWORDS = setOf("答案", "回答", "answer", "key")
-        private val SOURCE_KEYWORDS = setOf("来源", "source", "出处", "选项")
+        private val SOURCE_KEYWORDS = setOf("来源", "出处", "source", "来源出处", "题目来源")
+        private val OPTION_KEYWORDS = setOf("选项", "备选", "备选项", "option", "选择项", "备选答案", "选择")
     }
 
     // ── Header-based detection ──────────────────────────────────────────────
@@ -60,6 +61,7 @@ class ColumnDetector {
         var questionCol: Int? = null
         var answerCol: Int? = null
         var sourceCol: Int? = null
+        var optionsCol: Int? = null
 
         for (i in 0..lastColIndex) {
             val cell = row.getCell(i) ?: continue
@@ -68,17 +70,17 @@ class ColumnDetector {
 
             if (questionCol == null && text in QUESTION_KEYWORDS) {
                 questionCol = i
-            }
-            if (answerCol == null && text in ANSWER_KEYWORDS) {
+            } else if (answerCol == null && text in ANSWER_KEYWORDS) {
                 answerCol = i
-            }
-            if (sourceCol == null && text in SOURCE_KEYWORDS) {
+            } else if (sourceCol == null && text in SOURCE_KEYWORDS) {
                 sourceCol = i
+            } else if (optionsCol == null && text in OPTION_KEYWORDS) {
+                optionsCol = i
             }
         }
 
         return if (questionCol != null && answerCol != null) {
-            ColumnMapping(questionCol = questionCol!!, answerCol = answerCol!!, sourceCol = sourceCol)
+            ColumnMapping(questionCol = questionCol!!, answerCol = answerCol!!, sourceCol = sourceCol, optionsCol = optionsCol)
         } else null
     }
 
@@ -153,11 +155,16 @@ class ColumnDetector {
                 Log.w(TAG, "detectByLLM: sourceCol ${response.sourceCol} out of bounds [0..$lastColIndex]")
                 return null
             }
+            if (response.optionsCol != null && response.optionsCol !in 0..lastColIndex) {
+                Log.w(TAG, "detectByLLM: optionsCol ${response.optionsCol} out of bounds [0..$lastColIndex]")
+                return null
+            }
 
             ColumnMapping(
                 questionCol = response.questionCol,
                 answerCol = response.answerCol,
-                sourceCol = response.sourceCol
+                sourceCol = response.sourceCol,
+                optionsCol = response.optionsCol
             ).also {
                 Log.d(TAG, "detectByLLM: succeeded → $it")
             }
@@ -247,7 +254,7 @@ First 5 data rows:
 $dataRows
 
 Respond ONLY with a JSON object (no markdown, no explanation):
-{"questionCol": <index>, "answerCol": <index>, "sourceCol": <index|null>}
+{"questionCol": <index>, "answerCol": <index>, "sourceCol": <index|null>, "optionsCol": <index|null>}
         """.trimIndent()
     }
 
@@ -273,6 +280,7 @@ Respond ONLY with a JSON object (no markdown, no explanation):
     private data class LLMColumnResponse(
         val questionCol: Int,
         val answerCol: Int,
-        val sourceCol: Int?
+        val sourceCol: Int?,
+        val optionsCol: Int?
     )
 }

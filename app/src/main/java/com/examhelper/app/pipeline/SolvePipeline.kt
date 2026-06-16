@@ -111,7 +111,7 @@ class SolvePipeline(private val context: Context) {
             if (q !in numbered) numbered[q] = ans
         }
         
-        // Try type-based resolution for conflicted questions
+        // Resolve conflicts: use options text matching, fall back to score-based
         if (conflictQ.isNotEmpty()) {
             // Extract question blocks from exam text
             val qPattern = Regex("""(\d+)、""")
@@ -128,27 +128,59 @@ class SolvePipeline(private val context: Context) {
             
             for (qNum in conflictQ.toMutableSet()) {
                 val block = blocks.firstOrNull { it.startsWith("$qNum、") } ?: continue
-                val isMulti = "多选题" in block
-                val isSingle = "单选题" in block
-                if (!isMulti && !isSingle) continue
+                val capturedOptions = extractCapturedOptions(block)
                 
-                val entriesForQ = numberedPairs.filter { it.first == qNum }
-                val matching = if (isMulti) {
-                    // 多选题 → prefer answers with 2+ letters
-                    entriesForQ.filter { it.second.replace(" ", "").length >= 2 }
-                } else {
-                    // 单选题 → prefer answers with 1 letter
-                    entriesForQ.filter { it.second.replace(" ", "").length == 1 }
+                // Get original hits for this question
+                val entriesForQ = hits.mapNotNull { (entry, score) ->
+                    val q = findQuestionNumber(text, entry.question) ?: return@mapNotNull null
+                    if (q != qNum) return@mapNotNull null
+                    entry to score
                 }
                 
-                // Only keep if unique answer after type filtering
-                val uniqueAnswers = matching.map { it.second }.toSet()
-                if (uniqueAnswers.size == 1) {
-                    conflictQ.remove(qNum)
-                    numbered[qNum] = uniqueAnswers.first()
-                    Log.d(TAG, "L1 type resolution: Q$qNum type=${if(isMulti)"multi" else "single"} answer=${uniqueAnswers.first()}")
+                // Try options-based resolution first
+                if (capturedOptions.isNotBlank() && entriesForQ.any { it.first.options.isNotBlank() }) {
+                    val withOptions = entriesForQ.filter { it.first.options.isNotBlank() }
+                    val capTri = KBEntry.computeTrigrams(capturedOptions)
+                    val bestEntry = withOptions.maxByOrNull { (entry, _) ->
+                        KBEntry.jaccard(capTri, KBEntry.computeTrigrams(entry.options))
+                    }
+                    if (bestEntry != null) {
+                        val bestSim = KBEntry.jaccard(capTri, KBEntry.computeTrigrams(bestEntry.first.options))
+                        if (bestSim >= 0.50f) {
+                            val matchingAnswers = withOptions
+                                .filter { (entry, _) ->
+                                    KBEntry.jaccard(capTri, KBEntry.computeTrigrams(entry.options)) >= 0.50f
+                                }
+                                .map { (entry, _) -> normalizeTfAnswer(entry.answer, entry.source) }
+                                .distinct()
+                            if (matchingAnswers.size == 1) {
+                                conflictQ.remove(qNum)
+                                numbered[qNum] = matchingAnswers.first()
+                                Log.d(TAG_DEBUG, "options-resolve: Q$qNum sim=${"%.2f".format(bestSim)} ans=${matchingAnswers.first()}")
+                                continue
+                            }
+                        }
+                    }
+                }
+                
+                // Fall back to score-based resolution
+                val bestEntryByScore = entriesForQ.maxByOrNull { it.second }
+                if (bestEntryByScore != null) {
+                    val (bestE, bestScore) = bestEntryByScore
+                    val bestAns = normalizeTfAnswer(bestE.answer, bestE.source)
+                    val ties = entriesForQ.filter { (e, s) ->
+                        s == bestScore && normalizeTfAnswer(e.answer, e.source) != bestAns
+                    }
+                    if (ties.isEmpty()) {
+                        conflictQ.remove(qNum)
+                        numbered[qNum] = bestAns
+                        Log.d(TAG_DEBUG, "score-resolve: Q$qNum score=${"%.4f".format(bestScore)} ans=$bestAns")
+                    } else {
+                        Log.d(TAG_DEBUG, "score-resolve: Q$qNum tied $bestAns vs ${ties.first().second}, keeping conflict")
+                    }
                 }
             }
+            Log.d(TAG_DEBUG, "resolve: remaining conflicts=$conflictQ")
         }
         
         if (conflictQ.isNotEmpty()) {
@@ -612,6 +644,14 @@ class SolvePipeline(private val context: Context) {
             val m = tfRe.find(source) ?: return answer
             val map = mapOf(m.groupValues[1] to m.groupValues[2], m.groupValues[3] to m.groupValues[4])
             return map[answer] ?: answer
+        }
+
+        /** Extract option lines (e.g. "A.更改 B.屏蔽 C.清除 D.确认") from a captured question block. */
+        fun extractCapturedOptions(block: String): String {
+            val lines = block.lines()
+            val optionStart = lines.indexOfFirst { it.matches(Regex("""^[A-Z][.、]""")) }
+            if (optionStart < 0) return ""
+            return lines.drop(optionStart).joinToString(" ").trim()
         }
     }
 }

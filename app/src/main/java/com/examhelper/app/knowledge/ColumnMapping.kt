@@ -1,12 +1,13 @@
 package com.examhelper.app.knowledge
 
 /**
- * Maps Excel column indices for question, answer, and optional source columns.
+ * Maps Excel column indices for question, answer, and optional source/options columns.
  */
 data class ColumnMapping(
     val questionCol: Int,
     val answerCol: Int,
-    val sourceCol: Int? = null
+    val sourceCol: Int? = null,
+    val optionsCol: Int? = null
 )
 
 /**

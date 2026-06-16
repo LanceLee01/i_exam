@@ -4,8 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
-import com.google.gson.ExclusionStrategy
-import com.google.gson.FieldAttributes
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import com.examhelper.app.ExamApplication
 import kotlinx.coroutines.Dispatchers
@@ -18,7 +16,8 @@ import java.util.UUID
 data class KBEntry(
     val question: String,
     val answer: String,
-    val source: String = ""
+    val source: String = "",
+    val options: String = ""
 ) {
     // NOTE: trigrams is NOT a cached property (by lazy or eager) because Gson
     // deserialization via UnsafeAllocator bypasses all initialization.
@@ -99,7 +98,8 @@ data class KnowledgeBase(
                 val answer = row.getCell(effectiveMapping.answerCol)?.toString()?.trim()
                 if (question.isBlank() || answer.isNullOrBlank()) continue
                 val source = try { effectiveMapping.sourceCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
-                entries.add(KBEntry(question, answer, source))
+                val options = try { effectiveMapping.optionsCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
+                entries.add(KBEntry(question, answer, source, options))
                 imported++
             }
             stream.close()
@@ -144,7 +144,8 @@ data class KnowledgeBase(
                 val answer = row.getCell(effectiveMapping.answerCol)?.toString()?.trim()
                 if (question.isBlank() || answer.isNullOrBlank()) continue
                 val source = try { effectiveMapping.sourceCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
-                entries.add(KBEntry(question, answer, source))
+                val options = try { effectiveMapping.optionsCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
+                entries.add(KBEntry(question, answer, source, options))
                 imported++
             }
             stream.close()
@@ -201,12 +202,7 @@ data class KnowledgeBase(
 
 object KnowledgeBaseManager {
 
-    private val gson = GsonBuilder()
-        .setExclusionStrategies(object : ExclusionStrategy {
-            override fun shouldSkipField(f: FieldAttributes) = f.name.contains("trigrams")
-            override fun shouldSkipClass(clazz: Class<*>) = false
-        })
-        .create()
+    private val gson = GsonBuilder().create()
     private val kbs = mutableListOf<KnowledgeBase>()
     private var activeIndex = -1
 
