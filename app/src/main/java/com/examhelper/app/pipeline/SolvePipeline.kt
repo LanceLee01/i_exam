@@ -438,15 +438,10 @@ class SolvePipeline(private val context: Context) {
             // Parse L4 answer to extract per-question answers
             val l4Parsed = parseL4Answer(l4Answer, unmatchedQ)
 
-            // Combine L1 + L4
-            val combined = (l1Answers + l4Parsed).entries.sortedBy { it.key }
-                .joinToString("\n") { (q, a) -> "[$q] $a" }
+            // Combine L1 + L4 using formatCombinedAnswer (L1 priority on collision)
+            val combined = formatCombinedAnswer(l4Parsed, l1Answers)
 
-            val finalAnswer = if (l1Answers.isNotEmpty() && l4Parsed.isNotEmpty()) {
-                "📋 题库匹配：\n${l1Answers.entries.sortedBy { it.key }.joinToString("\n") { (q, a) -> "  [$q] $a" }}\n\n🤖 LLM 答题：\n$l4Answer"
-            } else if (l1Answers.isNotEmpty()) {
-                "📋 题库匹配：\n${l1Answers.entries.sortedBy { it.key }.joinToString("\n") { (q, a) -> "  [$q] $a" }}"
-            } else l4Answer
+            val finalAnswer = combined
 
             val l1SourceLabel = "📋 题库匹配"
             val l4SourceLabel = "🤖 AI模型"
@@ -472,7 +467,7 @@ class SolvePipeline(private val context: Context) {
             val trimmed = line.trim()
             if (trimmed.isEmpty()) continue
             // Match: [1] A  /  【1】A  /  1. A  /  1)A  /  第1题：A  /  答案1: A
-            val match = Regex("""[\\[【第]?(\d+)[\\]】题]?[\s.、:：)）]*(?:答案)?[:：\s]+(.+?)$""").find(trimmed)
+            val match = Regex("""[\\[【第]?(\d+)(?:\]|】|题)?[\s.、:：)）]*(?:答案)?[:：\s]+(.+?)$""").find(trimmed)
             if (match != null) {
                 val qNum = match.groupValues[1].toIntOrNull() ?: continue
                 val ans = normalizeAnswer(match.groupValues[2].trim())
@@ -496,5 +491,11 @@ class SolvePipeline(private val context: Context) {
     companion object {
         private const val TAG = "SolvePipeline"
         const val SEARCH_KB_MATCH_THRESHOLD = 0.70f
+
+        /** Format combined answer map to sorted [N] answer lines. L1 overrides L4 on key collision. */
+        fun formatCombinedAnswer(l4Answers: Map<Int, String>, l1Answers: Map<Int, String>): String {
+            return (l4Answers + l1Answers).entries.sortedBy { it.key }
+                .joinToString("\n") { (q, a) -> "[$q] $a" }
+        }
     }
 }
