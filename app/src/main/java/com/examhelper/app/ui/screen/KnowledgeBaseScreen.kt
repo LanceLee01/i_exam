@@ -67,8 +67,10 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
     var showNewDialog by remember { mutableStateOf(false) }
     var newKBName by remember { mutableStateOf("") }
     var isImportingDoc by remember { mutableStateOf(false) }
-    val kbs = KnowledgeBaseManager.allKBs
-    var refreshKey by remember { mutableStateOf(0) }
+    var refreshKey by remember { mutableStateOf(0L) }
+    val displayData = remember(refreshKey) {
+        KnowledgeBaseManager.allKBs.map { kb -> Triple(kb, kb.name, kb.count) }
+    }
     val kbEngine = remember { KBEngine(ExamApplication.instance) }
 
     val excelLauncher = rememberLauncherForActivityResult(
@@ -160,11 +162,11 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
             Text("已激活: ${KnowledgeBaseManager.activeKBName}", color = Color(0xFF22C55E), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
 
-            if (kbs.isEmpty()) {
+            if (displayData.isEmpty()) {
                 Text("暂无知识库，点击下方按钮创建", color = Color.White.copy(0.5f))
                 Spacer(Modifier.height(12.dp))
             } else {
-                kbs.forEachIndexed { index, kb ->
+                displayData.forEachIndexed { index, (kb, name, count) ->
                     val isActive = kb == KnowledgeBaseManager.activeKB
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -178,10 +180,8 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(kb.name, color = Color.White, fontWeight = FontWeight.Bold)
-                                @Suppress("UNUSED_EXPRESSION")
-                                refreshKey  // Force recomposition when refreshKey changes
-                                Text("${kb.count} 条题目", color = Color.White.copy(0.5f), style = MaterialTheme.typography.bodySmall)
+                                Text(name, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("$count 条题目", color = Color.White.copy(0.5f), style = MaterialTheme.typography.bodySmall)
                                 if (isActive) Text("激活", color = Color(0xFF22C55E), style = MaterialTheme.typography.labelSmall)
                             }
                             if (isImportingDoc) {
@@ -209,6 +209,7 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                             }
                             IconButton(onClick = {
                                 KnowledgeBaseManager.deleteKB(index)
+                                refreshKey++
                             }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "删除", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
                             }
