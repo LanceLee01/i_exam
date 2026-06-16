@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 class ExamAccessibilityService : AccessibilityService() {
@@ -103,6 +104,44 @@ class ExamAccessibilityService : AccessibilityService() {
                     return@launch
                 }
 
+                // 【修复】先滚动再捕获，解决最后一题节点 text 为空的问题
+                try {
+                    val foundScrollable = withContext(Dispatchers.Main) {
+                        val r = rootInActiveWindow
+                        if (r == null) return@withContext false
+                        val s = findScrollableParent(r)
+                        if (s != null) {
+                            Log.d(TAG, "Found scrollable node, performing ACTION_SCROLL_FORWARD")
+                            s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                            s.recycle()
+                            true
+                        } else {
+                            Log.d(TAG, "No scrollable parent found")
+                            false
+                        }
+                    }
+                    if (foundScrollable) {
+                        delay(500)
+                        Log.d(TAG, "Scroll completed, re-fetching root node")
+                        // 重新获取 root（滚动后可能需要刷新）
+                        withContext(Dispatchers.Main) {
+                            rootNode?.let { if (it != rootInActiveWindow) it.recycle() }
+                            rootNode = rootInActiveWindow
+                        }
+                        if (rootNode == null) {
+                            Log.d(TAG, "rootNode became null after scroll")
+                            launch(Dispatchers.Main) {
+                                ExtractedTextBus.updateSidebarState(
+                                    ExtractedTextBus.SidebarState.Error("未检测到文字，请确认考试页面已打开")
+                                )
+                            }
+                            return@launch
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Scroll step failed", e)
+                }
+
                 val lines = mutableListOf<String>()
                 traverseNode(rootNode, keywords, lines)
                 if (rootNode != rootInActiveWindow && rootNode != null) {
@@ -110,6 +149,11 @@ class ExamAccessibilityService : AccessibilityService() {
                 }
 
                 Log.d(TAG, "Extracted ${lines.size} lines")
+                // 打印每一行原始文字，方便诊断漏题
+                lines.forEachIndexed { idx, line ->
+                    val preview = line.take(120).replace("\n", "\\n")
+                    Log.d(TAG, "  line[$idx] len=${line.length} text=\"$preview\"")
+                }
 
                 if (lines.isEmpty()) {
                     launch(Dispatchers.Main) {
@@ -122,6 +166,8 @@ class ExamAccessibilityService : AccessibilityService() {
 
                 val result = cleanAndFormat(lines)
                 Log.d(TAG, "Result text length: ${result.length}")
+                // 打印最终结果的全部内容
+                Log.d(TAG, "Result text:\n$result")
 
                 launch(Dispatchers.Main) {
                     ExtractedTextBus.sendEvent(
@@ -150,6 +196,7 @@ class ExamAccessibilityService : AccessibilityService() {
         if (WatermarkFilter.shouldSkipNode(node, keywords)) return
 
         val text = node.text?.toString()?.trim()
+            ?: node.contentDescription?.toString()?.trim()
         if (!text.isNullOrEmpty()) {
             lines.add(text)
         }
@@ -320,6 +367,21 @@ class ExamAccessibilityService : AccessibilityService() {
         }
 
         return result.toString()
+    }
+
+    private fun findScrollableParent(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isScrollable) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findScrollableParent(child)
+            if (found != null) {
+                if (child != found) child.recycle()
+                return found
+            }
+            child.recycle()
+        }
+        return null
     }
 
     companion object {
