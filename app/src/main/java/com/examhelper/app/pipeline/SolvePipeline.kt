@@ -110,7 +110,7 @@ class SolvePipeline(private val context: Context) {
             if (q in conflictQ) continue
             if (q !in numbered) numbered[q] = ans
         }
-        
+
         // Resolve conflicts: use options text matching, fall back to score-based
         if (conflictQ.isNotEmpty()) {
             // Extract question blocks from exam text
@@ -140,23 +140,23 @@ class SolvePipeline(private val context: Context) {
                 // Try options-based resolution first
                 if (capturedOptions.isNotBlank() && entriesForQ.any { it.first.options.isNotBlank() }) {
                     val withOptions = entriesForQ.filter { it.first.options.isNotBlank() }
-                    val capTri = KBEntry.computeTrigrams(capturedOptions)
+                    val normalizedCaptured = normalizeOptions(capturedOptions)
+                    val capTri2 = KBEntry.computeTrigrams(normalizedCaptured)
                     val bestEntry = withOptions.maxByOrNull { (entry, _) ->
-                        KBEntry.jaccard(capTri, KBEntry.computeTrigrams(entry.options))
+                        KBEntry.jaccard(capTri2, KBEntry.computeTrigrams(normalizeOptions(entry.options)))
                     }
                     if (bestEntry != null) {
-                        val bestSim = KBEntry.jaccard(capTri, KBEntry.computeTrigrams(bestEntry.first.options))
+                        val bestSim = KBEntry.jaccard(capTri2, KBEntry.computeTrigrams(normalizeOptions(bestEntry.first.options)))
                         if (bestSim >= 0.50f) {
                             val matchingAnswers = withOptions
                                 .filter { (entry, _) ->
-                                    KBEntry.jaccard(capTri, KBEntry.computeTrigrams(entry.options)) >= 0.50f
+                                    KBEntry.jaccard(capTri2, KBEntry.computeTrigrams(normalizeOptions(entry.options))) >= 0.50f
                                 }
                                 .map { (entry, _) -> normalizeTfAnswer(entry.answer, entry.source) }
                                 .distinct()
                             if (matchingAnswers.size == 1) {
                                 conflictQ.remove(qNum)
                                 numbered[qNum] = matchingAnswers.first()
-                                Log.d(TAG_DEBUG, "options-resolve: Q$qNum sim=${"%.2f".format(bestSim)} ans=${matchingAnswers.first()}")
                                 continue
                             }
                         }
@@ -649,9 +649,19 @@ class SolvePipeline(private val context: Context) {
         /** Extract option lines (e.g. "A.更改 B.屏蔽 C.清除 D.确认") from a captured question block. */
         fun extractCapturedOptions(block: String): String {
             val lines = block.lines()
-            val optionStart = lines.indexOfFirst { it.matches(Regex("""^[A-Z][.、]""")) }
+            val optionStart = lines.indexOfFirst { Regex("""^[A-Z]\s*[.、:：)）]""").containsMatchIn(it) }
             if (optionStart < 0) return ""
             return lines.drop(optionStart).joinToString(" ").trim()
+        }
+
+        /** Normalize option format for comparison: replace any letter-separator with a common one. */
+        fun normalizeOptions(s: String): String {
+            // Step 1: normalize inter-option separators (|, etc.) to space
+            val spaced = s.replace(Regex("""[|]+"""), " ")
+            // Step 2: normalize letter-separator pattern to "A. " format
+            return spaced.replace(Regex("""(?<=^|[ ])[A-Z]\s*[.、:：)）\-]""")) {
+                "${it.value.first()}. "
+            }
         }
     }
 }
