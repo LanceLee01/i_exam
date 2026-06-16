@@ -56,7 +56,7 @@ private data class WelcomeStep(
 private val steps = listOf(
     WelcomeStep(
         icon = Icons.Filled.Psychology,
-        title = "考试助手",
+        title = "i考助手",
         description = "在 i国网 考试时，智能识别屏幕文字，调用大模型实时解答"
     ),
     WelcomeStep(

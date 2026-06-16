@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">考试助手</string>
-    <string name="accessibility_service_description">考试助手无障碍服务，用于读取考试界面文字内容以辅助答题。</string>
+    <string name="app_name">i考助手</string>
+    <string name="accessibility_service_description">i考助手无障碍服务，用于读取考试界面文字内容以辅助答题。</string>
     <string name="notification_channel_sidebar">侧边栏服务</string>
-    <string name="notification_sidebar_running">考试助手正在运行</string>
+    <string name="notification_sidebar_running">i考助手正在运行</string>
     <string name="permission_overlay_title">悬浮窗权限</string>
     <string name="permission_overlay_desc">需要在其他应用上方显示答案侧边栏</string>
     <string name="permission_accessibility_title">无障碍服务</string>

@@ -1,0 +1,17 @@
+Task 2+4: SolvePipelineTest.formatCombinedAnswer* — ALL 5 TESTS GREEN
+=====================================================================
+Date: 2026-06-16T02:30
+Result: BUILD SUCCESSFUL — 5 tests, 0 failures, 0 errors, 0 skipped
+
+Tests executed:
+  1. formatCombinedAnswer sorts by question number ascending()     PASS
+  2. formatCombinedAnswer L1 overrides L4 on same question()       PASS
+  3. formatCombinedAnswer empty maps produce empty string()        PASS
+  4. formatCombinedAnswer handles true-false answers()             PASS
+  5. formatCombinedAnswer handles multi-letter answers()           PASS
+
+Scenario: L1 priority (formatCombinedAnswer(l4={1→"B"}, l1={1→"A"}) → "[1] A")
+  Verified via test #2: L1 overrides L4 on same question → PASS
+
+Scenario: Sorting (formatCombinedAnswer(l4={3→"C",1→"A"}, l1={2→"B"}) → "[1] A\n[2] B\n[3] C")
+  Verified via test #1: sorts by question number ascending → PASS

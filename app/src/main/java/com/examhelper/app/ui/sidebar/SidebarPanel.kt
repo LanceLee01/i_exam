@@ -86,7 +86,7 @@ fun SidebarPanel(onHide: () -> Unit) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "考试助手",
+                text = "i考助手",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White

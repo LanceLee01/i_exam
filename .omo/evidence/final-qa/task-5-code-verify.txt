@@ -1,0 +1,26 @@
+Task 5: SolvePipeline.kt Code Verification
+============================================
+Date: 2026-06-16
+File: app/src/main/java/com/examhelper/app/pipeline/SolvePipeline.kt
+
+Lines 440-455 verification — combined answer assignment:
+441: // Combine L1 + L4 using formatCombinedAnswer (L1 priority on collision)
+442: val combined = formatCombinedAnswer(l4Parsed, l1Answers)    ✓
+443:
+444: val finalAnswer = combined                                     ✓ (no if/else branching)
+445:
+453: ExtractedTextBus.updateSidebarState(
+454:     SidebarState.Done(text, finalAnswer, source, enhancement.references, questionSources)
+455: )
+
+Lines 496-500 verification — companion object:
+496: fun formatCombinedAnswer(l4Answers: Map<Int, String>, l1Answers: Map<Int, String>): String {
+497:     return (l4Answers + l1Answers).entries.sortedBy { it.key }     ✓ (union with L1 override)
+498:         .joinToString("\n") { (q, a) -> "[$q] $a" }                  ✓ (sorted join)
+499: }
+
+Confirmations:
+- combined = formatCombinedAnswer(l4Parsed, l1Answers)  ✓ confirmed line 442
+- finalAnswer = combined (no if/else branching)         ✓ confirmed line 444
+- (l4Answers + l1Answers).entries.sortedBy { it.key }   ✓ confirmed line 497
+- joinToString("\n") { (q, a) -> "[$q] $a" }           ✓ confirmed line 498
