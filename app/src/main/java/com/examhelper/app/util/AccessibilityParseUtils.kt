@@ -28,7 +28,7 @@ internal fun countOptionsPerQuestion(sourceText: String): List<Int> {
         if (questionRegex.containsMatchIn(trimmed)) {
             if (currentCount > 0) counts.add(currentCount)
             currentCount = 0
-        } else if (optionRegex.containsMatchIn(trimmed) || trimmed == "正确" || trimmed == "错误") {
+        } else if (optionRegex.containsMatchIn(trimmed) || trimmed.contains("正确") || trimmed.contains("错误")) {
             currentCount++
         }
     }
@@ -46,6 +46,6 @@ internal fun matchesSelection(nodeText: String, selection: String): Boolean {
         )
     }
     val tf = listOf("正确", "错误", "对", "错")
-    if (selection in tf) return nodeText in tf
+    if (selection in tf) return tf.any { nodeText.contains(it) }
     return nodeText.contains(selection, ignoreCase = true)
 }
