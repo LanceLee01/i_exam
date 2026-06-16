@@ -269,6 +269,7 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                     TextButton(onClick = {
                         if (newKBName.isNotBlank()) {
                             KnowledgeBaseManager.addKB(newKBName.trim())
+                            refreshKey++
                             showNewDialog = false
                             newKBName = ""
                         }
