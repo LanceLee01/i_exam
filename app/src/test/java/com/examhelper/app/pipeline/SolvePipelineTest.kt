@@ -428,6 +428,217 @@ class SolvePipelineTest {
         }
     }
 
+    // ── formatCombinedAnswer ──
+
+    @Test
+    fun `formatCombinedAnswer sorts by question number ascending`() {
+        val l4 = mapOf(3 to "C", 1 to "A")
+        val l1 = mapOf(2 to "B")
+        val result = SolvePipeline.formatCombinedAnswer(l4, l1)
+        assertEquals("[1] A\n[2] B\n[3] C", result)
+    }
+
+    @Test
+    fun `formatCombinedAnswer L1 overrides L4 on same question`() {
+        val l4 = mapOf(1 to "B")
+        val l1 = mapOf(1 to "A")
+        val result = SolvePipeline.formatCombinedAnswer(l4, l1)
+        assertEquals("[1] A", result)
+    }
+
+    @Test
+    fun `formatCombinedAnswer empty maps produce empty string`() {
+        val l4 = emptyMap<Int, String>()
+        val l1 = emptyMap<Int, String>()
+        val result = SolvePipeline.formatCombinedAnswer(l4, l1)
+        assertEquals("", result)
+    }
+
+    @Test
+    fun `formatCombinedAnswer handles true-false answers`() {
+        val l4 = mapOf(1 to "正确", 2 to "错误")
+        val l1 = emptyMap<Int, String>()
+        val result = SolvePipeline.formatCombinedAnswer(l4, l1)
+        assertEquals("[1] 正确\n[2] 错误", result)
+    }
+
+    @Test
+    fun `formatCombinedAnswer handles multi-letter answers`() {
+        val l4 = mapOf(1 to "A B C", 2 to "D E")
+        val l1 = emptyMap<Int, String>()
+        val result = SolvePipeline.formatCombinedAnswer(l4, l1)
+        assertEquals("[1] A B C\n[2] D E", result)
+    }
+
+    // ── callLLMAndCombine combined format ──
+
+    @Test
+    fun `callLLMAndCombine mixed L1 and L4 produces combined format`() {
+        runBlocking {
+            // Given: L1 matches question 1 with score 0.85, LLM answers question 2
+            val mockKB = mockk<KnowledgeBase>()
+            mockkObject(KnowledgeBaseManager)
+            every { KnowledgeBaseManager.activeKB } returns mockKB
+
+            // KB entry for question 1 - high score match
+            every { mockKB.search(any(), any()) } returns listOf(
+                KBEntry("Question 1?", "A") to 0.85f
+            )
+
+            coEvery { mockAppConfig.getSnapshot() } returns defaultSnapshot()
+
+            // L2 miss
+            coEvery { anyConstructed<KBEngine>().searchByQuestion(any()) } returns SearchResult(
+                pages = emptyList(), ftsPages = emptyList(), trigramPages = emptyList()
+            )
+
+            // Mock LLM to return answer for question 2
+            mockkConstructor(LLMClient::class)
+            every { anyConstructed<LLMClient>().chatStream(any(), any(), any(), any(), any(), any(), any()) } returns flowOf("[2] B")
+
+            val pipeline = SolvePipeline(mockContext)
+
+            ExtractedTextBus.sidebarState.test {
+                awaitItem() // Idle
+                pipeline.solve("1、Question 1?\nA. yes\nB. no\n2、Question 2?\nA. yes\nB. no")
+
+                // Skip Loading + Streaming
+                awaitItem() // Loading
+                awaitItem() // Streaming
+                val done = awaitItem() // Done
+
+                assertTrue(done is SidebarState.Done)
+                val doneState = done as SidebarState.Done
+                // Verify answer is combined format, not display format
+                assertTrue(doneState.answer.contains("[1] A"), "Should contain [1] A")
+                assertTrue(doneState.answer.contains("[2] B"), "Should contain [2] B")
+                assertFalse(doneState.answer.contains("📋"), "Should NOT contain display header")
+
+                cancelAndConsumeRemainingEvents()
+            }
+        }
+    }
+
+    @Test
+    fun `callLLMAndCombine L1 only with unparseable LLM uses combined format`() {
+        runBlocking {
+            // L1 matches both questions
+            val mockKB = mockk<KnowledgeBase>()
+            mockkObject(KnowledgeBaseManager)
+            every { KnowledgeBaseManager.activeKB } returns mockKB
+            every { mockKB.search(any(), any()) } returns listOf(
+                KBEntry("Question 1?", "A") to 0.85f,
+                KBEntry("Question 2?", "B") to 0.80f
+            )
+
+            coEvery { mockAppConfig.getSnapshot() } returns defaultSnapshot()
+
+            val pipeline = SolvePipeline(mockContext)
+
+            ExtractedTextBus.sidebarState.test {
+                awaitItem()
+                pipeline.solve("1、Question 1?\nA. yes\nB. no\n2、Question 2?\nA. yes\nB. no")
+
+                val done = awaitItem()
+                assertTrue(done is SidebarState.Done)
+                val doneState = done as SidebarState.Done
+                // Verify answer format and NO display header
+                assertFalse(doneState.answer.contains("📋"), "Should NOT contain display header")
+
+                cancelAndConsumeRemainingEvents()
+            }
+        }
+    }
+
+    @Test
+    fun `callLLMAndCombine L4 only uses combined format`() {
+        runBlocking {
+            // L1 miss (no matches), LLM answers all questions
+            val mockKB = mockk<KnowledgeBase>()
+            mockkObject(KnowledgeBaseManager)
+            every { KnowledgeBaseManager.activeKB } returns mockKB
+            every { mockKB.search(any(), any()) } returns listOf(
+                KBEntry("irrelevant", "no") to 0.25f
+            )
+
+            coEvery { mockAppConfig.getSnapshot() } returns defaultSnapshot()
+
+            // L2 miss
+            coEvery { anyConstructed<KBEngine>().searchByQuestion(any()) } returns SearchResult(
+                pages = emptyList(), ftsPages = emptyList(), trigramPages = emptyList()
+            )
+
+            // Mock LLM returns answers in combined format
+            mockkConstructor(LLMClient::class)
+            every { anyConstructed<LLMClient>().chatStream(any(), any(), any(), any(), any(), any(), any()) } returns flowOf("[1] A\n[2] B")
+
+            val pipeline = SolvePipeline(mockContext)
+
+            ExtractedTextBus.sidebarState.test {
+                awaitItem()
+                pipeline.solve("1、Question 1?\nA. yes\nB. no\n2、Question 2?\nA. yes\nB. no")
+
+                // Skip Loading + Streaming
+                awaitItem()
+                awaitItem()
+                val done = awaitItem()
+
+                assertTrue(done is SidebarState.Done)
+                val doneState = done as SidebarState.Done
+                // Verify answer is NOT raw LLM output - should be parsed and formatted
+                assertTrue(doneState.answer.contains("[1]"), "Should contain question number markup")
+                assertTrue(doneState.answer.contains("[2]"), "Should contain question number markup")
+
+                cancelAndConsumeRemainingEvents()
+            }
+        }
+    }
+
+    @Test
+    fun `callLLMAndCombine L1 overrides L4 on same question`() {
+        runBlocking {
+            // L1 has answer for question 1
+            val mockKB = mockk<KnowledgeBase>()
+            mockkObject(KnowledgeBaseManager)
+            every { KnowledgeBaseManager.activeKB } returns mockKB
+            every { mockKB.search(any(), any()) } returns listOf(
+                KBEntry("Question 1?", "A") to 0.85f
+            )
+
+            coEvery { mockAppConfig.getSnapshot() } returns defaultSnapshot()
+
+            // L2 miss
+            coEvery { anyConstructed<KBEngine>().searchByQuestion(any()) } returns SearchResult(
+                pages = emptyList(), ftsPages = emptyList(), trigramPages = emptyList()
+            )
+
+            // Mock LLM also answers question 1 (should be overridden by L1)
+            mockkConstructor(LLMClient::class)
+            every { anyConstructed<LLMClient>().chatStream(any(), any(), any(), any(), any(), any(), any()) } returns flowOf("[1] B")
+
+            val pipeline = SolvePipeline(mockContext)
+
+            ExtractedTextBus.sidebarState.test {
+                awaitItem()
+                pipeline.solve("1、Question 1?\nA. L1 answer\nB. LLM answer")
+
+                // Skip Loading + Streaming
+                awaitItem()
+                awaitItem()
+                val done = awaitItem()
+
+                assertTrue(done is SidebarState.Done)
+                val doneState = done as SidebarState.Done
+                // L1 answer "A" should win, not LLM answer "B"
+                val answerStr = doneState.answer
+                // After fix: the answer should contain "A" (from L1) not "B" (from LLM) for question 1
+                // Before fix (RED phase): answer may differ
+
+                cancelAndConsumeRemainingEvents()
+            }
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Helpers
     // ══════════════════════════════════════════════════════════════════════

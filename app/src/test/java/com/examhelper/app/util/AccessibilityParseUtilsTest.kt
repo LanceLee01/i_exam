@@ -75,6 +75,25 @@ class AccessibilityParseUtilsTest {
         assertEquals(listOf(1 to listOf("A", "B")), result)
     }
 
+    @Test
+    fun `parseAnswerPairs extracts from multi-line combined format`() {
+        val result = parseAnswerPairs("[1] A\n[2] B C\n[3] 正确")
+        assertEquals(listOf(1 to listOf("A"), 2 to listOf("B", "C"), 3 to listOf("正确")), result)
+    }
+
+    @Test
+    fun `parseAnswerPairs handles mixed letters and true-false`() {
+        val result = parseAnswerPairs("[1] A\n[2] 错误\n[3] C D")
+        assertEquals(listOf(1 to listOf("A"), 2 to listOf("错误"), 3 to listOf("C", "D")), result)
+    }
+
+    @Test
+    fun `parseAnswerPairs handles non-sequential question numbers`() {
+        val result = parseAnswerPairs("[3] A\n[1] B\n[2] C")
+        assertEquals(3, result.size)
+        assertEquals(listOf(3 to listOf("A"), 1 to listOf("B"), 2 to listOf("C")), result)
+    }
+
     // ── countOptionsPerQuestion ──
 
     @Test
