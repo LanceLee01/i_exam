@@ -35,6 +35,7 @@ import com.examhelper.app.network.Reference
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
+import com.examhelper.app.util.ReferenceFormatter
 import kotlinx.coroutines.delay
 
 @Composable
@@ -142,46 +143,7 @@ fun SidebarStateRenderer(
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
-            // 引用链接展示（如果有）
-            if (s.references.isNotEmpty()) {
-                val llmQuestions = s.questionSources
-                    .filterValues { it.contains("AI") || it.contains("LLM") }
-                    .keys
-                    .sorted()
-                
-                Spacer(Modifier.height(8.dp))
-                SectionHeader(
-                    if (llmQuestions.isNotEmpty()) "🔍 参考资料（题 ${llmQuestions.joinToString(", ")}）"
-                    else "🔍 参考资料"
-                )
-                Column {
-                    s.references.take(5).forEachIndexed { index, ref ->
-                        Row(modifier = Modifier.padding(vertical = 2.dp)) {
-                            Text(
-                                text = "[${index + 1}] ",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 12.sp
-                            )
-                            Text(
-                                text = ref.title,
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Text(
-                            text = ref.url,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
+
             val lines = s.answer.lines()
             lines.forEach { line ->
                 val isAnswerLine = line.contains("✓") ||
@@ -193,6 +155,22 @@ fun SidebarStateRenderer(
                     fontWeight = if (isAnswerLine) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier.padding(vertical = 2.dp),
                     lineHeight = 22.sp
+                )
+            }
+            // === Tavily 单条参考摘录（100~150 字，句末截断，自动标注 AI 答题题号） ===
+            val llmQuestionNumbers = s.questionSources
+                .filter { (_, source) -> source != "题库匹配" }
+                .keys
+                .sorted()
+                .toList()
+            ReferenceFormatter.formatSingleReference(s.references, llmQuestionNumbers)?.let { refText ->
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = refText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                    lineHeight = 18.sp
                 )
             }
             Spacer(Modifier.height(12.dp))
