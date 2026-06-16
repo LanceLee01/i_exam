@@ -88,6 +88,12 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                     tmpFile.delete()
                     when {
                         count == -2 -> totalSkipped++
+                        count == -3 -> withContext(Dispatchers.Main) {
+                            Toast.makeText(ExamApplication.instance, "请先在设置中配置 API Key", Toast.LENGTH_LONG).show()
+                        }
+                        count == -4 -> withContext(Dispatchers.Main) {
+                            Toast.makeText(ExamApplication.instance, "列检测失败，请手动调整 Excel 文件格式", Toast.LENGTH_LONG).show()
+                        }
                         count >= 0 -> { totalImported += count; KnowledgeBaseManager.save() }
                         else -> totalFailed++
                     }

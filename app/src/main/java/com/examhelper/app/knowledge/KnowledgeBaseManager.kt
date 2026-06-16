@@ -7,6 +7,9 @@ import com.google.gson.reflect.TypeToken
 import com.google.gson.ExclusionStrategy
 import com.google.gson.FieldAttributes
 import org.apache.poi.ss.usermodel.WorkbookFactory
+import com.examhelper.app.ExamApplication
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
@@ -70,19 +73,31 @@ data class KnowledgeBase(
     val importedHashes = mutableSetOf<String>()
     val count: Int get() = entries.size
 
-    fun importExcel(path: String): Int {
+    fun importExcel(path: String, mapping: ColumnMapping? = null): Int {
         return try {
+            val effectiveMapping: ColumnMapping
+            if (mapping != null) {
+                effectiveMapping = mapping
+            } else {
+                val detected = autoDetectColumns(path)
+                if (detected == null) {
+                    val config = runBlocking { ExamApplication.instance.appConfig.getSnapshot() }
+                    return if (config.apiKey.isBlank()) -3 else -4
+                }
+                effectiveMapping = detected
+            }
+
             val stream = FileInputStream(path)
             val workbook = WorkbookFactory.create(stream)
             val sheet = workbook.getSheetAt(0)
             var imported = 0
             for (row in sheet) {
                 if (row.rowNum == 0) continue
-                val question = row.getCell(5)?.toString()?.trim() ?: continue  // F列
-                val answer = row.getCell(7)?.toString()?.trim()                // H列
+                val question = row.getCell(effectiveMapping.questionCol)?.toString()?.trim() ?: continue
+                val answer = row.getCell(effectiveMapping.answerCol)?.toString()?.trim()
                 if (question.isBlank() || answer.isNullOrBlank()) continue
-                val source = try { row.getCell(6)?.toString()?.trim() } catch (_: Exception) { null }  // G列（选项，作来源）
-                entries.add(KBEntry(question, answer, source ?: ""))
+                val source = try { effectiveMapping.sourceCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
+                entries.add(KBEntry(question, answer, source))
                 imported++
             }
             stream.close()
@@ -94,7 +109,7 @@ data class KnowledgeBase(
         }
     }
 
-    fun importExcelWithDedup(path: String): Int {
+    fun importExcelWithDedup(path: String, mapping: ColumnMapping? = null): Int {
         return try {
             val file = File(path)
             val bytes = file.readBytes()
@@ -105,17 +120,29 @@ data class KnowledgeBase(
                 return -2
             }
 
+            val effectiveMapping: ColumnMapping
+            if (mapping != null) {
+                effectiveMapping = mapping
+            } else {
+                val detected = autoDetectColumns(path)
+                if (detected == null) {
+                    val config = runBlocking { ExamApplication.instance.appConfig.getSnapshot() }
+                    return if (config.apiKey.isBlank()) -3 else -4
+                }
+                effectiveMapping = detected
+            }
+
             val stream = FileInputStream(file)
             val workbook = WorkbookFactory.create(stream)
             val sheet = workbook.getSheetAt(0)
             var imported = 0
             for (row in sheet) {
                 if (row.rowNum == 0) continue
-                val question = row.getCell(5)?.toString()?.trim() ?: continue  // F列
-                val answer = row.getCell(7)?.toString()?.trim()                // H列
+                val question = row.getCell(effectiveMapping.questionCol)?.toString()?.trim() ?: continue
+                val answer = row.getCell(effectiveMapping.answerCol)?.toString()?.trim()
                 if (question.isBlank() || answer.isNullOrBlank()) continue
-                val source = try { row.getCell(6)?.toString()?.trim() } catch (_: Exception) { null }  // G列（选项，作来源）
-                entries.add(KBEntry(question, answer, source ?: ""))
+                val source = try { effectiveMapping.sourceCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
+                entries.add(KBEntry(question, answer, source))
                 imported++
             }
             stream.close()
@@ -126,6 +153,17 @@ data class KnowledgeBase(
         } catch (e: Exception) {
             Log.e("KnowledgeBase", "[$name] import failed", e)
             -1
+        }
+    }
+
+    private fun autoDetectColumns(path: String): ColumnMapping? {
+        return try {
+            runBlocking(Dispatchers.IO) {
+                ColumnDetector().detectColumns(path)
+            }
+        } catch (e: ColumnDetectionException) {
+            Log.w("KnowledgeBase", "autoDetectColumns failed: ${e.reason}")
+            null
         }
     }
 
