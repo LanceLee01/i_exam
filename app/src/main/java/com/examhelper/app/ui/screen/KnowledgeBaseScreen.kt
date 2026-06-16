@@ -68,6 +68,7 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
     var newKBName by remember { mutableStateOf("") }
     var isImportingDoc by remember { mutableStateOf(false) }
     val kbs = KnowledgeBaseManager.allKBs
+    var refreshKey by remember { mutableStateOf(0) }
     val kbEngine = remember { KBEngine(ExamApplication.instance) }
 
     val excelLauncher = rememberLauncherForActivityResult(
@@ -82,7 +83,8 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                 try {
                     val ctx = ExamApplication.instance.applicationContext
                     val inputStream = ctx.contentResolver.openInputStream(uri)
-                    val tmpFile = java.io.File(ctx.cacheDir, "kb_import_${System.currentTimeMillis()}_${uris.indexOf(uri)}.xlsx")
+                    val fileIndex = uris.indexOf(uri)
+                    val tmpFile = java.io.File(ctx.cacheDir, "kb_import_${System.nanoTime()}_${fileIndex}.xlsx")
                     tmpFile.outputStream().use { inputStream?.copyTo(it) }
                     val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(tmpFile.absolutePath) ?: -1
                     tmpFile.delete()
@@ -102,6 +104,7 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                 }
             }
             withContext(Dispatchers.Main) {
+                refreshKey++  // Force UI recomposition
                 val msg = buildString {
                     if (totalImported > 0) append("导入成功: $totalImported 条")
                     if (totalSkipped > 0) append("，跳过: $totalSkipped 个文件")
@@ -176,6 +179,8 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(kb.name, color = Color.White, fontWeight = FontWeight.Bold)
+                                @Suppress("UNUSED_EXPRESSION")
+                                refreshKey  // Force recomposition when refreshKey changes
                                 Text("${kb.count} 条题目", color = Color.White.copy(0.5f), style = MaterialTheme.typography.bodySmall)
                                 if (isActive) Text("激活", color = Color(0xFF22C55E), style = MaterialTheme.typography.labelSmall)
                             }
