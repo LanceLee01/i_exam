@@ -100,4 +100,5 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.0")
     testImplementation("io.mockk:mockk:1.13.12")
     testImplementation("app.cash.turbine:turbine:1.1.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.0")
 }
