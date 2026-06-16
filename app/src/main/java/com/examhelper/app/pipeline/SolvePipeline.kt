@@ -434,12 +434,15 @@ class SolvePipeline(private val context: Context) {
             val l4Answer = if (accumulated.isNotEmpty()) accumulated.toString()
                 else if (reasoning.isNotEmpty()) "【思考过程】\n$reasoning"
                 else ""
+            Log.d(TAG, "L4 answer raw length: ${l4Answer.length}, first 200 chars: ${l4Answer.take(200)}")
 
             // Parse L4 answer to extract per-question answers
             val l4Parsed = parseL4Answer(l4Answer, unmatchedQ)
+            Log.d(TAG, "L4 parsed: ${l4Parsed.size} questions: ${l4Parsed.keys.sorted()}")
 
             // Combine L1 + L4 using formatCombinedAnswer (L1 priority on collision)
             val combined = formatCombinedAnswer(l4Parsed, l1Answers)
+            Log.d(TAG, "Combined answer length: ${combined.length}, first 100: ${combined.take(100)}")
 
             val finalAnswer = combined
 
@@ -467,8 +470,8 @@ class SolvePipeline(private val context: Context) {
             val trimmed = line.trim()
             if (trimmed.isEmpty()) continue
             val match = L4_PATTERN.find(trimmed) ?: continue
-            val qNum = match.groupValues[1].toIntOrNull() ?: match.groupValues[2].toIntOrNull() ?: continue
-            val ans = normalizeAnswer(match.groupValues[3].trim())
+            val qNum = match.groupValues[1].toIntOrNull() ?: continue
+            val ans = normalizeAnswer(match.groupValues[2].trim())
             if (qNum in expectedNumbers && ans.isNotBlank()) {
                 result[qNum] = ans
             }
@@ -488,7 +491,7 @@ class SolvePipeline(private val context: Context) {
     companion object {
         private const val TAG = "SolvePipeline"
         const val SEARCH_KB_MATCH_THRESHOLD = 0.70f
-        private val L4_PATTERN = Regex("""(?:\[(\d+)\]|(\d+)[.)])\s*(.+)$""")
+        private val L4_PATTERN = Regex("""[\[【]?(\d+)[\]】]?\s*[.、:：)）]?\s*(.+)$""")
 
         /** Format combined answer map to sorted [N] answer lines. L1 overrides L4 on key collision. */
         fun formatCombinedAnswer(l4Answers: Map<Int, String>, l1Answers: Map<Int, String>): String {
