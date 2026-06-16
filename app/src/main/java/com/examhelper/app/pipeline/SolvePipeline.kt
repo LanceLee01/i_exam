@@ -77,11 +77,21 @@ class SolvePipeline(private val context: Context) {
 
     private suspend fun tryExcelMatchAll(text: String): Map<Int, String>? {
         val excelHits = KnowledgeBaseManager.activeKB?.search(text, topN = 50) ?: emptyList()
-        val hits = excelHits.filter { (_, score) -> score >= 0.70f }
+        // TEMP DEBUG
+        excelHits.forEach { (entry, score) ->
+            Log.d(TAG_DEBUG, "KB raw hit: score=${"%.4f".format(score)} q=${entry.question.take(40)} ans=${entry.answer}")
+        }
+        // END TEMP DEBUG
+        val hits = excelHits.filter { (_, score) -> score >= 0.50f }
         if (hits.isEmpty()) return null
         
         val numberedPairs = hits.mapNotNull { (entry, _) ->
-            val qNum = findQuestionNumber(text, entry.question) ?: return@mapNotNull null
+            val qNum = findQuestionNumber(text, entry.question) ?: run {
+                // TEMP DEBUG
+                Log.d(TAG_DEBUG, "findQuestionNumber FAILED for: ${entry.question.take(40)}")
+                // END TEMP DEBUG
+                return@mapNotNull null
+            }
             qNum to normalizeTfAnswer(entry.answer, entry.source)
         }
         
@@ -380,7 +390,7 @@ class SolvePipeline(private val context: Context) {
         Log.d(TAG, "L3 Search KB: LLM generated ${entries.size} entries")
         val qTri = KBEntry.computeTrigrams(text)
         val match = entries.map { entry ->
-            entry to KBEntry.jaccard(qTri, entry.trigrams)
+            entry to KBEntry.jaccard(qTri, KBEntry.computeTrigrams(entry.question))
         }.filter { it.second >= SEARCH_KB_MATCH_THRESHOLD }
             .maxByOrNull { it.second }
         if (match != null) {
@@ -586,6 +596,7 @@ class SolvePipeline(private val context: Context) {
 
     companion object {
         private const val TAG = "SolvePipeline"
+        private const val TAG_DEBUG = "ExamHelperL1"
         const val SEARCH_KB_MATCH_THRESHOLD = 0.70f
         private val L4_PATTERN = Regex("""[\[【]?(\d+)[\]】]?\s*[.、:：)）]?\s*(.+)$""")
 
