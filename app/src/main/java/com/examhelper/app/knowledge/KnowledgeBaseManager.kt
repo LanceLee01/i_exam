@@ -2,8 +2,10 @@ package com.examhelper.app.knowledge
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
+import com.google.gson.ExclusionStrategy
+import com.google.gson.FieldAttributes
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.File
 import java.io.FileInputStream
@@ -158,7 +160,12 @@ data class KnowledgeBase(
 
 object KnowledgeBaseManager {
 
-    private val gson = Gson()
+    private val gson = GsonBuilder()
+        .setExclusionStrategies(object : ExclusionStrategy {
+            override fun shouldSkipField(f: FieldAttributes) = f.name.contains("trigrams")
+            override fun shouldSkipClass(clazz: Class<*>) = false
+        })
+        .create()
     private val kbs = mutableListOf<KnowledgeBase>()
     private var activeIndex = -1
 
