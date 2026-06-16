@@ -62,9 +62,6 @@ fun SidebarStateRenderer(
             }
             val speed = if (ExtractedTextBus.lastTokensPerSec > 0) ExtractedTextBus.lastTokensPerSec else 35f
             val ttftEstSec = if (ExtractedTextBus.lastTtftMs > 0) ExtractedTextBus.lastTtftMs / 1000f else 0f
-            val remainingEst = (s.maxTokens / speed).toInt()
-            val totalEst = (maxOf(elapsedSec.toFloat(), ttftEstSec) + remainingEst).toInt()
-            Log.d("DebugETA", "elapsedSec=$elapsedSec lastTtftMs=${ExtractedTextBus.lastTtftMs} maxTokens=${s.maxTokens} lastTokensPerSec=${ExtractedTextBus.lastTokensPerSec} totalEst=$totalEst")
             val promptInfo = if (ExtractedTextBus.lastPromptTokens > 0)
                 " [prompt:${ExtractedTextBus.lastPromptTokens}tok]" else ""
             Spacer(Modifier.height(24.dp))
@@ -75,7 +72,7 @@ fun SidebarStateRenderer(
                     strokeWidth = 2.dp
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("${s.message}（${elapsedSec}s 预估总时间${totalEst}s）$promptInfo", color = TextSecondary, fontSize = 13.sp)
+                Text("${s.message}（${elapsedSec}s）$promptInfo", color = TextSecondary, fontSize = 13.sp)
             }
         }
 

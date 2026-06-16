@@ -32,7 +32,7 @@ class SolvePipeline(private val context: Context) {
         val allQ = extractQuestionNumbers(text).map { it.first }.toSet()
         val unmatchedQ = (allQ - l1Keys).sorted()
 
-        Log.d(TAG, "solve: L1=${l1Keys.size} all=${allQ.size} unmatched=$unmatchedQ")
+        Log.d(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ l1Keys=$l1Keys")
 
         // If all matched, return directly
         if (unmatchedQ.isEmpty()) {
@@ -82,7 +82,7 @@ class SolvePipeline(private val context: Context) {
         
         val numbered = hits.mapNotNull { (entry, _) ->
             val qNum = findQuestionNumber(text, entry.question) ?: return@mapNotNull null
-            qNum to entry.answer
+            qNum to normalizeTfAnswer(entry.answer, entry.source)
         }.toMap()
         
         Log.d(TAG, "L1 matched ${numbered.size} questions: ${numbered.keys.sorted()}")
@@ -494,6 +494,14 @@ class SolvePipeline(private val context: Context) {
         fun formatCombinedAnswer(l4Answers: Map<Int, String>, l1Answers: Map<Int, String>): String {
             return (l4Answers + l1Answers).entries.sortedBy { it.key }
                 .joinToString("\n") { (q, a) -> "[$q] $a" }
+        }
+
+        /** Convert KB letter answer to text for true-false questions based on source mapping. */
+        fun normalizeTfAnswer(answer: String, source: String): String {
+            val tfRe = Regex("""([A-F])-(正确|错误|对|错)\|([A-F])-(正确|错误|对|错)""")
+            val m = tfRe.find(source) ?: return answer
+            val map = mapOf(m.groupValues[1] to m.groupValues[2], m.groupValues[3] to m.groupValues[4])
+            return map[answer] ?: answer
         }
     }
 }
