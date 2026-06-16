@@ -153,6 +153,25 @@ object KnowledgeBaseManager {
     fun init(context: Context) {
         storageFile = File(context.filesDir, "kb_data.json")
         load()
+        // Default to 安规 knowledge base
+        val anGuiIndex = kbs.indexOfFirst { it.name == "安规" }
+        if (anGuiIndex >= 0) {
+            activeIndex = anGuiIndex
+            save()
+        } else if (kbs.isEmpty()) {
+            addKB("安规")
+        }
+
+        // Auto-import 安规题库 if KB is empty
+        val anGuiKb = kbs.firstOrNull { it.name == "安规" }
+        if (anGuiKb != null && anGuiKb.entries.isEmpty()) {
+            val excelFile = java.io.File("/sdcard/33-通信安规.xls")
+            if (excelFile.exists()) {
+                Log.d("KBManager", "Auto-importing 安规题库 from /sdcard/33-通信安规.xls")
+                anGuiKb.importExcelWithDedup(excelFile.absolutePath)
+                save()
+            }
+        }
     }
 
     fun addKB(name: String): KnowledgeBase {
