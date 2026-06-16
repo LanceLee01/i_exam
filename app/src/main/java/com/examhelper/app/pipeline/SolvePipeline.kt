@@ -80,10 +80,26 @@ class SolvePipeline(private val context: Context) {
         val hits = excelHits.filter { (_, score) -> score >= 0.70f }
         if (hits.isEmpty()) return null
         
-        val numbered = hits.mapNotNull { (entry, _) ->
+        val numberedPairs = hits.mapNotNull { (entry, _) ->
             val qNum = findQuestionNumber(text, entry.question) ?: return@mapNotNull null
             qNum to normalizeTfAnswer(entry.answer, entry.source)
-        }.toMap()
+        }
+        
+        val conflictQ = mutableSetOf<Int>()
+        val seenQ = mutableSetOf<Int>()
+        for ((q, _) in numberedPairs) {
+            if (q in seenQ) conflictQ.add(q)
+            seenQ.add(q)
+        }
+        
+        val numbered = numberedPairs
+            .filter { (q, _) -> q !in conflictQ }
+            .distinctBy { it.first }
+            .toMap()
+        
+        if (conflictQ.isNotEmpty()) {
+            Log.d(TAG, "L1 conflict detected for questions: $conflictQ — will fall through to LLM")
+        }
         
         Log.d(TAG, "L1 matched ${numbered.size} questions: ${numbered.keys.sorted()}")
         return if (numbered.isEmpty()) null else numbered
