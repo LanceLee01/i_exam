@@ -86,10 +86,11 @@ class SolvePipeline(private val context: Context) {
         }
         
         val conflictQ = mutableSetOf<Int>()
-        val seenQ = mutableSetOf<Int>()
-        for ((q, _) in numberedPairs) {
-            if (q in seenQ) conflictQ.add(q)
-            seenQ.add(q)
+        val answerByQ = mutableMapOf<Int, MutableSet<String>>()
+        for ((q, ans) in numberedPairs) {
+            val answers = answerByQ.getOrPut(q) { mutableSetOf() }
+            answers.add(ans)
+            if (answers.size > 1) conflictQ.add(q)
         }
         
         val numbered = numberedPairs
@@ -210,12 +211,48 @@ class SolvePipeline(private val context: Context) {
     private fun findQuestionNumber(text: String, kbQuestion: String): Int? {
         val normalizedQuery = text.replace(Regex("（\\s*）"), "（）")
         val normalizedQuestion = kbQuestion.replace(Regex("（\\s*）"), "（）")
-        val idx = normalizedQuery.indexOf(normalizedQuestion)
-        if (idx < 0) return null
         val questionPattern = Regex("""(\d+)、""")
-        return questionPattern.findAll(normalizedQuery.substring(0, idx))
-            .mapNotNull { it.groupValues[1].toIntOrNull() }
-            .lastOrNull()
+
+        // 1) Exact substring match (fast path)
+        val exactIdx = normalizedQuery.indexOf(normalizedQuestion)
+        if (exactIdx >= 0) {
+            return questionPattern.findAll(normalizedQuery.substring(0, exactIdx))
+                .mapNotNull { it.groupValues[1].toIntOrNull() }
+                .lastOrNull()
+        }
+
+        // 2) Fuzzy match: trigram similarity to find best-matching question block
+        val qPattern = Regex("""(\d+)、""")
+        val qMatches = qPattern.findAll(normalizedQuery).toList()
+        val blocks = if (qMatches.size <= 1) {
+            listOf(normalizedQuery)
+        } else {
+            qMatches.indices.map { i ->
+                val start = qMatches[i].range.first
+                val end = if (i + 1 < qMatches.size) qMatches[i + 1].range.first else normalizedQuery.length
+                normalizedQuery.substring(start, end).trim()
+            }
+        }
+        val kbTri = KBEntry.computeTrigrams(normalizedQuestion)
+        var bestBlockIdx = -1
+        var bestScore = 0.30f
+        for ((i, block) in blocks.withIndex()) {
+            val blockTri = KBEntry.computeTrigrams(block)
+            val score = KBEntry.jaccard(kbTri, blockTri)
+            if (score > bestScore) {
+                bestScore = score
+                bestBlockIdx = i
+            }
+        }
+        if (bestBlockIdx < 0) return null
+
+        val matchedBlock = blocks[bestBlockIdx]
+        val numMatch = questionPattern.find(matchedBlock)
+        val qNum = numMatch?.groupValues?.get(1)?.toIntOrNull()
+        if (qNum != null) {
+            Log.d(TAG, "findQuestionNumber fuzzy match: Q$qNum score=${"%.2f".format(bestScore)}")
+        }
+        return qNum
     }
 
     // ── Search → KB processing ───────────────────────────
