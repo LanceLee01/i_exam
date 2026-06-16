@@ -183,19 +183,26 @@ object KnowledgeBaseManager {
         // Auto-import 安规题库 from assets (first launch only)
         val anGuiKb = kbs.firstOrNull { it.name == "安规" }
         if (anGuiKb != null && anGuiKb.entries.isEmpty()) {
-            try {
-                val dstFile = java.io.File(context.filesDir, "33-通信安规.xls")
-                context.assets.open("33-通信安规.xls").use { input ->
-                    dstFile.outputStream().use { output ->
-                        input.copyTo(output)
+            val assetFiles = listOf(
+                "33-通信安规.xls",
+                "1-习总书记安全生产重要论述.xls"
+            )
+            for (fileName in assetFiles) {
+                try {
+                    val dstFile = java.io.File(context.filesDir, fileName)
+                    context.assets.open(fileName).use { input ->
+                        dstFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
                     }
+                    val count = anGuiKb.importExcelWithDedup(dstFile.absolutePath)
+                    Log.d("KBManager", "Auto-imported $fileName: $count entries")
+                } catch (e: Exception) {
+                    Log.e("KBManager", "Auto-import $fileName failed", e)
                 }
-                anGuiKb.importExcelWithDedup(dstFile.absolutePath)
-                save()
-                Log.d("KBManager", "Auto-imported 安规题库 from assets (${anGuiKb.entries.size} entries)")
-            } catch (e: Exception) {
-                Log.e("KBManager", "Auto-import 安规题库 failed", e)
             }
+            save()
+            Log.d("KBManager", "Auto-import complete: ${anGuiKb.entries.size} total entries")
         }
     }
 
