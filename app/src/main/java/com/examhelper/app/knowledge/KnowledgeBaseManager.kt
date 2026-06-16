@@ -177,22 +177,23 @@ data class KnowledgeBase(
             val normalizedQuestion = it.question.replace(Regex("（\\s*）"), "（）")
             normalizedQuery.contains(normalizedQuestion)
         }
-        if (exactMatches.isNotEmpty()) {
-            return exactMatches.map { it to 1.0f }.take(topN)
-        }
+        val exactSet = exactMatches.toSet()
 
-        // 无精确匹配，回退到逐题 trigram Jaccard
         val blocks = extractQuestionBlocks(query)
         val blockTrigrams = blocks.map { KBEntry.computeTrigrams(it) }
-        return entries.map { entry ->
-            val bestScore = blockTrigrams.maxOfOrNull { blockTri ->
-                KBEntry.jaccard(blockTri, entry.trigrams)
-            } ?: 0f
-            entry to bestScore
-        }
-        .filter { it.second > 0.15f }
-        .sortedByDescending { it.second }
-        .take(topN)
+        val trigramResults = entries
+            .filter { it !in exactSet }
+            .map { entry ->
+                val bestScore = blockTrigrams.maxOfOrNull { blockTri ->
+                    KBEntry.jaccard(blockTri, entry.trigrams)
+                } ?: 0f
+                entry to bestScore
+            }
+            .filter { it.second > 0.15f }
+
+        return (exactMatches.map { it to 1.0f } + trigramResults)
+            .sortedByDescending { it.second }
+            .take(topN)
     }
 }
 
