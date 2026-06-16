@@ -1,0 +1,37 @@
+APK Build → Deploy → Test: Analysis Summary
+=============================================
+Date: 2026-06-16
+
+Environment:
+  - Device: 3B164D000JB00000 (OPPO)
+  - SDK: /Users/like/Library/Android/sdk (platform 35)
+  - JDK: openjdk@17 (17.0.19)
+  - APK: app-debug.apk (26MB)
+
+Column Detection Test Results (3 files imported, 3 succeeded):
+
+  1. File with Chinese headers (headers_cn.xlsx):
+     - Detection method: detectByHeader (row 0) ✅
+     - Result: ColumnMapping(questionCol=5, answerCol=7, sourceCol=6)
+     - Imported: 5 entries
+     - Total KB: 329 entries
+
+  2. File with English headers (headers_en.xlsx):
+     - Detection method: detectByHeader (row 0) ✅
+     - Result: ColumnMapping(questionCol=0, answerCol=2, sourceCol=null)
+     - Imported: 4 entries
+     - Total KB: 333 entries
+
+  3. File with no headers (no_headers.xlsx):
+     - Detection method: header failed → detectByLLM (fallback) ✅
+     - Result: ColumnMapping(questionCol=0, answerCol=1, sourceCol=null)
+     - Imported: 4 entries
+     - Total KB: 337 entries
+
+Verification:
+  - Layer 1 (header keyword matching): WORKING - matched CN and EN keywords in row 0
+  - Layer 2 (LLM fallback): WORKING - correctly invoked when no header matched
+  - Error handling: No crashes, no FATAL EXCEPTION
+  - Backward compatibility: Auto-import of existing .xls files also succeeded
+
+Result: ALL PASS ✅

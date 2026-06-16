@@ -1,0 +1,108 @@
+--------- beginning of main
+06-16 21:10:07.261 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[862.00, 1350.00, 671.00, 948.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:07.510 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[845.00, 1343.00, 656.00, 935.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:07.758 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[849.00, 1333.00, 658.00, 935.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:07.942 I/LinkPower( 4244): [MonitorLeafSockConnect] respon sk connect info uid:10390 pid:6776 connect:0 synsndrst:0 synrcvrst:0 synretrans:0
+06-16 21:10:07.942 I/LinkPower( 4244): [MonitorLeafSockConnect] respon sk connect info uid:10390 pid:5339 connect:0 synsndrst:0 synrcvrst:0 synretrans:0
+06-16 21:10:08.007 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[852.00, 1334.00, 655.00, 938.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:08.014 E/PERFHAL-OPTSHANDLER( 2537): PERFHAL-OPTSHANDLER: unsupported() 942: Error: This resource is not supported
+06-16 21:10:08.014 E/PERFHAL-RESOURCEQS( 2537): PERFHAL-RESOURCEQS: RemoveAndApply() 292: Failed to reset optimization here [18, 41]
+06-16 21:10:08.014 I/[UAH_CLIENT]( 2537): UahRelease, handle:465715
+06-16 21:10:08.015 I/[UAH_CLIENT]( 2537): UahPlatformResAcquire
+06-16 21:10:08.015 I/[UAH_CLIENT]( 2537): UahEventAcquire, cmdid:-3, pkg:2537 18133, identity:qcom-perfd
+06-16 21:10:08.015 E/PERFHAL-RESOURCEQS( 2537): PERFHAL-RESOURCEQS: AddAndApply() 130: Resource with major=18, minor=41 not supported
+06-16 21:10:08.225 I/.examhelper.app(16493): HeapTask is not gc_task
+06-16 21:10:08.255 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[856.00, 1357.00, 668.00, 940.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:08.504 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[843.00, 1337.00, 658.00, 935.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+--------- beginning of system
+06-16 21:10:08.530 I/BroadcastQueue( 4244): Ignoring startDeliveryTimeoutLocked for hans freeze manager: BroadcastProcessQueue{ef00b3a 5339:com.tencent.mm/u0a390}
+06-16 21:10:08.590 I/touch-main( 2602): N| [readTemper] read temperature 33937
+06-16 21:10:08.753 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[859.00, 1351.00, 665.00, 940.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:08.753 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:217, high_pwm_light:lux 184.7,cct 6898.3,brl/algo/ir 1376.0/5.0/0.0,pwm/dc 0.0/0.0,rgbc 859.000000/1351.000000/665.000000/940.000000,ts 1706968028351568,cnt 41401,flag 0
+06-16 21:10:09.001 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[845.00, 1342.00, 655.00, 936.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:09.253 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[844.00, 1337.00, 656.00, 940.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:09.444 I/SmartDataSwitchSM( 6540): [IdleState]handle state change, reason:None
+06-16 21:10:09.445 I/SmartDataSwitchEvaluator( 6540): evaluate for reason: None
+06-16 21:10:09.445 I/SmartDataSwitchEvaluator( 6540): BackToDefaultCheck, data phone already default, no need
+06-16 21:10:09.445 I/SmartDataSwitchStateManager( 6540): No low score exist
+06-16 21:10:09.445 I/SmartDataSwitchEvaluator( 6540): evaluate after states:Switch evaluation: evaluation reason:None, Switch disallowed reasons: WIFI_CONNECTED Switch allowed reason: NONE, time=2026-06-16 21:10:09.445
+06-16 21:10:09.445 I/SmartDataSwitchEvaluator( 6540): no specific cases need to be processed
+06-16 21:10:09.445 I/SmartDataSwitchEvaluator( 6540): evaluate finally :Switch evaluation: evaluation reason:None, Switch disallowed reasons: WIFI_CONNECTED Switch allowed reason: NONE, time=2026-06-16 21:10:09.445
+06-16 21:10:09.445 I/SmartDataSwitchEvaluator( 6540): No need to switch as there is hard limit reason or no allowed reason!
+06-16 21:10:09.445 I/SmartDataSwitchSM( 6540): [IdleState]evaluate result:Pair{false 1}
+06-16 21:10:09.446 I/SmartDataSwitchStateManager( 6540): toNhs condition not meet
+06-16 21:10:09.446 I/SmartDataSwitchSM( 6540): [IdleState]trigger fake None event when no messages!
+06-16 21:10:09.498 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[852.00, 1342.00, 667.00, 938.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:09.746 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[853.00, 1346.00, 654.00, 934.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:09.956 W/OPLUS_LOG_LOAD( 5948): ==LOGS PROG INFO, prog(com.android.systemui) ==
+06-16 21:10:09.956 I/SystemUi--Statusbar( 5948): OplusNetworkSpeedControllExImpl-->updateNetworkSpeed: isConnected:true,isSwitchOn:true,isSuspend:false,isPause:false
+06-16 21:10:09.959 I/SystemUi--Statusbar( 5948): OplusNetworkSpeedControllExImpl-->getTotalByte: totalRxBytes:73792983050,totalTxBytes:11114308760,loopbackTxBytes:1833144473,loopbackRxBytes:1833262432 ,totalBytes:81240884905
+06-16 21:10:09.989 I/SDM     ( 2534): ScalarConfig::GetDnscConfigInfo: pcmn_data.phase_init_h: 0, pcmn_data.phase_step_h: 4194304
+06-16 21:10:09.996 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[845.00, 1346.00, 657.00, 935.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:10.018 I/SDM     ( 2534): DemuraTnCaptureIntfImpl::ProcessCapturePanelData: 0x2100000000af:Screen capture status = 0
+06-16 21:10:10.196 I/TeaLog  ( 9006): s worked:true 60000
+06-16 21:10:10.244 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[843.00, 1344.00, 661.00, 936.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:10.358 I/Osense-BaseDecisionMaker( 4244): notifySceneToAthenaPolicy: SCENE_IDLE_RECOVER, bundle: Bundle[{scene=SCENE_IDLE_RECOVER}]
+06-16 21:10:10.494 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[853.00, 1348.00, 650.00, 935.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:10.741 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[847.00, 1342.00, 648.00, 934.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:10.964 I/OplusHansManager ( 4244): uid=10390, pkg=com.tencent.mm F enter(), M stay=13
+06-16 21:10:10.975 I/OplusHansManager ( 4244): freeze uid: 10390 com.tencent.mm pids: [6776, 5339, 5188] scene: |StrictMode-3|LcdOn
+06-16 21:10:10.976 I/OStatsManager_OplusBatteryStatsManager( 4244): updateStateTime: PkgName = com.tencent.mm, uid = 10390, state to em, mForegroundCnt = 0, isFg = false
+06-16 21:10:10.976 I/OplusHansManager ( 4244): p_BC uid=10390 pkg=com.tencent.mm
+06-16 21:10:10.977 E/OAppNetControlService( 4244): failed to destroy socket for uid:10390 pid:6776, mismatch proc config!
+06-16 21:10:10.977 E/OAppNetControlService( 4244): failed to destroy socket for uid:10390 pid:5339, mismatch proc config!
+06-16 21:10:10.977 I/sensors-hal( 2513): batch:169, android.sensor.accelerometer/11, period=200000000, max_latency=2000000000
+06-16 21:10:10.977 I/sensors-hal( 2513): send_sensor_config_request:539, resampler is used, set resampler config
+06-16 21:10:10.977 I/sensors-hal( 2513): send_sync_sensor_request:452, send sync request
+06-16 21:10:10.977 I/sensors-hal( 2513): send_sync_sensor_request:496, wait for notification of response
+06-16 21:10:10.978 I/sensors-hal( 2513): qsh_conn_resp_cb:831, resp_value = 0 for accel 
+06-16 21:10:10.978 I/sensors-hal( 2513): send_sync_sensor_request:502, takes 1 ms to receive the response with 0
+06-16 21:10:10.978 I/sensors-hal( 2513): batch:191, android.sensor.accelerometer/11, period=200000000, max_latency=2000000000 request completed
+06-16 21:10:10.979 I/OplusHansManager ( 4244): p_sensor: 10390
+06-16 21:10:10.979 I/OplusHansManager ( 4244): k_alarm 10390
+06-16 21:10:10.979 I/OplusCameraManagerGlobal( 4244): reportAppFreeze E
+06-16 21:10:10.980 I/OplusBinderProxy( 4244): proxyBinder uid: 10390 pkg: com.tencent.mm proxy: true calling: OFreezer
+06-16 21:10:10.980 I/LocationFreezeProc( 4244): will freezeLocationProcess for com.tencent.mm, 10390, true, false
+06-16 21:10:10.980 I/LocationFreezeProc( 4244): Executing freeze operation for com.tencent.mm, 10390, true, false
+06-16 21:10:10.980 W/LocationFreezeProc( 4244): Do nothing for the app is not record!
+06-16 21:10:10.980 I/OplusHansManager ( 4244): p_gps: uid 10390 result false
+06-16 21:10:10.981 I/OplusHansManager ( 4244): p_BtScan: uid 10390 isProxy true
+06-16 21:10:10.990 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[845.00, 1352.00, 668.00, 943.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:11.239 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[857.00, 1357.00, 668.00, 944.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:11.239 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:217, high_pwm_light:lux 185.6,cct 6927.4,brl/algo/ir 1376.0/5.0/0.0,pwm/dc 0.0/0.0,rgbc 857.000000/1357.000000/668.000000/944.000000,ts 1706970514352923,cnt 41411,flag 0
+06-16 21:10:11.488 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[850.00, 1347.00, 657.00, 941.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:11.735 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[846.00, 1339.00, 656.00, 938.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:11.803 W/OPLUS_LOG_LOAD(30618): ==LOGS PROG INFO, prog(com.oplus.camera) ==
+06-16 21:10:11.803 I/APS_ALOG(30618): flushRoutine g_immediateFlush=0 g_pendingCount=0 g_oobCount=0
+06-16 21:10:11.984 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[851.00, 1345.00, 655.00, 941.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:12.025 I/MessagingApp( 2884): BugleApplication onTrimMemory level = 40
+06-16 21:10:12.235 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[846.00, 1331.00, 647.00, 936.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:12.481 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[855.00, 1350.00, 671.00, 946.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:12.730 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[846.00, 1345.00, 665.00, 941.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:12.956 I/SystemUi--Statusbar( 5948): MobileConnectionRepositoryImpl-->subId:1 isSoftSimCard:false slotId:1
+06-16 21:10:12.978 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[846.00, 1345.00, 659.00, 937.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:12.986 I/SDM     ( 2534): ScalarConfig::GetDnscConfigInfo: pcmn_data.phase_init_h: 0, pcmn_data.phase_step_h: 4194304
+06-16 21:10:13.017 I/SDM     ( 2534): DemuraTnCaptureIntfImpl::ProcessCapturePanelData: 0x2100000000af:Screen capture status = 0
+06-16 21:10:13.171 E/OplusWifiThreadManager( 4244): java.util.concurrent.FutureTask@a8b1839[Completed normally] success executed
+06-16 21:10:13.231 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[841.00, 1344.00, 656.00, 934.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:13.414 I/SystemUi--Statusbar( 5948): MobileConnectionRepositoryImpl-->subId:1 isSoftSimCard:false slotId:1
+06-16 21:10:13.474 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[851.00, 1348.00, 667.00, 943.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:13.591 I/touch-main( 2602): N| [readTemper] read temperature 33805
+06-16 21:10:13.715 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[854.00, 1347.00, 654.00, 939.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:13.715 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:217, high_pwm_light:lux 184.2,cct 6732.5,brl/algo/ir 1376.0/5.0/0.0,pwm/dc 0.0/0.0,rgbc 854.000000/1347.000000/654.000000/939.000000,ts 1706972993057089,cnt 41421,flag 0
+06-16 21:10:13.957 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[850.00, 1344.00, 658.00, 938.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:13.960 I/SystemUi--Statusbar( 5948): OplusNetworkSpeedControllExImpl-->updateNetworkSpeed: isConnected:true,isSwitchOn:true,isSuspend:false,isPause:false
+06-16 21:10:13.961 I/SystemUi--Statusbar( 5948): OplusNetworkSpeedControllExImpl-->getTotalByte: totalRxBytes:73793009386,totalTxBytes:11114312184,loopbackTxBytes:1833144473,loopbackRxBytes:1833262432 ,totalBytes:81240914665
+06-16 21:10:14.151 I/cnss-daemon( 3660): nl80211 response handler invoked
+06-16 21:10:14.151 I/cnss-daemon( 3660): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 226  received
+06-16 21:10:14.151 I/WifiHAL ( 2516): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xe2
+06-16 21:10:14.198 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[849.00, 1344.00, 655.00, 936.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:14.372 E/midasd  ( 7696): getTotalFlipsFromSf mCurFrameCount: 21347610
+06-16 21:10:14.373 I/midasd  ( 7696): DisplayAgent updateDisplayDevInfo getRenderFps mFps:60 mRenderFps:3 mWidth:1440 mHeight:3168
+06-16 21:10:14.439 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[854.00, 1351.00, 657.00, 938.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:14.439 W/OPLUS_LOG_LOAD( 4244): ==LOGS PROG INFO, prog(system_server) ==
+06-16 21:10:14.638 W/Settings( 6453): Setting airplane_mode_on has moved from android.provider.Settings.System to android.provider.Settings.Global, returning read-only value.
+06-16 21:10:14.680 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[850.00, 1340.00, 661.00, 940.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:14.921 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[853.00, 1343.00, 654.00, 936.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:15.163 I/sensors-hal( 2513): handle_oplus_wise_rgb_event:191, wise_rgb: (r, g, b, c)[848.00, 1346.00, 659.00, 939.00],(r2,g2,b2,c2)[[0.00, 0.00, 0.00, 0.00], algo:5.0, flag :0
+06-16 21:10:15.170 E/ChargerInfo( 2611): SingleHyperPath not found
