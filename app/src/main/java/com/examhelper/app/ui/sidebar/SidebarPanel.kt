@@ -138,7 +138,7 @@ fun SidebarPanel(onHide: () -> Unit) {
             // 根据状态显示内容
             SidebarStateRenderer(
                 state = state,
-                onSolve = { text -> scope.launch { pipeline.solve(text) } },
+                onSolve = { text -> scope.launch(Dispatchers.Default) { pipeline.solve(text) } },
                 onRework = { text ->
                     ExtractedTextBus.updateSidebarState(
                         SidebarState.Preview(text)

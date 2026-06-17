@@ -63,10 +63,10 @@ class SolvePipelineTest {
     @Test
     fun `solve emits loading state before slow knowledge base search`() {
         runBlocking {
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } answers {
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } answers {
                 Thread.sleep(200)
                 emptyList()
             }
@@ -103,10 +103,10 @@ class SolvePipelineTest {
     fun `L1 excel match returns EXCEL_MATCH early when search score is 0 dot 70 or above`() {
         runBlocking {
             // Given: activeKB.search returns an entry with score >= 0.70
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("What is capital of France?", "Paris") to 0.85f
             )
 
@@ -119,12 +119,13 @@ class SolvePipelineTest {
                 // Consume initial Idle
                 awaitItem()
 
-                pipeline.solve("What is capital of France?")
+                pipeline.solve("1、What is capital of France?\nA. Paris\nB. London")
 
+                awaitItem() // consume initial Loading
                 val state = awaitItem()
                 assertTrue(state is SidebarState.Done, "Expected Done state")
                 assertEquals(AnswerSource.EXCEL_MATCH, (state as SidebarState.Done).source)
-                assertEquals("Paris", state.answer)
+                assertEquals("[1] Paris", state.answer)
 
                 cancelAndConsumeRemainingEvents()
             }
@@ -134,14 +135,14 @@ class SolvePipelineTest {
     @Test
     fun `L1 excel match preserves input text and answer in Done state`() {
         runBlocking {
-            val questionText = "What is 2+2?"
+            val questionText = "1、What is 2+2?"
             val answerText = "4"
 
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
-                KBEntry(questionText, answerText) to 0.95f
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
+                KBEntry("What is 2+2?", answerText) to 0.95f
             )
 
             coEvery { mockAppConfig.getSnapshot() } returns defaultSnapshot()
@@ -153,11 +154,12 @@ class SolvePipelineTest {
 
                 pipeline.solve(questionText)
 
+                awaitItem() // consume initial Loading
                 val state = awaitItem()
                 assertTrue(state is SidebarState.Done)
                 val done = state as SidebarState.Done
                 assertEquals(questionText, done.text)
-                assertEquals(answerText, done.answer)
+                assertEquals("[1] 4", done.answer)
                 assertEquals(AnswerSource.EXCEL_MATCH, done.source)
 
                 cancelAndConsumeRemainingEvents()
@@ -173,10 +175,10 @@ class SolvePipelineTest {
     fun `L2 KB match returns KB_MATCH early when wiki Jaccard score is 0 dot 50 or above`() {
         runBlocking {
             // L1 miss: activeKB.search returns score < 0.70
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("irrelevant", "no match") to 0.30f
             )
 
@@ -202,12 +204,13 @@ class SolvePipelineTest {
             ExtractedTextBus.sidebarState.test {
                 awaitItem() // Idle
 
-                pipeline.solve("test question")
+                pipeline.solve("1、test question")
 
+                awaitItem() // consume initial Loading
                 val state = awaitItem()
                 assertTrue(state is SidebarState.Done, "Expected Done state")
                 assertEquals(AnswerSource.KB_MATCH, (state as SidebarState.Done).source)
-                assertEquals("Paris is the capital of France", state.answer)
+                assertEquals("[1] Paris is the capital of France", state.answer)
 
                 cancelAndConsumeRemainingEvents()
             }
@@ -217,13 +220,13 @@ class SolvePipelineTest {
     @Test
     fun `L2 KB match preserves input text in Done state`() {
         runBlocking {
-            val query = "What is the boiling point of water?"
+            val query = "1、What is the boiling point of water?"
 
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
-                KBEntry("irrelevant", "") to 0.25f
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
+                KBEntry("What is the boiling point of water?", "") to 0.25f
             )
 
             coEvery { mockAppConfig.getSnapshot() } returns defaultSnapshot()
@@ -247,6 +250,7 @@ class SolvePipelineTest {
 
                 pipeline.solve(query)
 
+                awaitItem() // consume initial Loading
                 val state = awaitItem()
                 assertTrue(state is SidebarState.Done)
                 val done = state as SidebarState.Done
@@ -266,10 +270,10 @@ class SolvePipelineTest {
     fun `search skip when tavilyApiKey is blank does not emit search loading state`() {
         runBlocking {
             // L1 miss
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("test", "irrelevant") to 0.30f
             )
 
@@ -292,10 +296,11 @@ class SolvePipelineTest {
             ExtractedTextBus.sidebarState.test {
                 awaitItem() // Idle
 
-                pipeline.solve("test question")
+                pipeline.solve("1、test question")
 
-                // Must NOT see "正在搜索相关参考资料..." Loading.
-                // First state after Idle should be LLM Loading.
+                // Consume initial Loading("正在准备解答...")
+                awaitItem()
+                // Next state should be LLM Loading
                 val loading = awaitItem()
                 assertTrue(loading is SidebarState.Loading)
                 val loadingMsg = (loading as SidebarState.Loading).message
@@ -327,10 +332,10 @@ class SolvePipelineTest {
     fun `LLM fallback calls chatStream when L1 and L2 miss`() {
         runBlocking {
             // L1 miss
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("test", "irrelevant") to 0.30f
             )
 
@@ -353,9 +358,10 @@ class SolvePipelineTest {
             ExtractedTextBus.sidebarState.test {
                 awaitItem() // Idle
 
-                pipeline.solve("test question")
+                pipeline.solve("1、test question")
 
-                // Should go through LLM Loading -> Streaming -> Done
+                // Should go through Loading → Loading → Streaming → Done
+                awaitItem() // consume initial Loading("正在准备解答...")
                 val loading = awaitItem()
                 assertTrue(loading is SidebarState.Loading)
                 assertTrue(
@@ -386,12 +392,12 @@ class SolvePipelineTest {
     @Test
     fun `LLM fallback Done state has LLM_DIRECT source when no hints match`() {
         runBlocking {
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
             // score 0.30 < 0.40 -> no Excel hint, L1 miss
-            every { mockKB.search(any(), any()) } returns listOf(
-                KBEntry("test", "no") to 0.30f
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
+                KBEntry("xyz_no_match_abc", "no") to 0.30f
             )
 
             coEvery { anyConstructed<KBEngine>().searchByQuestion(any()) } returns SearchResult(
@@ -410,9 +416,10 @@ class SolvePipelineTest {
             ExtractedTextBus.sidebarState.test {
                 awaitItem()
 
-                pipeline.solve("test question")
+                pipeline.solve("1、test question")
 
-                // Skip Loading + Streaming
+                // Skip Loading + Loading + Streaming
+                awaitItem()
                 awaitItem()
                 awaitItem()
                 val done = awaitItem()
@@ -427,11 +434,11 @@ class SolvePipelineTest {
     @Test
     fun `LLM fallback Done state has KB_INFER source when KB hints are present`() {
         runBlocking {
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
             // Return an entry with score between 0.40 and 0.70 -> hint used but L1 doesn't match
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("What is capital?", "Paris") to 0.55f
             )
 
@@ -452,9 +459,10 @@ class SolvePipelineTest {
             ExtractedTextBus.sidebarState.test {
                 awaitItem()
 
-                pipeline.solve("test question")
+                pipeline.solve("1、test question")
 
-                // Skip Loading + Streaming
+                // Skip Loading + Loading + Streaming
+                awaitItem()
                 awaitItem()
                 awaitItem()
                 val done = awaitItem()
@@ -515,12 +523,12 @@ class SolvePipelineTest {
     fun `callLLMAndCombine mixed L1 and L4 produces combined format`() {
         runBlocking {
             // Given: L1 matches question 1 with score 0.85, LLM answers question 2
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
 
             // KB entry for question 1 - high score match
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("Question 1?", "A") to 0.85f
             )
 
@@ -541,8 +549,9 @@ class SolvePipelineTest {
                 awaitItem() // Idle
                 pipeline.solve("1、Question 1?\nA. yes\nB. no\n2、Question 2?\nA. yes\nB. no")
 
-                // Skip Loading + Streaming
-                awaitItem() // Loading
+                // Skip initial Loading + LLM Loading + Streaming
+                awaitItem() // initial Loading
+                awaitItem() // LLM Loading
                 awaitItem() // Streaming
                 val done = awaitItem() // Done
 
@@ -562,10 +571,10 @@ class SolvePipelineTest {
     fun `callLLMAndCombine L1 only with unparseable LLM uses combined format`() {
         runBlocking {
             // L1 matches both questions
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("Question 1?", "A") to 0.85f,
                 KBEntry("Question 2?", "B") to 0.80f
             )
@@ -578,6 +587,7 @@ class SolvePipelineTest {
                 awaitItem()
                 pipeline.solve("1、Question 1?\nA. yes\nB. no\n2、Question 2?\nA. yes\nB. no")
 
+                awaitItem() // consume initial Loading
                 val done = awaitItem()
                 assertTrue(done is SidebarState.Done)
                 val doneState = done as SidebarState.Done
@@ -593,10 +603,10 @@ class SolvePipelineTest {
     fun `callLLMAndCombine L4 only uses combined format`() {
         runBlocking {
             // L1 miss (no matches), LLM answers all questions
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("irrelevant", "no") to 0.25f
             )
 
@@ -617,7 +627,8 @@ class SolvePipelineTest {
                 awaitItem()
                 pipeline.solve("1、Question 1?\nA. yes\nB. no\n2、Question 2?\nA. yes\nB. no")
 
-                // Skip Loading + Streaming
+                // Skip initial Loading + LLM Loading + Streaming
+                awaitItem()
                 awaitItem()
                 awaitItem()
                 val done = awaitItem()
@@ -637,10 +648,10 @@ class SolvePipelineTest {
     fun `callLLMAndCombine L1 overrides L4 on same question`() {
         runBlocking {
             // L1 has answer for question 1
-            val mockKB = mockk<KnowledgeBase>()
+            val mockKB = mockk<KnowledgeBase>(relaxed = true)
             mockkObject(KnowledgeBaseManager)
             every { KnowledgeBaseManager.activeKB } returns mockKB
-            every { mockKB.search(any(), any()) } returns listOf(
+            every { mockKB.search(any<String>(), any<String>(), any<Int>()) } returns listOf(
                 KBEntry("Question 1?", "A") to 0.85f
             )
 
@@ -661,8 +672,7 @@ class SolvePipelineTest {
                 awaitItem()
                 pipeline.solve("1、Question 1?\nA. L1 answer\nB. LLM answer")
 
-                // Skip Loading + Streaming
-                awaitItem()
+                // Consume initial Loading - L1 matches all Qs, so Done follows
                 awaitItem()
                 val done = awaitItem()
 
@@ -670,6 +680,7 @@ class SolvePipelineTest {
                 val doneState = done as SidebarState.Done
                 // L1 answer "A" should win, not LLM answer "B"
                 val answerStr = doneState.answer
+                assertTrue(answerStr.contains("A"), "L1 answer A should be in final answer: $answerStr")
                 // After fix: the answer should contain "A" (from L1) not "B" (from LLM) for question 1
                 // Before fix (RED phase): answer may differ
 

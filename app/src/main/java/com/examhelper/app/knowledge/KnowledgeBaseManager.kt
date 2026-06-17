@@ -22,11 +22,18 @@ data class KBEntry(
     val options: String = ""
 ) {
     companion object {
-        fun computeTrigrams(text: String): Set<String> {
-            if (text.length < 3) return emptySet()
-            val norm = text
+        // ── normalization ──────────────────────────────────────────────
+
+        private fun normalizeText(text: String): String {
+            return text
                 .replace(Regex("\\s+"), "")
                 .replace(Regex("[.,，。、；;：:！!？?（）()\\[\\]【】《》'\"“”]"), "")
+        }
+
+        // ── n-gram features ────────────────────────────────────────────
+
+        fun computeTrigrams(text: String): Set<String> {
+            val norm = normalizeText(text)
             if (norm.length < 3) return emptySet()
             val result = mutableSetOf<String>()
             for (i in 0..norm.length - 3) {
@@ -35,12 +42,89 @@ data class KBEntry(
             return result
         }
 
+        /** 2-char sliding window — better discrimination for CJK text. */
+        fun computeBigrams(text: String): Set<String> {
+            val norm = normalizeText(text)
+            if (norm.length < 2) return emptySet()
+            val result = mutableSetOf<String>()
+            for (i in 0..norm.length - 2) {
+                result.add(norm.substring(i, i + 2))
+            }
+            return result
+        }
+
+        /** Split on numbers/punctuation/whitespace, keep tokens ≥ 2 chars. */
+        fun computeTokenSplits(text: String): Set<String> {
+            return text.split(Regex("[0-9]+|[.,，。、；;：:！!？?（）()\\[\\]【】《》'\"“”\\s]+"))
+                .map { it.trim() }
+                .filter { it.length >= 2 }
+                .toSet()
+        }
+
+        /** Set of unique characters after normalization — cheap pre-filter. */
+        fun computeCharSet(text: String): Set<Char> {
+            return normalizeText(text).toSet()
+        }
+
+        // ── similarity metrics ─────────────────────────────────────────
+
         fun jaccard(a: Set<String>, b: Set<String>): Float {
             if (a.isEmpty() || b.isEmpty()) return 0f
             val intersection = (a intersect b).size
             val union = (a union b).size
             return intersection.toFloat() / union.toFloat()
         }
+
+        /**
+         * Hybrid text similarity: trigram(0.5) + bigram(0.3) + token(0.2).
+         * Bigram gives better granularity for CJK; token captures whole-term overlap.
+         */
+        fun hybridTextScore(queryText: String, targetText: String): Float {
+            val qTri = computeTrigrams(queryText)
+            val tTri = computeTrigrams(targetText)
+            val qBi = computeBigrams(queryText)
+            val tBi = computeBigrams(targetText)
+            val qTok = computeTokenSplits(queryText)
+            val tTok = computeTokenSplits(targetText)
+
+            val triScore = jaccard(qTri, tTri)
+            val biScore = jaccard(qBi, tBi)
+            val tokScore = if (qTok.isEmpty() || tTok.isEmpty()) 0f else {
+                val intersection = (qTok intersect tTok).size
+                val union = (qTok union tTok).size
+                intersection.toFloat() / union.toFloat()
+            }
+
+            return triScore * 0.5f + biScore * 0.3f + tokScore * 0.2f
+        }
+
+        /**
+         * Longest common subsequence ratio, normalized via Dice-like formula:
+         *   2 * LCS / (len(a) + len(b))
+         * Uses two-row DP: O(m*n) time, O(min(m,n)) space.
+         * Suitable for borderline match rescue where n-gram methods fail.
+         */
+        fun computeLCSRatio(a: String, b: String): Float {
+            if (a.isEmpty() || b.isEmpty()) return 0f
+            val shorter = if (a.length <= b.length) a else b
+            val longer = if (a.length <= b.length) b else a
+            var prev = IntArray(shorter.length + 1)
+            var curr = IntArray(shorter.length + 1)
+            for (i in 1..longer.length) {
+                for (j in 1..shorter.length) {
+                    curr[j] = if (longer[i - 1] == shorter[j - 1]) {
+                        prev[j - 1] + 1
+                    } else {
+                        maxOf(prev[j], curr[j - 1])
+                    }
+                }
+                prev = curr.also { curr = prev }
+            }
+            val lcsLen = prev[shorter.length]
+            return (2.0f * lcsLen) / (longer.length + shorter.length).toFloat()
+        }
+
+        // ── hashing ────────────────────────────────────────────────────
 
         fun computeSHA256(bytes: ByteArray): String {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -64,6 +148,33 @@ private fun extractQuestionBlocks(text: String): List<String> {
     return blocks
 }
 
+// ── Feature data classes for search() ────────────────────────────────
+
+private data class BlockFeatures(
+    val trigrams: Set<String>,
+    val bigrams: Set<String>,
+    val tokens: Set<String>,
+    val charSet: Set<Char>,
+    val rawText: String
+)
+
+private data class OptionsFeatures(
+    val trigrams: Set<String>,
+    val bigrams: Set<String>,
+    val tokens: Set<String>
+)
+
+private data class EntryFeatures(
+    val entry: KBEntry,
+    val questionTrigrams: Set<String>,
+    val optionsTrigrams: Set<String>,
+    val questionBigrams: Set<String>,
+    val optionsBigrams: Set<String>,
+    val questionTokens: Set<String>,
+    val optionsTokens: Set<String>,
+    val questionCharSet: Set<Char>
+)
+
 data class KnowledgeBase(
     val id: String = UUID.randomUUID().toString().take(8),
     val name: String = ""
@@ -72,14 +183,23 @@ data class KnowledgeBase(
     val importedHashes = mutableSetOf<String>()
     val count: Int get() = entries.size
 
-    // Pre-computed trigram cache for fast search
-    private var trigramCache: List<Triple<KBEntry, Set<String>, Set<String>>>? = null
+    // Pre-computed feature cache for fast hybrid search
+    private var featureCache: List<EntryFeatures>? = null
 
-    fun buildTrigramCache() {
-        trigramCache = entries.map { entry ->
-            Triple(entry, KBEntry.computeTrigrams(entry.question), KBEntry.computeTrigrams(entry.options))
+    fun buildFeatureCache() {
+        featureCache = entries.map { entry ->
+            EntryFeatures(
+                entry = entry,
+                questionTrigrams = KBEntry.computeTrigrams(entry.question),
+                optionsTrigrams = KBEntry.computeTrigrams(entry.options),
+                questionBigrams = KBEntry.computeBigrams(entry.question),
+                optionsBigrams = KBEntry.computeBigrams(entry.options),
+                questionTokens = KBEntry.computeTokenSplits(entry.question),
+                optionsTokens = KBEntry.computeTokenSplits(entry.options),
+                questionCharSet = KBEntry.computeCharSet(entry.question)
+            )
         }
-        Log.d("KnowledgeBase", "[$name] Built trigram cache for ${entries.size} entries")
+        Log.d("KnowledgeBase", "[$name] Built feature cache for ${entries.size} entries")
     }
 
     fun importExcel(path: String, mapping: ColumnMapping? = null): Int {
@@ -112,7 +232,7 @@ data class KnowledgeBase(
             }
             stream.close()
             Log.d("KnowledgeBase", "[$name] imported $imported entries, total=${entries.size}")
-            buildTrigramCache()
+            buildFeatureCache()
             imported
         } catch (e: Exception) {
             Log.e("KnowledgeBase", "[$name] import failed", e)
@@ -161,7 +281,7 @@ data class KnowledgeBase(
 
             importedHashes.add(hash)
             Log.d("KnowledgeBase", "[$name] imported $imported entries, total=${entries.size}")
-            buildTrigramCache()
+            buildFeatureCache()
             imported
         } catch (e: Exception) {
             Log.e("KnowledgeBase", "[$name] import failed", e)
@@ -180,73 +300,128 @@ data class KnowledgeBase(
         }
     }
 
-    fun search(query: String, options: String = "", topN: Int = 50): List<Pair<KBEntry, Float>> {
+    fun search(query: String, options: String = "", topN: Int = 300): List<Pair<KBEntry, Float>> {
         if (entries.isEmpty()) return emptyList()
 
         // 规范化括号内空格，兼容不同数量的空格
         val normalizedQuery = query.replace(Regex("（\\s*）"), "（）")
+        // For exact matching, use only the first 4000 chars — most question stems are within this range
+        val shortQuery = if (normalizedQuery.length > 4000) normalizedQuery.take(4000) else normalizedQuery
 
-        // Fast path: exact substring match
+        // Fast path: exact substring match (limited to short query for speed)
         val exactMatches = entries.filter {
             val normalizedQuestion = it.question.replace(Regex("（\\s*）"), "（）")
-            normalizedQuery.contains(normalizedQuestion)
+            shortQuery.contains(normalizedQuestion)
         }
         val exactSet = exactMatches.toSet()
 
-        if (exactMatches.size >= topN) {
-            return exactMatches.map { it to 1.0f }.take(topN)
-        }
-
-        // Use trigram cache if available, otherwise compute on-the-fly
+        // ── Pre-compute query block features ──
         val blocks = extractQuestionBlocks(query)
+        // Only pre-compute trigrams (fast); hybrid features computed lazily for promising entries
         val blockTrigrams = blocks.map { KBEntry.computeTrigrams(it) }
+        val blockChars = blocks.map { KBEntry.computeCharSet(it) }
+
         val queryOptionsTrigrams = if (options.isNotBlank()) KBEntry.computeTrigrams(options) else null
 
-        val trigramResults = if (trigramCache != null) {
-            // Use cached trigrams for fast search
-            trigramCache!!
-                .filter { (entry, _, _) -> entry !in exactSet }
-                .map { (entry, entryTrigrams, entryOptionsTrigrams) ->
-                    var score = blockTrigrams.maxOfOrNull { blockTri ->
-                        KBEntry.jaccard(blockTri, entryTrigrams)
-                    } ?: 0f
+        val allScored = exactMatches.map { it to 1.0f }.toMutableList()
 
-                    // Boost score if options are similar
-                    if (queryOptionsTrigrams != null && entry.options.isNotBlank() && score > 0.3f) {
-                        val optionsSimilarity = KBEntry.jaccard(queryOptionsTrigrams, entryOptionsTrigrams)
-                        if (optionsSimilarity > 0.7f) {
-                            score = (score * 0.7f + optionsSimilarity * 0.3f).coerceAtMost(1.0f)
-                        }
-                    }
-
-                    entry to score
-                }
-                .filter { it.second > 0.15f }
+        // ── Two-stage scoring: fast trigram filter → hybrid for promising entries ──
+        val remaining = if (featureCache != null) {
+            featureCache!!.filter { it.entry !in exactSet }
         } else {
-            // Fallback: compute trigrams on-the-fly (limited to 5000)
+            // Fast path: only precompute what's needed for trigram filter
+            Log.d("KnowledgeBase", "[$name] featureCache is NULL, building on-the-fly trigram entries (limited to 3000)")
             entries
                 .filter { it !in exactSet }
-                .take(5000)
+                .take(3000)
                 .map { entry ->
-                    var score = blockTrigrams.maxOfOrNull { blockTri ->
-                        KBEntry.jaccard(blockTri, KBEntry.computeTrigrams(entry.question))
-                    } ?: 0f
-
-                    // Boost score if options are similar
-                    if (queryOptionsTrigrams != null && entry.options.isNotBlank() && score > 0.3f) {
-                        val entryOptionsTrigrams = KBEntry.computeTrigrams(entry.options)
-                        val optionsSimilarity = KBEntry.jaccard(queryOptionsTrigrams, entryOptionsTrigrams)
-                        if (optionsSimilarity > 0.7f) {
-                            score = (score * 0.7f + optionsSimilarity * 0.3f).coerceAtMost(1.0f)
-                        }
-                    }
-
-                    entry to score
+                    EntryFeatures(
+                        entry = entry,
+                        questionTrigrams = KBEntry.computeTrigrams(entry.question),
+                        optionsTrigrams = emptySet(), // lazy
+                        questionBigrams = emptySet(),  // lazy
+                        optionsBigrams = emptySet(),   // lazy
+                        questionTokens = emptySet(),   // lazy
+                        optionsTokens = emptySet(),    // lazy
+                        questionCharSet = KBEntry.computeCharSet(entry.question)
+                    )
                 }
-                .filter { it.second > 0.15f }
         }
 
-        return (exactMatches.map { it to 1.0f } + trigramResults)
+        val EARLY_TERM_FACTOR = 0.05f
+
+        for ((index, feat) in remaining.withIndex()) {
+            // ── Stage 1: Fast charSet + trigram pre-filter ──
+            // Find the best-matching block via character set overlap (cheap)
+            val bestBlockIdx = blockChars.indices.maxByOrNull { i ->
+                if (blockChars[i].isEmpty() || feat.questionCharSet.isEmpty()) 0
+                else (blockChars[i] intersect feat.questionCharSet).size
+            } ?: -1
+            if (bestBlockIdx < 0) continue
+            val bestCharOverlap = if (blockChars[bestBlockIdx].isNotEmpty())
+                (blockChars[bestBlockIdx] intersect feat.questionCharSet).size.toFloat() /
+                blockChars[bestBlockIdx].size.toFloat().coerceAtLeast(1f) else 0f
+            if (bestCharOverlap < 0.10f) continue
+
+            // Fast trigram score against best block only
+            var score = KBEntry.jaccard(blockTrigrams[bestBlockIdx], feat.questionTrigrams)
+
+            if (score < 0.12f) continue
+
+            // ── Stage 2: Hybrid scoring for promising entries (≥ 0.12 trigram) ──
+            // Compute lazy features if not cached
+            val qBigrams = if (feat.questionBigrams.isNotEmpty()) feat.questionBigrams
+                else KBEntry.computeBigrams(feat.entry.question)
+            val qTokens = if (feat.questionTokens.isNotEmpty()) feat.questionTokens
+                else KBEntry.computeTokenSplits(feat.entry.question)
+
+            // Hybrid score against the best block
+            val bestBlockText = blocks[bestBlockIdx]
+            val bBigrams = KBEntry.computeBigrams(bestBlockText)
+            val bTokens = KBEntry.computeTokenSplits(bestBlockText)
+            val biScore = KBEntry.jaccard(bBigrams, qBigrams)
+            val tokScore = if (bTokens.isEmpty() || qTokens.isEmpty()) 0f else {
+                val inter = (bTokens intersect qTokens).size
+                val union = (bTokens union qTokens).size
+                inter.toFloat() / union.toFloat()
+            }
+            score = score * 0.5f + biScore * 0.3f + tokScore * 0.2f
+
+            // ── Options similarity (optimization 5) ──
+            if (queryOptionsTrigrams != null && feat.entry.options.isNotBlank()) {
+                val entryOptTrigrams = if (feat.optionsTrigrams.isNotEmpty()) feat.optionsTrigrams
+                    else KBEntry.computeTrigrams(feat.entry.options)
+                val optScore = KBEntry.jaccard(queryOptionsTrigrams, entryOptTrigrams)
+                score = score * 0.6f + optScore * 0.4f
+            }
+
+            // ── LCS rescue for borderline matches (optimization 2) ──
+            if (score in 0.15f..0.50f) {
+                val lcsRatio = KBEntry.computeLCSRatio(
+                    bestBlockText.replace(Regex("\\s+"), ""),
+                    feat.entry.question.replace(Regex("\\s+"), "")
+                )
+                score = when {
+                    lcsRatio > 0.70f -> maxOf(score, lcsRatio * 0.85f)
+                    lcsRatio > 0.50f -> (score + lcsRatio) / 2.0f
+                    else -> score
+                }
+            }
+
+            if (score < 0.15f) continue
+            allScored.add(feat.entry to score)
+
+            // ── Early termination (optimization 4) ──
+            if (allScored.size % 500 == 0 && allScored.size >= topN) {
+                val recentAvg = allScored.takeLast(100).map { it.second }.average().toFloat()
+                if (recentAvg < 0.05f) {
+                    Log.d("KnowledgeBase", "[$name] Early termination at entry $index, recentAvg=$recentAvg")
+                    break
+                }
+            }
+        }
+
+        return allScored
             .sortedByDescending { it.second }
             .take(topN)
     }
@@ -311,10 +486,10 @@ object KnowledgeBaseManager {
             save()
         }
 
-        // Build trigram cache for all KBs
+        // Build feature cache for all KBs
         for (kb in kbs) {
             if (kb.entries.isNotEmpty()) {
-                kb.buildTrigramCache()
+                kb.buildFeatureCache()
             }
         }
     }

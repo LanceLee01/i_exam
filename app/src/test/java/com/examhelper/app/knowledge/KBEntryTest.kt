@@ -3,6 +3,7 @@ package com.examhelper.app.knowledge
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -133,5 +134,136 @@ class KBEntryTest {
         val hash = KBEntry.computeSHA256("test data".toByteArray())
         assertEquals(64, hash.length)
         assert(hash.matches(Regex("[0-9a-f]{64}")))
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // computeBigrams
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `computeBigrams exact 2 chars returns one bigram`() {
+        assertEquals(setOf("ab"), KBEntry.computeBigrams("ab"))
+    }
+
+    @Test
+    fun `computeBigrams less than 2 chars returns empty`() {
+        assertEquals(emptySet<String>(), KBEntry.computeBigrams("a"))
+    }
+
+    @Test
+    fun `computeBigrams Chinese produces correct bigrams`() {
+        assertEquals(setOf("你好", "好世", "世界"), KBEntry.computeBigrams("你好世界"))
+    }
+
+    @Test
+    fun `computeBigrams with punctuation filters correctly`() {
+        assertEquals(setOf("ab"), KBEntry.computeBigrams("a.b"))
+    }
+
+    @Test
+    fun `computeBigrams with whitespace filters correctly`() {
+        assertEquals(setOf("ab", "bc", "cd"), KBEntry.computeBigrams("ab cd"))
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // computeTokenSplits
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `computeTokenSplits simple words`() {
+        assertEquals(setOf("hello", "world"), KBEntry.computeTokenSplits("hello world"))
+    }
+
+    @Test
+    fun `computeTokenSplits filters numbers and short tokens`() {
+        // "第123条" split on digits → ["第", "条"], both < 2 chars → filtered
+        assertEquals(emptySet<String>(), KBEntry.computeTokenSplits("第123条"))
+    }
+
+    @Test
+    fun `computeTokenSplits Chinese single token`() {
+        assertEquals(setOf("安全生产管理办法"), KBEntry.computeTokenSplits("安全生产管理办法"))
+    }
+
+    @Test
+    fun `computeTokenSplits empty string`() {
+        assertEquals(emptySet<String>(), KBEntry.computeTokenSplits(""))
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // computeCharSet
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `computeCharSet simple dedup`() {
+        assertEquals(setOf('a', 'b', 'c'), KBEntry.computeCharSet("abca"))
+    }
+
+    @Test
+    fun `computeCharSet Chinese`() {
+        assertEquals(setOf('安', '全', '生', '产'), KBEntry.computeCharSet("安全生产"))
+    }
+
+    @Test
+    fun `computeCharSet ignores punctuation`() {
+        assertEquals(setOf('a', 'b'), KBEntry.computeCharSet("a.b,"))
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // computeLCSRatio
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `computeLCSRatio identical strings`() {
+        assertEquals(1.0f, KBEntry.computeLCSRatio("hello", "hello"))
+    }
+
+    @Test
+    fun `computeLCSRatio completely different`() {
+        assertEquals(0.0f, KBEntry.computeLCSRatio("abc", "xyz"))
+    }
+
+    @Test
+    fun `computeLCSRatio partial overlap`() {
+        // LCS of "abcdef" and "acf" is "acf" = 3
+        // Dice: 2*3/(6+3) = 6/9 = 0.666...
+        assertEquals(6.0f / 9.0f, KBEntry.computeLCSRatio("abcdef", "acf"), 0.001f)
+    }
+
+    @Test
+    fun `computeLCSRatio Chinese partial`() {
+        // "安全生产责任" vs "安全管理责任": LCS = "安全责任" = 4 chars
+        // Dice: 2*4/(6+6) = 8/12 = 0.666...
+        val ratio = KBEntry.computeLCSRatio("安全生产责任", "安全管理责任")
+        assertTrue(ratio > 0.5f, "Expected > 0.5 but was $ratio")
+    }
+
+    @Test
+    fun `computeLCSRatio one empty`() {
+        assertEquals(0.0f, KBEntry.computeLCSRatio("", "abc"))
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // hybridTextScore
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `hybridTextScore identical short Chinese`() {
+        // "安全生产" vs "安全生产" — bigrams + tokens contribute
+        val score = KBEntry.hybridTextScore("安全生产", "安全生产")
+        assertTrue(score > 0.5f, "Expected >0.5 for identical text, got $score")
+    }
+
+    @Test
+    fun `hybridTextScore similar Chinese higher than dissimilar`() {
+        val similar = KBEntry.hybridTextScore("安全生产", "安全操作")
+        val different = KBEntry.hybridTextScore("安全生产", "质量控制")
+        assertTrue(similar > different, "Similar texts should score higher")
+    }
+
+    @Test
+    fun `hybridTextScore returns value in 0 to 1 range`() {
+        val score = KBEntry.hybridTextScore("hello world", "hello there")
+        assertTrue(score in 0f..1f, "Score should be in [0,1], got $score")
     }
 }

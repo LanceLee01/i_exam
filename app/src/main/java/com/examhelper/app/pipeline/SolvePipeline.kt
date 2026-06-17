@@ -13,6 +13,7 @@ import com.examhelper.app.network.Reference
 import com.examhelper.app.network.TavilyClient
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.AnswerSource
+import kotlinx.coroutines.delay
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 
 class SolvePipeline(private val context: Context) {
@@ -20,11 +21,17 @@ class SolvePipeline(private val context: Context) {
     private val kbEngine = KBEngine(context)
 
     suspend fun solve(text: String) {
+        try {
+        Log.d(TAG, "solve() ENTER — text length=${text.length}")
         val requestStartMs = System.currentTimeMillis()
         ExtractedTextBus.updateSidebarState(
             SidebarState.Loading("正在准备解答...", requestStartMs)
         )
+        // Yield to let UI render the Loading state before heavy work begins
+        delay(80)
+        Log.d(TAG, "solve() calling getSnapshot...")
         val config = ExamApplication.instance.appConfig.getSnapshot()
+        Log.d(TAG, "solve() getSnapshot done, maxTokens=${config.maxTokens}")
         val maxTokens = config.maxTokens
 
         // L1: Excel KB matching
@@ -74,12 +81,22 @@ class SolvePipeline(private val context: Context) {
             unmatchedQ = unmatchedQ,
             enhancement = enhancement
         )
+        } catch (e: Exception) {
+            Log.e(TAG, "solve() crashed", e)
+            ExtractedTextBus.updateSidebarState(
+                SidebarState.Error("解答异常: ${e.message}")
+            )
+        }
     }
 
     // ── L1: Excel 题库精准匹配 ───────────────────────────
 
     private suspend fun tryExcelMatchAll(text: String): Map<Int, String>? {
-        val excelHits = KnowledgeBaseManager.activeKB?.search(text, topN = 50) ?: emptyList()
+        val examOptions = extractAllOptions(text)
+        Log.d(TAG, "tryExcelMatchAll: calling search() — text len=${text.length}, options len=${examOptions.length}")
+        val t0 = System.currentTimeMillis()
+        val excelHits = KnowledgeBaseManager.activeKB?.search(text, options = examOptions, topN = 300) ?: emptyList()
+        Log.d(TAG, "tryExcelMatchAll: search() returned ${excelHits.size} hits in ${System.currentTimeMillis() - t0}ms")
         // TEMP DEBUG
         excelHits.forEach { (entry, score) ->
             Log.d(TAG_DEBUG, "KB raw hit: score=${"%.4f".format(score)} q=${entry.question.take(40)} ans=${entry.answer}")
@@ -87,7 +104,7 @@ class SolvePipeline(private val context: Context) {
         // END TEMP DEBUG
         val hits = excelHits.filter { (_, score) -> score >= 0.50f }
         if (hits.isEmpty()) return null
-        
+
         val numberedPairs = hits.mapNotNull { (entry, _) ->
             val qNum = findQuestionNumber(text, entry.question) ?: run {
                 // TEMP DEBUG
@@ -97,6 +114,11 @@ class SolvePipeline(private val context: Context) {
             }
             qNum to normalizeTfAnswer(entry.answer, entry.source)
         }
+
+        // ── 进度反馈：报告当前匹配数量 ──
+        ExtractedTextBus.updateSidebarState(
+            SidebarState.Loading("题库匹配中... 已找到 ${numberedPairs.size} 道匹配")
+        )
         
         // Detect conflicts: same question number with different answers
         val conflictQ = mutableSetOf<Int>()
@@ -116,6 +138,9 @@ class SolvePipeline(private val context: Context) {
 
         // Resolve conflicts: use options text matching, fall back to score-based
         if (conflictQ.isNotEmpty()) {
+            ExtractedTextBus.updateSidebarState(
+                SidebarState.Loading("题库匹配中... 已匹配 ${numberedPairs.size} 题，正在消解 ${conflictQ.size} 道冲突")
+            )
             // Extract question blocks from exam text
             val qPattern = Regex("""(\d+)、""")
             val qMatches = qPattern.findAll(text).toList()
@@ -309,7 +334,7 @@ class SolvePipeline(private val context: Context) {
                 .lastOrNull()
         }
 
-        // 2) Fuzzy match: trigram similarity to find best-matching question block
+        // 2) Fuzzy match: hybrid text similarity to find best-matching question block
         val qPattern = Regex("""(\d+)、""")
         val qMatches = qPattern.findAll(normalizedQuery).toList()
         val blocks = if (qMatches.size <= 1) {
@@ -321,12 +346,10 @@ class SolvePipeline(private val context: Context) {
                 normalizedQuery.substring(start, end).trim()
             }
         }
-        val kbTri = KBEntry.computeTrigrams(normalizedQuestion)
         var bestBlockIdx = -1
-        var bestScore = 0.30f
+        var bestScore = 0.40f
         for ((i, block) in blocks.withIndex()) {
-            val blockTri = KBEntry.computeTrigrams(block)
-            val score = KBEntry.jaccard(kbTri, blockTri)
+            val score = KBEntry.hybridTextScore(normalizedQuestion, block)
             if (score > bestScore) {
                 bestScore = score
                 bestBlockIdx = i
@@ -335,6 +358,13 @@ class SolvePipeline(private val context: Context) {
         if (bestBlockIdx < 0) return null
 
         val matchedBlock = blocks[bestBlockIdx]
+
+        // Validate that the matched block looks like a real question (optimization 3)
+        if (!isValidQuestionBlock(matchedBlock)) {
+            Log.d(TAG, "findQuestionNumber: block validation FAILED for bestBlockIdx=$bestBlockIdx, score=${"%.2f".format(bestScore)}")
+            return null
+        }
+
         val numMatch = questionPattern.find(matchedBlock)
         val qNum = numMatch?.groupValues?.get(1)?.toIntOrNull()
         if (qNum != null) {
@@ -665,6 +695,35 @@ class SolvePipeline(private val context: Context) {
             return spaced.replace(Regex("""(?<=^|[ ])[A-Z]\s*[.、:：)）\-]""")) {
                 "${it.value.first()}. "
             }
+        }
+
+        /** Extract all option-like lines from exam text for options-based matching. */
+        fun extractAllOptions(text: String): String {
+            return text.lines()
+                .filter { Regex("""^[A-Z]\s*[.、:：)）]""").containsMatchIn(it) }
+                .joinToString(" ")
+        }
+
+        /**
+         * Validates that a matched text block looks like a real exam question.
+         * Returns false for blocks that are likely headers, instructions, or noise.
+         */
+        fun isValidQuestionBlock(block: String): Boolean {
+            // Check 1: Has at least 2 distinct option letter markers (A. B. C. D.)
+            val optionLetters = Regex("""[A-Z]\s*[.、:：)）]""")
+                .findAll(block)
+                .map { it.value.first() }
+                .distinct()
+                .count()
+            if (optionLetters >= 2) return true
+
+            // Check 2: Has a question mark
+            if (block.contains("？") || block.contains("?")) return true
+
+            // Check 3: Block is long enough to plausibly be a question stem + options
+            if (block.length >= 20) return true
+
+            return false
         }
     }
 }

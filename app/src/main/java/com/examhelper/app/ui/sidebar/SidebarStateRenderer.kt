@@ -80,7 +80,10 @@ fun SidebarStateRenderer(
         is SidebarState.Preview -> {
             Spacer(Modifier.height(12.dp))
 
-            SolveButton(onClick = { onSolve(s.text) })
+            SolveButton(onClick = {
+                Log.d("SidebarPanel", "SolveButton clicked, text length=${s.text.length}")
+                onSolve(s.text)
+            })
 
             Spacer(Modifier.height(12.dp))
 

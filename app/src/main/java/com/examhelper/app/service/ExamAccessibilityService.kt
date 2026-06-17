@@ -219,61 +219,140 @@ class ExamAccessibilityService : AccessibilityService() {
                 node.getBoundsInScreen(bounds)
                 bounds.top * 10000 + bounds.left
             }
-            Log.d(TAG, "All clickable: [${nodes.joinToString { it.second.take(20) }}]")
+            Log.d(TAG, "All clickable count=${nodes.size}")
 
             val answerPairs = parseAnswerPairs(answer)
-            val optionCounts = countOptionsPerQuestion(sourceText)
+            // Build a list of ALL option nodes with their positions
+            val allOptionNodes = nodes.mapIndexedNotNull { idx, (node, text) ->
+                if (isOptionNode(text)) idx to (node to text) else null
+            }.toMutableList()
 
-            var nodeIdx = 0
+            Log.d(TAG, "All option nodes count=${allOptionNodes.size}: ${allOptionNodes.map { it.second.second.take(15) }}")
+
+            var optionIdx = 0
             var toggleSkipped = 0
             for ((qNum, selections) in answerPairs) {
-                if (nodeIdx >= nodes.size) break
-                val count = optionCounts.getOrElse(qNum - 1) { 4 }
-
+                // Find the options for this question: scan forward from optionIdx
                 val isToggle = selections.all { it == "正确" || it == "错误" }
-                val effectiveCount = if (isToggle) 0 else count
 
-                if (!isToggle) {
-                    while (nodeIdx < nodes.size && !isOptionNode(nodes[nodeIdx].second)) {
-                        nodeIdx++
-                    }
-                }
-
-                val optionNodes = mutableListOf<Pair<AccessibilityNodeInfo, String>>()
-                while (nodeIdx < nodes.size && optionNodes.size < effectiveCount) {
-                    if (isOptionNode(nodes[nodeIdx].second)) {
-                        optionNodes.add(nodes[nodeIdx])
-                    }
-                    nodeIdx++
-                }
-
-                Log.d(TAG, "Q$qNum nodeIdx=$nodeIdx options=${optionNodes.map { it.second.take(15) }}")
-
-                for (sel in selections) {
-                    val match = optionNodes.find { (_, text) -> matchesSelection(text, sel) }
-                    if (match != null) {
-                        Log.d(TAG, "Q$qNum clicking sel=$sel node=${match.second.take(20)}")
-                        delay(Random.nextLong(80, 300))
-                        match.first.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        optionNodes.remove(match)
-                    } else if (sel == "正确" || sel == "错误") {
-                        val clicked = clickToggleOption(root, sel, toggleSkipped)
+                if (isToggle) {
+                    // 判断题：搜索所有节点找"正确"/"错误"
+                    val freshRoot = rootInActiveWindow ?: root
+                    for (sel in selections) {
+                        val clicked = clickToggleOption(freshRoot, sel, toggleSkipped)
                         if (clicked) {
                             toggleSkipped++
-                            Log.d(TAG, "Q$qNum toggle clicked: $sel")
-                        } else Log.w(TAG, "Q$qNum toggle $sel NOT FOUND")
+                            Log.d(TAG, "Q$qNum toggle clicked: $sel (skip=$toggleSkipped)")
+                        } else {
+                            Log.w(TAG, "Q$qNum toggle $sel NOT FOUND")
+                        }
+                        delay(Random.nextLong(80, 200))
+                    }
+                    delay(1500)
+                    continue
+                }
+
+                // If no more option nodes, fall back to toggle clicking
+                // (Q38+ are often T/F where answer is a letter but UI has 正确/错误)
+                if (optionIdx >= allOptionNodes.size) {
+                    Log.d(TAG, "Q$qNum no option nodes left, falling back to toggle click")
+                    val freshRoot = rootInActiveWindow ?: root
+                    for (sel in selections) {
+                        // Map letter answer to toggle text: A/B/C/D → 正确/错误
+                        val toggleText = when (sel) {
+                            "A" -> "正确"; "B" -> "错误"
+                            "C" -> "正确"; "D" -> "错误"  // Some exams use C/D
+                            else -> sel
+                        }
+                        val clicked = clickToggleOption(freshRoot, toggleText, toggleSkipped)
+                        if (clicked) {
+                            toggleSkipped++
+                            Log.d(TAG, "Q$qNum toggle fallback: sel=$sel → $toggleText (skip=$toggleSkipped)")
+                        } else {
+                            // Try the original selection as toggle text
+                            val clicked2 = clickToggleOption(freshRoot, sel, toggleSkipped)
+                            if (clicked2) {
+                                toggleSkipped++
+                                Log.d(TAG, "Q$qNum toggle fallback raw: $sel (skip=$toggleSkipped)")
+                            } else {
+                                Log.w(TAG, "Q$qNum toggle FALLBACK FAILED: sel=$sel")
+                            }
+                        }
+                        delay(Random.nextLong(80, 200))
+                    }
+                    delay(1500)
+                    continue
+                }
+
+                // Collect option nodes for this question: consecutive nodes with incrementing letters
+                val qOptionNodes = mutableListOf<Pair<AccessibilityNodeInfo, String>>()
+                val startIdx = optionIdx
+                var lastLetter = ' '
+                while (optionIdx < allOptionNodes.size) {
+                    val (node, text) = allOptionNodes[optionIdx].second
+                    val currentLetter = text.firstOrNull()?.uppercaseChar() ?: break
+                    if (currentLetter in ExamConstants.OPTION_LETTERS) {
+                        if (qOptionNodes.isEmpty() || currentLetter > lastLetter) {
+                            qOptionNodes.add(node to text)
+                            lastLetter = currentLetter
+                            optionIdx++
+                        } else if (currentLetter <= lastLetter) {
+                            // Letter reset → new question starts
+                            break
+                        }
                     } else {
-                        Log.w(TAG, "Q$qNum sel=$sel NOT FOUND in [${optionNodes.map { it.second.take(20) }}]")
+                        // Toggle option
+                        qOptionNodes.add(node to text)
+                        optionIdx++
                     }
                 }
 
-                var confirmClicked = false
+                // If we couldn't find any options starting from optionIdx, scan for them in ALL remaining nodes
+                if (qOptionNodes.isEmpty()) {
+                    Log.w(TAG, "Q$qNum empty option group at optionIdx=$startIdx, falling back to scan")
+                    while (optionIdx < allOptionNodes.size && qOptionNodes.size < 6) {
+                        qOptionNodes.add(allOptionNodes[optionIdx].second)
+                        optionIdx++
+                    }
+                }
+
+                Log.d(TAG, "Q$qNum options=${qOptionNodes.map { it.second.take(15) }}")
+
+                // Click matching selections
+                for (sel in selections) {
+                    val matchIdx = qOptionNodes.indexOfFirst { (_, text) -> matchesSelection(text, sel) }
+                    if (matchIdx >= 0) {
+                        val (matchNode, matchText) = qOptionNodes[matchIdx]
+                        Log.d(TAG, "Q$qNum clicking sel=$sel node=${matchText.take(20)}")
+                        delay(Random.nextLong(80, 300))
+                        matchNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        qOptionNodes.removeAt(matchIdx)
+                    } else {
+                        // Fallback: search ALL remaining option nodes
+                        val globalMatch = allOptionNodes.drop(optionIdx).find { (_, pair) ->
+                            matchesSelection(pair.second, sel)
+                        }
+                        if (globalMatch != null) {
+                            Log.d(TAG, "Q$qNum clicking sel=$sel via global scan: ${globalMatch.second.second.take(20)}")
+                            delay(Random.nextLong(80, 300))
+                            globalMatch.second.first.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        } else {
+                            Log.w(TAG, "Q$qNum sel=$sel NOT FOUND in [${qOptionNodes.map { it.second.take(20) }}]")
+                        }
+                    }
+                }
+
+                // 多选确认按钮
                 if (selections.size > 1) {
-                    val confirmNode = findConfirmButton(root)
+                    delay(Random.nextLong(200, 500))
+                    val freshRoot = rootInActiveWindow ?: root
+                    val confirmNode = findConfirmButton(freshRoot)
                     if (confirmNode != null) {
-                        delay(Random.nextLong(300, 700))
+                        delay(Random.nextLong(200, 500))
+                        Log.d(TAG, "Q$qNum clicking confirm button")
                         confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                        confirmClicked = true
+                    } else {
+                        Log.w(TAG, "Q$qNum confirm button NOT FOUND")
                     }
                 }
 
