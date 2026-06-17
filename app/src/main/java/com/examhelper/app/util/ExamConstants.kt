@@ -13,5 +13,5 @@ object ExamConstants {
         get() = Regex("""^[${OPTION_LETTERS.first}-${OPTION_LETTERS.last}]\s*[.、:：)）]""")
 
     val ANSWER_PARSE_REGEX: Regex
-        get() = Regex("""[\[【]?(\d+)[\]】]?\s*([${OPTION_LETTERS.first}-${OPTION_LETTERS.last}\s、,，;]+|正确|错误|对|错)""")
+        get() = Regex("""[\[【]?(\d+)[\]】]?\s*([${OPTION_LETTERS.first}-${OPTION_LETTERS.last}\s、,，;]+|正确|错误|对|错|不确定)""")
 }

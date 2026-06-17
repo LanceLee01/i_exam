@@ -114,7 +114,7 @@ fun SidebarStateRenderer(
                 Column {
                     if (l1Questions.isNotEmpty()) {
                         Text(
-                            text = "📋 题库匹配: ${l1Questions.joinToString(", ")}",
+                            text = "📋 题库匹配: ${formatRange(l1Questions)}",
                             color = Color(0xFF22C55E).copy(alpha = 0.7f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
@@ -122,7 +122,7 @@ fun SidebarStateRenderer(
                     }
                     if (l4Questions.isNotEmpty()) {
                         Text(
-                            text = "🤖 AI模型: ${l4Questions.joinToString(", ")}",
+                            text = "🤖 AI模型: ${formatRange(l4Questions)}",
                             color = Color(0xFF3B82F6).copy(alpha = 0.7f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
@@ -205,6 +205,27 @@ fun SidebarStateRenderer(
             StatusHint(s.message, isError = true)
         }
     }
+}
+
+/** Format sorted question numbers into ranges: [1,2,3,5,6] → "1-3 5-6" */
+private fun formatRange(nums: List<Int>): String {
+    if (nums.isEmpty()) return ""
+    val result = StringBuilder()
+    var start = nums[0]
+    var prev = nums[0]
+    for (i in 1 until nums.size) {
+        if (nums[i] == prev + 1) {
+            prev = nums[i]
+        } else {
+            if (result.isNotEmpty()) result.append(" ")
+            result.append(if (start == prev) "$start" else "$start-$prev")
+            start = nums[i]
+            prev = nums[i]
+        }
+    }
+    if (result.isNotEmpty()) result.append(" ")
+    result.append(if (start == prev) "$start" else "$start-$prev")
+    return result.toString()
 }
 
 

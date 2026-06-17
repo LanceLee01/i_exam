@@ -7,7 +7,8 @@ data class ColumnMapping(
     val questionCol: Int,
     val answerCol: Int,
     val sourceCol: Int? = null,
-    val optionsCol: Int? = null
+    val optionsCol: Int? = null,
+    val typeCol: Int? = null
 )
 
 /**

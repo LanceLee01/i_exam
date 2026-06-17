@@ -8,7 +8,9 @@ import com.examhelper.app.ExamApplication
 import com.examhelper.app.filter.WatermarkFilter
 import com.examhelper.app.util.ExamConstants
 import com.examhelper.app.util.ExtractedTextBus
+import com.examhelper.app.util.ANSWER_UNCERTAIN
 import com.examhelper.app.util.countOptionsPerQuestion
+import com.examhelper.app.util.extractQuestionTypes
 import com.examhelper.app.util.matchesSelection
 import com.examhelper.app.util.parseAnswerPairs
 import kotlinx.coroutines.CoroutineScope
@@ -104,46 +106,59 @@ class ExamAccessibilityService : AccessibilityService() {
                     return@launch
                 }
 
-                // 【修复】先滚动再捕获，解决最后一题节点 text 为空的问题
+                // 【修复】先回滚到顶部，再逐步向下滚动，确保捕获全部题目
+                val allLines = mutableListOf<String>()
+                var rootForCapture = rootNode
                 try {
-                    val foundScrollable = withContext(Dispatchers.Main) {
-                        val r = rootInActiveWindow
-                        if (r == null) return@withContext false
-                        val s = findScrollableParent(r)
+                    // Scroll backward multiple times to reach the TOP
+                    for (backRound in 0..4) {
+                        val s = withContext(Dispatchers.Main) {
+                            val r = rootInActiveWindow ?: return@withContext null
+                            findScrollableParent(r)
+                        }
                         if (s != null) {
-                            Log.d(TAG, "Found scrollable node, performing ACTION_SCROLL_FORWARD")
-                            s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                            s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
                             s.recycle()
-                            true
-                        } else {
-                            Log.d(TAG, "No scrollable parent found")
-                            false
-                        }
+                            delay(300)
+                        } else break
                     }
-                    if (foundScrollable) {
-                        delay(500)
-                        Log.d(TAG, "Scroll completed, re-fetching root node")
-                        // 重新获取 root（滚动后可能需要刷新）
+
+                    // Now scroll forward, capturing after each scroll
+                    for (scrollRound in 0..4) {
+                        delay(300)
                         withContext(Dispatchers.Main) {
-                            rootNode?.let { if (it != rootInActiveWindow) it.recycle() }
-                            rootNode = rootInActiveWindow
+                            rootForCapture = rootInActiveWindow
                         }
-                        if (rootNode == null) {
-                            Log.d(TAG, "rootNode became null after scroll")
-                            launch(Dispatchers.Main) {
-                                ExtractedTextBus.updateSidebarState(
-                                    ExtractedTextBus.SidebarState.Error("未检测到文字，请确认考试页面已打开")
-                                )
+                        if (rootForCapture == null) break
+
+                        val roundLines = mutableListOf<String>()
+                        traverseNode(rootForCapture, keywords, roundLines)
+                        Log.d(TAG, "Scroll round $scrollRound: extracted ${roundLines.size} lines (total unique=${allLines.size})")
+
+                        // Merge: only add lines we haven't seen
+                        for (line in roundLines) {
+                            val trimmed = line.trim()
+                            if (trimmed.isNotEmpty() && trimmed !in allLines) {
+                                allLines.add(trimmed)
                             }
-                            return@launch
+                        }
+
+                        // Scroll forward for next round
+                        if (scrollRound < 4) {
+                            val s = withContext(Dispatchers.Main) {
+                                val r = rootInActiveWindow ?: return@withContext null
+                                findScrollableParent(r)
+                            }
+                            if (s != null) {
+                                s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                                s.recycle()
+                            } else break
                         }
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Scroll step failed", e)
                 }
-
-                val lines = mutableListOf<String>()
-                traverseNode(rootNode, keywords, lines)
+                val lines = allLines
                 if (rootNode != rootInActiveWindow && rootNode != null) {
                     rootNode.recycle()
                 }
@@ -222,6 +237,10 @@ class ExamAccessibilityService : AccessibilityService() {
             Log.d(TAG, "All clickable count=${nodes.size}")
 
             val answerPairs = parseAnswerPairs(answer)
+            val questionTypes = extractQuestionTypes(sourceText)
+
+            Log.d(TAG, "Answer pairs count=${answerPairs.size}: ${answerPairs.map { (q, sels) -> "Q$q→$sels(${questionTypes[q] ?: "?"})" }}")
+
             // Build a list of ALL option nodes with their positions
             val allOptionNodes = nodes.mapIndexedNotNull { idx, (node, text) ->
                 if (isOptionNode(text)) idx to (node to text) else null
@@ -231,20 +250,65 @@ class ExamAccessibilityService : AccessibilityService() {
 
             var optionIdx = 0
             var toggleSkipped = 0
+            val uncertainQuestions = mutableListOf<Int>()
             for ((qNum, selections) in answerPairs) {
+                // Handle uncertain answers: default to clicking option A
+                if (ANSWER_UNCERTAIN in selections) {
+                    uncertainQuestions.add(qNum)
+                    Log.d(TAG, "Q$qNum answer is uncertain — defaulting to click first option")
+                    // Find option nodes for this question
+                    val qOpts = mutableListOf<Pair<AccessibilityNodeInfo, String>>()
+                    val startIdx = optionIdx
+                    while (optionIdx < allOptionNodes.size && qOpts.size < 4) {
+                        val (node, text) = allOptionNodes[optionIdx].second
+                        val letter = text.firstOrNull()?.uppercaseChar()
+                        if (letter != null && letter in ExamConstants.OPTION_LETTERS && (qOpts.isEmpty() || letter > (qOpts.last().second.firstOrNull()?.uppercaseChar() ?: ' '))) {
+                            qOpts.add(node to text)
+                        } else if (qOpts.isNotEmpty()) break
+                        optionIdx++
+                    }
+                    if (qOpts.isNotEmpty()) {
+                        val (node, text) = qOpts.first()
+                        Log.d(TAG, "Q$qNum uncertain: clicking first option ${text.take(20)}")
+                        delay(Random.nextLong(80, 200))
+                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        // Click confirm if multi-select pattern detected
+                        if (qOpts.size >= 3) {
+                            delay(Random.nextLong(200, 500))
+                            val freshRoot = rootInActiveWindow ?: root
+                            val confirmNode = findConfirmButton(freshRoot)
+                            if (confirmNode != null) {
+                                confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                Log.d(TAG, "Q$qNum uncertain: confirm clicked after default A")
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "Q$qNum uncertain: no option nodes found at optionIdx=$startIdx")
+                    }
+                    delay(1500)
+                    continue
+                }
+
                 // Find the options for this question: scan forward from optionIdx
                 val isToggle = selections.all { it == "正确" || it == "错误" }
+                    || questionTypes[qNum] == "判断"
 
                 if (isToggle) {
                     // 判断题：搜索所有节点找"正确"/"错误"
+                    // Map letter answers: A/B → 正确/错误
                     val freshRoot = rootInActiveWindow ?: root
                     for (sel in selections) {
-                        val clicked = clickToggleOption(freshRoot, sel, toggleSkipped)
+                        val toggleText = when {
+                            sel == "正确" || sel == "错误" -> sel
+                            sel in "A".."F" -> if (sel == "A" || sel == "C") "正确" else "错误"
+                            else -> sel
+                        }
+                        val clicked = clickToggleOption(freshRoot, toggleText, toggleSkipped)
                         if (clicked) {
                             toggleSkipped++
-                            Log.d(TAG, "Q$qNum toggle clicked: $sel (skip=$toggleSkipped)")
+                            Log.d(TAG, "Q$qNum toggle clicked: sel=$sel → $toggleText (skip=$toggleSkipped)")
                         } else {
-                            Log.w(TAG, "Q$qNum toggle $sel NOT FOUND")
+                            Log.w(TAG, "Q$qNum toggle $sel→$toggleText NOT FOUND")
                         }
                         delay(Random.nextLong(80, 200))
                     }
@@ -318,6 +382,28 @@ class ExamAccessibilityService : AccessibilityService() {
 
                 Log.d(TAG, "Q$qNum options=${qOptionNodes.map { it.second.take(15) }}")
 
+                // Cross-check: if source text says this is 多选 but LLM only gave 1 answer
+                // Fallback: click ALL options + confirm to advance the exam
+                val qType = questionTypes[qNum] ?: ""
+                if (qType == "多选" && selections.size == 1 && selections[0] in "A".."F") {
+                    Log.w(TAG, "Q$qNum FALLBACK: source says '多选' but answer is single letter '${selections[0]}' — clicking ALL options")
+                    for ((node, text) in qOptionNodes) {
+                        Log.d(TAG, "Q$qNum fallback clicking: ${text.take(20)}")
+                        delay(Random.nextLong(80, 200))
+                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    }
+                    delay(Random.nextLong(200, 500))
+                    val freshRoot = rootInActiveWindow ?: root
+                    val confirmNode = findConfirmButton(freshRoot)
+                    if (confirmNode != null) {
+                        delay(Random.nextLong(200, 500))
+                        Log.d(TAG, "Q$qNum fallback confirm")
+                        confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    }
+                    delay(1500)
+                    continue
+                }
+
                 // Click matching selections
                 for (sel in selections) {
                     val matchIdx = qOptionNodes.indexOfFirst { (_, text) -> matchesSelection(text, sel) }
@@ -361,6 +447,17 @@ class ExamAccessibilityService : AccessibilityService() {
 
             nodes.forEach { (node, _) -> node.recycle() }
             if (root != rootInActiveWindow && root != null) root.recycle()
+
+            // Warn about questions answered with default A
+            if (uncertainQuestions.isNotEmpty()) {
+                val qList = uncertainQuestions.sorted().joinToString(", ")
+                android.widget.Toast.makeText(
+                    this@ExamAccessibilityService,
+                    "⚠️ 以下题目答案不确定，已默认选A：Q$qList\n请手动核实！",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                Log.d(TAG, "Uncertain toast shown: Q$qList")
+            }
         }
     }
 

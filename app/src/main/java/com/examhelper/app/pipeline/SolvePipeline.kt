@@ -58,10 +58,43 @@ class SolvePipeline(private val context: Context) {
         }
 
         // Build text for ONLY unmatched questions
-        val unmatchedText = extractUnmatchedQuestionText(text, l1Keys, unmatchedQ.toSet())
-        val userMessage = "以下是考试界面提取的文字中**未匹配**的题目，请根据内容答题：\n\n$unmatchedText"
+        // Filter out questions with empty/near-empty stems (these can't be answered by LLM)
+        val allUnmatchedQ = unmatchedQ.toSet()
+        val emptyStemQ = mutableSetOf<Int>()
+        val meaningfulUnmatched = allUnmatchedQ.filter { qNum ->
+            val qText = extractSingleQuestionText(text, qNum)
+            // Strip type labels, option markers, whitespace, punctuation — keep only real question text
+            val meaningful = qText
+                .replace("单选题", "").replace("多选题", "").replace("判断题", "")
+                .replace("正确", "").replace("错误", "")
+                .replace(Regex("""[\s（）、.A-Fa-f\d①②③④⑤⑥⑦⑧⑨⑩]"""), "")
+            val hasContent = meaningful.length >= 10
+            if (!hasContent) {
+                emptyStemQ.add(qNum)
+                Log.d(TAG, "Q$qNum stem too short/empty (meaningful=${meaningful.length} chars), marking as 不确定: '${qText.take(60)}'")
+            }
+            hasContent
+        }
+        val meaningfulQ = meaningfulUnmatched.toSet()
 
-        // L3: Tavily search
+        val unmatchedText = if (meaningfulQ.isEmpty()) ""
+            else extractUnmatchedQuestionText(text, l1Keys, meaningfulQ)
+        val emptyDirectAnswers = emptyStemQ.associateWith { "不确定" }
+
+        // If all unmatched questions are empty-stem, skip LLM entirely
+        if (meaningfulQ.isEmpty()) {
+            Log.d(TAG, "All unmatched questions have empty stems, skipping LLM")
+            val combined = formatCombinedAnswer(emptyDirectAnswers, l1Answers ?: emptyMap())
+            val questionSources = (l1Answers ?: emptyMap()).keys.associate { it to "📋 题库匹配" } +
+                emptyStemQ.associate { it to "📋 题库匹配" }
+            ExtractedTextBus.updateSidebarState(
+                SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(), questionSources)
+            )
+            return
+        }
+
+        // L3: Tavily search (only for questions with meaningful text)
+        val userMessage = "以下是考试界面提取的文字中**未匹配**的题目，请根据内容答题：\n\n$unmatchedText"
         val enhancement = trySearchEnhancement(config, unmatchedText)
         val effectiveMessage = if (enhancement.found && enhancement.references.isNotEmpty()) {
             val searchRef = enhancement.references.take(3).joinToString("\n") { ref ->
@@ -70,15 +103,15 @@ class SolvePipeline(private val context: Context) {
             "$userMessage\n\n---\n以下是网络搜索到的参考资料，请结合你的知识判断使用：\n$searchRef"
         } else userMessage
 
-        // L4: LLM for ONLY the unmatched questions
+        // L4: LLM for ONLY the unmatched questions with meaningful text
         callLLMAndCombine(
             config = config,
             effectiveMessage = effectiveMessage,
             requestStartMs = requestStartMs,
             text = text,
             maxTokens = maxTokens,
-            l1Answers = l1Answers ?: emptyMap(),
-            unmatchedQ = unmatchedQ,
+            l1Answers = (l1Answers ?: emptyMap()) + emptyDirectAnswers,
+            unmatchedQ = meaningfulUnmatched,
             enhancement = enhancement
         )
         } catch (e: Exception) {
@@ -111,6 +144,13 @@ class SolvePipeline(private val context: Context) {
                 Log.d(TAG_DEBUG, "findQuestionNumber FAILED for: ${entry.question.take(40)}")
                 // END TEMP DEBUG
                 return@mapNotNull null
+            }
+            // Type mismatch: log a warning but keep the match (KB may have correct answer with wrong type label)
+            if (!entry.questionType.isNullOrBlank()) {
+                val examQType = detectQuestionTypeForQuestion(text, qNum)
+                if (examQType.isNotBlank() && entry.questionType != examQType) {
+                    Log.d(TAG_DEBUG, "TYPE MISMATCH: Q$qNum entry type='${entry.questionType}' vs exam type='$examQType' — keeping anyway: '${entry.question.take(30)}'")
+                }
             }
             qNum to normalizeTfAnswer(entry.answer, entry.source)
         }
@@ -191,21 +231,30 @@ class SolvePipeline(private val context: Context) {
                     }
                 }
                 
-                // Fall back to score-based resolution
-                val bestEntryByScore = entriesForQ.maxByOrNull { it.second }
+                // Filter out type-mismatched entries before scoring
+                val examQType = detectQuestionTypeForBlock(block, text)
+                val typeFiltered = if (examQType.isNotBlank()) {
+                    entriesForQ.filter { (entry, _) ->
+                        entry.questionType.isNullOrBlank() || entry.questionType == examQType
+                    }
+                } else entriesForQ
+
+                if (typeFiltered.isEmpty()) {
+                    Log.d(TAG_DEBUG, "score-resolve: Q$qNum ALL entries filtered out by type=$examQType — keeping conflict")
+                    continue
+                }
+
+                // Score the remaining entries by score + question length
+                val ranked = typeFiltered.sortedByDescending { (entry, score) ->
+                    score * 1000f + entry.question.length
+                }
+                val bestEntryByScore = ranked.firstOrNull()
                 if (bestEntryByScore != null) {
                     val (bestE, bestScore) = bestEntryByScore
                     val bestAns = normalizeTfAnswer(bestE.answer, bestE.source)
-                    val ties = entriesForQ.filter { (e, s) ->
-                        s == bestScore && normalizeTfAnswer(e.answer, e.source) != bestAns
-                    }
-                    if (ties.isEmpty()) {
-                        conflictQ.remove(qNum)
-                        numbered[qNum] = bestAns
-                        Log.d(TAG_DEBUG, "score-resolve: Q$qNum score=${"%.4f".format(bestScore)} ans=$bestAns")
-                    } else {
-                        Log.d(TAG_DEBUG, "score-resolve: Q$qNum tied $bestAns vs ${ties.first().second}, keeping conflict")
-                    }
+                    conflictQ.remove(qNum)
+                    numbered[qNum] = bestAns
+                    Log.d(TAG_DEBUG, "score-resolve: Q$qNum score=${"%.4f".format(bestScore)} type=${bestE.questionType}(exam=$examQType) ans=$bestAns from '${bestE.question.take(30)}'")
                 }
             }
             Log.d(TAG_DEBUG, "resolve: remaining conflicts=$conflictQ")
@@ -299,6 +348,16 @@ class SolvePipeline(private val context: Context) {
         }.toList()
     }
 
+    private fun extractSingleQuestionText(text: String, qNum: Int): String {
+        val questionPattern = Regex("""(\d+)[、.]""")
+        val matches = questionPattern.findAll(text).toList()
+        val matchIdx = matches.indexOfFirst { it.groupValues[1].toIntOrNull() == qNum }
+        if (matchIdx < 0) return text.take(200) // fallback
+        val start = matches[matchIdx].range.first
+        val end = if (matchIdx + 1 < matches.size) matches[matchIdx + 1].range.first else text.length
+        return text.substring(start, end).trim().take(300)
+    }
+
     private fun extractUnmatchedQuestionText(text: String, matchedNumbers: Set<Int>, unmatchedNumbers: Set<Int>): String {
         val questionPattern = Regex("""(\d+)、""")
         val matches = questionPattern.findAll(text).toList()
@@ -329,6 +388,23 @@ class SolvePipeline(private val context: Context) {
         // 1) Exact substring match (fast path)
         val exactIdx = normalizedQuery.indexOf(normalizedQuestion)
         if (exactIdx >= 0) {
+            // If matched text is within an option line (starts with A./B./etc),
+            // use the question number BEFORE the option block, not the last number.
+            val beforeMatch = normalizedQuery.substring(0, exactIdx.coerceAtLeast(1))
+            val lastNewline = beforeMatch.lastIndexOf('\n')
+            val lineStart = if (lastNewline >= 0) beforeMatch.substring(lastNewline + 1) else beforeMatch
+            val isOptionLine = Regex("""^[A-F]\s*[.、:：)）]""").containsMatchIn(lineStart.trimStart())
+
+            if (isOptionLine) {
+                // Search backward to find the question stem (line starting with N、)
+                val beforeOptions = normalizedQuery.substring(0, exactIdx)
+                val allQNums = questionPattern.findAll(beforeOptions).mapNotNull { it.groupValues[1].toIntOrNull() }.toList()
+                // The LAST question number before the option block is the correct one
+                val qNum = allQNums.lastOrNull()
+                Log.d(TAG, "findQuestionNumber: matched in option line, using question before options → Q$qNum")
+                return qNum
+            }
+
             return questionPattern.findAll(normalizedQuery.substring(0, exactIdx))
                 .mapNotNull { it.groupValues[1].toIntOrNull() }
                 .lastOrNull()
@@ -494,7 +570,7 @@ class SolvePipeline(private val context: Context) {
         references: List<Reference>
     ) {
         ExtractedTextBus.updateSidebarState(
-            SidebarState.Loading("正在调用 LLM 解答...", requestStartMs, maxTokens)
+            SidebarState.Loading("正在调用 ${config.modelName} 解答...", requestStartMs, maxTokens)
         )
         try {
             val client = LLMClient()
@@ -559,7 +635,7 @@ class SolvePipeline(private val context: Context) {
         enhancement: SearchEnhancement
     ) {
         ExtractedTextBus.updateSidebarState(
-            SidebarState.Loading("正在调用 LLM 解答剩余 ${unmatchedQ.size} 道题...", requestStartMs, maxTokens)
+            SidebarState.Loading("正在调用 ${config.modelName} 解答剩余 ${unmatchedQ.size} 道题...", requestStartMs, maxTokens)
         )
         try {
             val client = LLMClient()
@@ -605,7 +681,7 @@ class SolvePipeline(private val context: Context) {
             val l4Answer = if (accumulated.isNotEmpty()) accumulated.toString()
                 else if (reasoning.isNotEmpty()) "【思考过程】\n$reasoning"
                 else ""
-            Log.d(TAG, "L4 answer raw length: ${l4Answer.length}, first 200 chars: ${l4Answer.take(200)}")
+            Log.d(TAG, "L4 answer raw (${l4Answer.length} chars): >>>${l4Answer.take(500)}<<<")
 
             // Parse L4 answer to extract per-question answers
             val l4Parsed = parseL4Answer(l4Answer, unmatchedQ)
@@ -613,7 +689,10 @@ class SolvePipeline(private val context: Context) {
 
             // Combine L1 + L4 using formatCombinedAnswer (L1 priority on collision)
             val combined = formatCombinedAnswer(l4Parsed, l1Answers)
-            Log.d(TAG, "Combined answer length: ${combined.length}, first 100: ${combined.take(100)}")
+            // Find Q38 in combined answer
+            val q38Line = combined.lines().find { it.trim().startsWith("[38]") || it.trim().startsWith("38") } ?: "Q38_NOT_FOUND"
+            Log.d(TAG, "Combined answer Q38 line: >>>$q38Line<<<")
+            Log.d(TAG, "L4 Q38 value: '${l4Parsed[38]}'")
 
             val finalAnswer = combined
 
@@ -694,6 +773,31 @@ class SolvePipeline(private val context: Context) {
             // Step 2: normalize letter-separator pattern to "A. " format
             return spaced.replace(Regex("""(?<=^|[ ])[A-Z]\s*[.、:：)）\-]""")) {
                 "${it.value.first()}. "
+            }
+        }
+
+        /** Detect question type from a block of exam text. */
+        fun detectQuestionTypeForBlock(block: String, fullText: String = ""): String {
+            val text = if (block.length < 10) fullText else block
+            return when {
+                text.contains("多选题") -> "多选题"
+                text.contains("单选题") -> "单选题"
+                text.contains("判断题") -> "判断题"
+                else -> ""
+            }
+        }
+
+        /** Detect the question type for a specific question number from the exam text. */
+        fun detectQuestionTypeForQuestion(fullText: String, qNum: Int): String {
+            val pattern = Regex("""$qNum[、.]""")
+            val match = pattern.find(fullText) ?: return ""
+            // Look at the next ~40 chars only — type label appears right after Q number
+            val afterQ = fullText.substring(match.range.last + 1).take(40)
+            return when {
+                afterQ.contains("多选题") -> "多选题"
+                afterQ.contains("单选题") -> "单选题"
+                afterQ.contains("判断题") -> "判断题"
+                else -> ""
             }
         }
 

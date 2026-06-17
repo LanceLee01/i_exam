@@ -19,7 +19,8 @@ data class KBEntry(
     val question: String,
     val answer: String,
     val source: String = "",
-    val options: String = ""
+    val options: String = "",
+    val questionType: String? = null  // "单选题"/"多选题"/"判断题"/null
 ) {
     companion object {
         // ── normalization ──────────────────────────────────────────────
@@ -75,10 +76,6 @@ data class KBEntry(
             return intersection.toFloat() / union.toFloat()
         }
 
-        /**
-         * Hybrid text similarity: trigram(0.5) + bigram(0.3) + token(0.2).
-         * Bigram gives better granularity for CJK; token captures whole-term overlap.
-         */
         fun hybridTextScore(queryText: String, targetText: String): Float {
             val qTri = computeTrigrams(queryText)
             val tTri = computeTrigrams(targetText)
@@ -98,12 +95,6 @@ data class KBEntry(
             return triScore * 0.5f + biScore * 0.3f + tokScore * 0.2f
         }
 
-        /**
-         * Longest common subsequence ratio, normalized via Dice-like formula:
-         *   2 * LCS / (len(a) + len(b))
-         * Uses two-row DP: O(m*n) time, O(min(m,n)) space.
-         * Suitable for borderline match rescue where n-gram methods fail.
-         */
         fun computeLCSRatio(a: String, b: String): Float {
             if (a.isEmpty() || b.isEmpty()) return 0f
             val shorter = if (a.length <= b.length) a else b
@@ -227,7 +218,8 @@ data class KnowledgeBase(
                 if (question.isBlank() || answer.isNullOrBlank()) continue
                 val source = try { effectiveMapping.sourceCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
                 val options = try { effectiveMapping.optionsCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
-                entries.add(KBEntry(question, answer, source, options))
+                val qType = try { effectiveMapping.typeCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
+                entries.add(KBEntry(question, answer, source, options, qType))
                 imported++
             }
             stream.close()
@@ -274,7 +266,8 @@ data class KnowledgeBase(
                 if (question.isBlank() || answer.isNullOrBlank()) continue
                 val source = try { effectiveMapping.sourceCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
                 val options = try { effectiveMapping.optionsCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
-                entries.add(KBEntry(question, answer, source, options))
+                val qType = try { effectiveMapping.typeCol?.let { row.getCell(it)?.toString()?.trim() } } catch (_: Exception) { null } ?: ""
+                entries.add(KBEntry(question, answer, source, options, qType))
                 imported++
             }
             stream.close()
@@ -305,13 +298,11 @@ data class KnowledgeBase(
 
         // 规范化括号内空格，兼容不同数量的空格
         val normalizedQuery = query.replace(Regex("（\\s*）"), "（）")
-        // For exact matching, use only the first 4000 chars — most question stems are within this range
-        val shortQuery = if (normalizedQuery.length > 4000) normalizedQuery.take(4000) else normalizedQuery
 
-        // Fast path: exact substring match (limited to short query for speed)
+        // Fast path: exact substring match (search entire query — don't truncate)
         val exactMatches = entries.filter {
             val normalizedQuestion = it.question.replace(Regex("（\\s*）"), "（）")
-            shortQuery.contains(normalizedQuestion)
+            normalizedQuery.contains(normalizedQuestion)
         }
         val exactSet = exactMatches.toSet()
 
@@ -422,7 +413,12 @@ data class KnowledgeBase(
         }
 
         return allScored
-            .sortedByDescending { it.second }
+            // Sort by score, but boost longer questions to prevent short generic
+            // questions (e.g. "组织措施有（ ）") from stealing matches from longer
+            // specific questions (e.g. "组织措施有工作票制度...（ ）")
+            .sortedByDescending { (entry, score) ->
+                score + (entry.question.length / 500f).coerceAtMost(0.05f)
+            }
             .take(topN)
     }
 }
@@ -443,41 +439,43 @@ object KnowledgeBaseManager {
         storageFile = File(context.filesDir, "kb_data.json")
         load()
 
-        // Load or reload default knowledge base from assets
-        val existingKB = kbs.firstOrNull { it.name == "安规2026" }
-        val oldKB = kbs.firstOrNull { it.name == "安规" }
-        val needsReload = existingKB == null || existingKB.entries.size < 10000
+        // Auto-import asset files on first launch (KB empty)
+        val kbName = "安规2026_信息通信"
+        var kb = kbs.firstOrNull { it.name == kbName }
+        val needsImport = kb == null || kb.entries.isEmpty()
 
-        if (needsReload) {
-            try {
-                // Always re-copy from assets to ensure latest version
-                val defaultKBFile = File(context.filesDir, "default_kb.json")
-                defaultKBFile.delete()
-                context.assets.open("default_kb.json").use { input ->
-                    defaultKBFile.outputStream().use { output ->
-                        input.copyTo(output)
+        if (needsImport) {
+            // Remove old KBs
+            kbs.removeAll { it.name == "安规2026" || it.name == "安规" || it.name == kbName }
+            kb = KnowledgeBase(name = kbName)
+            kbs.add(kb)
+            activeIndex = kbs.size - 1
+
+            // Import asset Excel files
+            val assetFiles = listOf(
+                "D类-一线人员.et",
+                "34-通信安规.xls",
+                "35-信息安规.xls"
+            )
+            for (assetName in assetFiles) {
+                try {
+                    val tmpFile = File(context.filesDir, assetName)
+                    context.assets.open(assetName).use { input ->
+                        tmpFile.outputStream().use { output -> input.copyTo(output) }
                     }
+                    val count = kb.importExcelWithDedup(tmpFile.absolutePath)
+                    Log.d("KBManager", "Imported $assetName: $count entries")
+                } catch (e: Exception) {
+                    Log.e("KBManager", "Failed to import $assetName", e)
                 }
-                val json = defaultKBFile.readText()
-                val defaultData = gson.fromJson(json, KBStorageData::class.java)
-                if (defaultData.kbs.isNotEmpty()) {
-                    val defaultKBData = defaultData.kbs[0]
-                    val kb = KnowledgeBase(id = defaultKBData.id, name = defaultKBData.name)
-                    kb.entries.addAll(defaultKBData.entries)
-                    kb.importedHashes.addAll(defaultKBData.importedHashes)
-
-                    // Remove old KBs with old names
-                    if (existingKB != null) kbs.remove(existingKB)
-                    if (oldKB != null) kbs.remove(oldKB)
-
-                    kbs.add(kb)
-                    activeIndex = kbs.size - 1
-                    save()
-                    Log.d("KBManager", "Loaded default KB: ${kb.name} with ${kb.entries.size} entries")
-                }
-            } catch (e: Exception) {
-                Log.e("KBManager", "Failed to load default KB", e)
             }
+            kb.buildFeatureCache()
+            save()
+            Log.d("KBManager", "Initialized KB: ${kb.name} with ${kb.entries.size} entries")
+        } else {
+            // Remove old KBs with old names
+            val oldKB = kbs.firstOrNull { it.name == "安规2026" }
+            if (oldKB != null) kbs.remove(oldKB)
         }
 
         // Set active KB
@@ -545,7 +543,9 @@ object KnowledgeBaseManager {
             kbs.clear()
             for (kd in data.kbs) {
                 val kb = KnowledgeBase(id = kd.id, name = kd.name)
+                // Fix null questionType from old JSON data (Gson doesn't use Kotlin defaults)
                 kb.entries.addAll(kd.entries)
+                kb.importedHashes.addAll(kd.importedHashes)
                 kb.importedHashes.addAll(kd.importedHashes)
                 kbs.add(kb)
             }

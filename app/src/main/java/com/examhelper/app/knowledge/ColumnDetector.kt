@@ -30,6 +30,7 @@ class ColumnDetector {
         private val ANSWER_KEYWORDS = setOf("答案", "回答", "answer", "key")
         private val SOURCE_KEYWORDS = setOf("来源", "出处", "source", "来源出处", "题目来源")
         private val OPTION_KEYWORDS = setOf("选项", "备选", "备选项", "option", "选择项", "备选答案", "选择")
+        private val TYPE_KEYWORDS = setOf("题型", "类型", "题目类型", "type")
     }
 
     // ── Header-based detection ──────────────────────────────────────────────
@@ -62,6 +63,7 @@ class ColumnDetector {
         var answerCol: Int? = null
         var sourceCol: Int? = null
         var optionsCol: Int? = null
+        var typeCol: Int? = null
 
         for (i in 0..lastColIndex) {
             val cell = row.getCell(i) ?: continue
@@ -76,11 +78,13 @@ class ColumnDetector {
                 sourceCol = i
             } else if (optionsCol == null && text in OPTION_KEYWORDS) {
                 optionsCol = i
+            } else if (typeCol == null && text in TYPE_KEYWORDS) {
+                typeCol = i
             }
         }
 
         return if (questionCol != null && answerCol != null) {
-            ColumnMapping(questionCol = questionCol!!, answerCol = answerCol!!, sourceCol = sourceCol, optionsCol = optionsCol)
+            ColumnMapping(questionCol = questionCol!!, answerCol = answerCol!!, sourceCol = sourceCol, optionsCol = optionsCol, typeCol = typeCol)
         } else null
     }
 
@@ -164,7 +168,8 @@ class ColumnDetector {
                 questionCol = response.questionCol,
                 answerCol = response.answerCol,
                 sourceCol = response.sourceCol,
-                optionsCol = response.optionsCol
+                optionsCol = response.optionsCol,
+                typeCol = response.typeCol
             ).also {
                 Log.d(TAG, "detectByLLM: succeeded → $it")
             }
@@ -254,7 +259,7 @@ First 5 data rows:
 $dataRows
 
 Respond ONLY with a JSON object (no markdown, no explanation):
-{"questionCol": <index>, "answerCol": <index>, "sourceCol": <index|null>, "optionsCol": <index|null>}
+{"questionCol": <index>, "answerCol": <index>, "sourceCol": <index|null>, "optionsCol": <index|null>, "typeCol": <index|null>}
         """.trimIndent()
     }
 
@@ -281,6 +286,7 @@ Respond ONLY with a JSON object (no markdown, no explanation):
         val questionCol: Int,
         val answerCol: Int,
         val sourceCol: Int?,
-        val optionsCol: Int?
+        val optionsCol: Int?,
+        val typeCol: Int?
     )
 }

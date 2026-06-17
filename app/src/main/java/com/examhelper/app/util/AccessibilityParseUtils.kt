@@ -1,18 +1,53 @@
 package com.examhelper.app.util
 
+/** Special marker for uncertain answers — auto-click will skip this question. */
+const val ANSWER_UNCERTAIN = "__UNCERTAIN__"
+
 /** Extract (questionNumber, selections) pairs from an answer string. */
 internal fun parseAnswerPairs(answer: String): List<Pair<Int, List<String>>> {
     return ExamConstants.ANSWER_PARSE_REGEX.findAll(answer).mapNotNull { match ->
         val qNum = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-        val raw = match.groupValues[2].uppercase().filter { it in ExamConstants.OPTION_LETTERS || "正确错误对".indexOf(it) >= 0 }
-        if (raw.isEmpty()) return@mapNotNull null
-        val selections = if (raw.all { it in 'A'..'F' }) {
-            raw.map { it.toString() }
+        val raw = match.groupValues[2].trim()
+        // Handle "不确定" — return special marker so auto-click can skip
+        if (raw.contains("不确定")) {
+            return@mapNotNull qNum to listOf(ANSWER_UNCERTAIN)
+        }
+        val filtered = raw.uppercase().filter { it in ExamConstants.OPTION_LETTERS || "正确错误对".indexOf(it) >= 0 }
+        if (filtered.isEmpty()) return@mapNotNull null
+        val selections = if (filtered.all { it in 'A'..'F' }) {
+            filtered.map { it.toString() }
         } else {
-            listOf(raw)
+            listOf(filtered)
         }
         qNum to selections
     }.toList()
+}
+
+/** Extract question type (单选题/多选题/判断题) for each question number. */
+internal fun extractQuestionTypes(sourceText: String): Map<Int, String> {
+    val result = mutableMapOf<Int, String>()
+    val lines = sourceText.lines()
+    var currentNum: Int? = null
+    val qRegex = Regex("""^\s*(\d+)\s*[.、]""")
+
+    for (i in lines.indices) {
+        val trimmed = lines[i].trim()
+        // Check for question number on current or next line
+        val qMatch = qRegex.find(trimmed)
+        if (qMatch != null) {
+            currentNum = qMatch.groupValues[1].toIntOrNull()
+            continue
+        }
+        if (currentNum != null && trimmed.isNotEmpty()) {
+            when {
+                trimmed.contains("单选题") -> result[currentNum] = "单选"
+                trimmed.contains("多选题") -> result[currentNum] = "多选"
+                trimmed.contains("判断题") -> result[currentNum] = "判断"
+            }
+            if (currentNum in result) currentNum = null // type found, reset
+        }
+    }
+    return result
 }
 
 /** Count the number of options per question from source text. */
