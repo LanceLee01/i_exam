@@ -359,7 +359,6 @@ class ExamAccessibilityService : AccessibilityService() {
         for (line in lines) {
             val trimmed = line.trim()
             if (trimmed.isEmpty()) continue
-            if (trimmed.length > 500) continue
             if (seen.add(trimmed)) {
                 if (result.isNotEmpty()) result.append("\n")
                 result.append(trimmed)

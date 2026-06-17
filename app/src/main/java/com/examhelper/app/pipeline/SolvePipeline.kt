@@ -217,7 +217,7 @@ class SolvePipeline(private val context: Context) {
         val unmatchedQ = extractQuestionNumbers(text).map { it.first }.filter { it !in skipNumbers }
         val result = mutableMapOf<Int, String>()
         for (q in unmatchedQ) {
-            result[q] = answer.take(10)  // truncated answer
+            result[q] = answer
         }
         Log.d(TAG, "L2 matched ${result.size} questions")
         return result

@@ -21,20 +21,16 @@ data class KBEntry(
     val source: String = "",
     val options: String = ""
 ) {
-    // NOTE: trigrams is NOT a cached property (by lazy or eager) because Gson
-    // deserialization via UnsafeAllocator bypasses all initialization.
-    // Compute on demand via companion KBEntry.computeTrigrams() when needed.
-
     companion object {
         fun computeTrigrams(text: String): Set<String> {
+            if (text.length < 3) return emptySet()
             val norm = text
                 .replace(Regex("\\s+"), "")
                 .replace(Regex("[.,，。、；;：:！!？?（）()\\[\\]【】《》'\"“”]"), "")
+            if (norm.length < 3) return emptySet()
             val result = mutableSetOf<String>()
-            if (norm.length >= 3) {
-                for (i in 0..norm.length - 3) {
-                    result.add(norm.substring(i, i + 3))
-                }
+            for (i in 0..norm.length - 3) {
+                result.add(norm.substring(i, i + 3))
             }
             return result
         }
@@ -76,6 +72,16 @@ data class KnowledgeBase(
     val importedHashes = mutableSetOf<String>()
     val count: Int get() = entries.size
 
+    // Pre-computed trigram cache for fast search
+    private var trigramCache: List<Triple<KBEntry, Set<String>, Set<String>>>? = null
+
+    fun buildTrigramCache() {
+        trigramCache = entries.map { entry ->
+            Triple(entry, KBEntry.computeTrigrams(entry.question), KBEntry.computeTrigrams(entry.options))
+        }
+        Log.d("KnowledgeBase", "[$name] Built trigram cache for ${entries.size} entries")
+    }
+
     fun importExcel(path: String, mapping: ColumnMapping? = null): Int {
         return try {
             val effectiveMapping: ColumnMapping
@@ -106,6 +112,7 @@ data class KnowledgeBase(
             }
             stream.close()
             Log.d("KnowledgeBase", "[$name] imported $imported entries, total=${entries.size}")
+            buildTrigramCache()
             imported
         } catch (e: Exception) {
             Log.e("KnowledgeBase", "[$name] import failed", e)
@@ -154,6 +161,7 @@ data class KnowledgeBase(
 
             importedHashes.add(hash)
             Log.d("KnowledgeBase", "[$name] imported $imported entries, total=${entries.size}")
+            buildTrigramCache()
             imported
         } catch (e: Exception) {
             Log.e("KnowledgeBase", "[$name] import failed", e)
@@ -172,29 +180,71 @@ data class KnowledgeBase(
         }
     }
 
-    fun search(query: String, topN: Int = 50): List<Pair<KBEntry, Float>> {
+    fun search(query: String, options: String = "", topN: Int = 50): List<Pair<KBEntry, Float>> {
         if (entries.isEmpty()) return emptyList()
 
         // 规范化括号内空格，兼容不同数量的空格
         val normalizedQuery = query.replace(Regex("（\\s*）"), "（）")
 
+        // Fast path: exact substring match
         val exactMatches = entries.filter {
             val normalizedQuestion = it.question.replace(Regex("（\\s*）"), "（）")
             normalizedQuery.contains(normalizedQuestion)
         }
         val exactSet = exactMatches.toSet()
 
+        if (exactMatches.size >= topN) {
+            return exactMatches.map { it to 1.0f }.take(topN)
+        }
+
+        // Use trigram cache if available, otherwise compute on-the-fly
         val blocks = extractQuestionBlocks(query)
         val blockTrigrams = blocks.map { KBEntry.computeTrigrams(it) }
-        val trigramResults = entries
-            .filter { it !in exactSet }
-            .map { entry ->
-                val bestScore = blockTrigrams.maxOfOrNull { blockTri ->
-                    KBEntry.jaccard(blockTri, KBEntry.computeTrigrams(entry.question))
-                } ?: 0f
-                entry to bestScore
-            }
-            .filter { it.second > 0.15f }
+        val queryOptionsTrigrams = if (options.isNotBlank()) KBEntry.computeTrigrams(options) else null
+
+        val trigramResults = if (trigramCache != null) {
+            // Use cached trigrams for fast search
+            trigramCache!!
+                .filter { (entry, _, _) -> entry !in exactSet }
+                .map { (entry, entryTrigrams, entryOptionsTrigrams) ->
+                    var score = blockTrigrams.maxOfOrNull { blockTri ->
+                        KBEntry.jaccard(blockTri, entryTrigrams)
+                    } ?: 0f
+
+                    // Boost score if options are similar
+                    if (queryOptionsTrigrams != null && entry.options.isNotBlank() && score > 0.3f) {
+                        val optionsSimilarity = KBEntry.jaccard(queryOptionsTrigrams, entryOptionsTrigrams)
+                        if (optionsSimilarity > 0.7f) {
+                            score = (score * 0.7f + optionsSimilarity * 0.3f).coerceAtMost(1.0f)
+                        }
+                    }
+
+                    entry to score
+                }
+                .filter { it.second > 0.15f }
+        } else {
+            // Fallback: compute trigrams on-the-fly (limited to 5000)
+            entries
+                .filter { it !in exactSet }
+                .take(5000)
+                .map { entry ->
+                    var score = blockTrigrams.maxOfOrNull { blockTri ->
+                        KBEntry.jaccard(blockTri, KBEntry.computeTrigrams(entry.question))
+                    } ?: 0f
+
+                    // Boost score if options are similar
+                    if (queryOptionsTrigrams != null && entry.options.isNotBlank() && score > 0.3f) {
+                        val entryOptionsTrigrams = KBEntry.computeTrigrams(entry.options)
+                        val optionsSimilarity = KBEntry.jaccard(queryOptionsTrigrams, entryOptionsTrigrams)
+                        if (optionsSimilarity > 0.7f) {
+                            score = (score * 0.7f + optionsSimilarity * 0.3f).coerceAtMost(1.0f)
+                        }
+                    }
+
+                    entry to score
+                }
+                .filter { it.second > 0.15f }
+        }
 
         return (exactMatches.map { it to 1.0f } + trigramResults)
             .sortedByDescending { it.second }
@@ -259,6 +309,13 @@ object KnowledgeBaseManager {
         if (activeIndex < 0 && kbs.isNotEmpty()) {
             activeIndex = 0
             save()
+        }
+
+        // Build trigram cache for all KBs
+        for (kb in kbs) {
+            if (kb.entries.isNotEmpty()) {
+                kb.buildTrigramCache()
+            }
         }
     }
 
