@@ -1,6 +1,7 @@
 package com.examhelper.app.knowledge
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
@@ -8,6 +9,7 @@ import org.apache.poi.ss.usermodel.WorkbookFactory
 import com.examhelper.app.ExamApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
@@ -215,38 +217,48 @@ object KnowledgeBaseManager {
     fun init(context: Context) {
         storageFile = File(context.filesDir, "kb_data.json")
         load()
-        // Default to 安规 knowledge base
-        val anGuiIndex = kbs.indexOfFirst { it.name == "安规" }
-        if (anGuiIndex >= 0) {
-            activeIndex = anGuiIndex
-            save()
-        } else if (kbs.isEmpty()) {
-            addKB("安规")
+
+        // Load or reload default knowledge base from assets
+        val existingKB = kbs.firstOrNull { it.name == "安规2026" }
+        val oldKB = kbs.firstOrNull { it.name == "安规" }
+        val needsReload = existingKB == null || existingKB.entries.size < 10000
+
+        if (needsReload) {
+            try {
+                // Always re-copy from assets to ensure latest version
+                val defaultKBFile = File(context.filesDir, "default_kb.json")
+                defaultKBFile.delete()
+                context.assets.open("default_kb.json").use { input ->
+                    defaultKBFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                val json = defaultKBFile.readText()
+                val defaultData = gson.fromJson(json, KBStorageData::class.java)
+                if (defaultData.kbs.isNotEmpty()) {
+                    val defaultKBData = defaultData.kbs[0]
+                    val kb = KnowledgeBase(id = defaultKBData.id, name = defaultKBData.name)
+                    kb.entries.addAll(defaultKBData.entries)
+                    kb.importedHashes.addAll(defaultKBData.importedHashes)
+
+                    // Remove old KBs with old names
+                    if (existingKB != null) kbs.remove(existingKB)
+                    if (oldKB != null) kbs.remove(oldKB)
+
+                    kbs.add(kb)
+                    activeIndex = kbs.size - 1
+                    save()
+                    Log.d("KBManager", "Loaded default KB: ${kb.name} with ${kb.entries.size} entries")
+                }
+            } catch (e: Exception) {
+                Log.e("KBManager", "Failed to load default KB", e)
+            }
         }
 
-        // Auto-import 安规题库 from assets (first launch only)
-        val anGuiKb = kbs.firstOrNull { it.name == "安规" }
-        if (anGuiKb != null && anGuiKb.entries.isEmpty()) {
-            val assetFiles = listOf(
-                "33-通信安规.xls",
-                "1-习总书记安全生产重要论述.xls"
-            )
-            for (fileName in assetFiles) {
-                try {
-                    val dstFile = java.io.File(context.filesDir, fileName)
-                    context.assets.open(fileName).use { input ->
-                        dstFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    val count = anGuiKb.importExcelWithDedup(dstFile.absolutePath)
-                    Log.d("KBManager", "Auto-imported $fileName: $count entries")
-                } catch (e: Exception) {
-                    Log.e("KBManager", "Auto-import $fileName failed", e)
-                }
-            }
+        // Set active KB
+        if (activeIndex < 0 && kbs.isNotEmpty()) {
+            activeIndex = 0
             save()
-            Log.d("KBManager", "Auto-import complete: ${anGuiKb.entries.size} total entries")
         }
     }
 
@@ -310,6 +322,57 @@ object KnowledgeBaseManager {
         } catch (e: Exception) {
             Log.e("KBManager", "load failed", e)
         }
+    }
+
+    suspend fun importZipFromUri(
+        context: Context,
+        zipUri: Uri,
+        onProgress: (current: Int, total: Int, fileName: String) -> Unit
+    ): ZipImportHelper.ZipImportResult = withContext(Dispatchers.IO) {
+        val excelFiles = ZipImportHelper.extractExcelFiles(context, zipUri)
+            ?: return@withContext ZipImportHelper.ZipImportResult(
+                success = false,
+                error = "ZIP 文件格式错误或无 Excel 文件"
+            )
+
+        var importedEntries = 0
+        var skippedFiles = 0
+        var failedFiles = 0
+
+        excelFiles.forEachIndexed { index, file ->
+            onProgress(index + 1, excelFiles.size, file.name)
+
+            try {
+                val kb = activeKB ?: return@withContext ZipImportHelper.ZipImportResult(
+                    success = false,
+                    error = "请先激活知识库"
+                )
+
+                val count = kb.importExcelWithDedup(file.absolutePath)
+                when {
+                    count == -2 -> skippedFiles++
+                    count == -3 || count == -4 -> failedFiles++
+                    count >= 0 -> {
+                        importedEntries += count
+                        save()
+                    }
+                    else -> failedFiles++
+                }
+            } catch (e: Exception) {
+                failedFiles++
+            }
+        }
+
+        ZipImportHelper.cleanupTempFiles(context)
+
+        ZipImportHelper.ZipImportResult(
+            success = importedEntries > 0 || skippedFiles > 0,
+            totalFiles = excelFiles.size,
+            excelFiles = excelFiles.size,
+            importedEntries = importedEntries,
+            skippedFiles = skippedFiles,
+            failedFiles = failedFiles
+        )
     }
 }
 

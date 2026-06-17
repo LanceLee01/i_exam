@@ -125,7 +125,7 @@ adb install -r app-debug.apk
 
 | 标签 | 含义 | 触发条件 |
 |:---|:---|:---|
-| 📋 题库匹配 | Excel 题库精准命中 | Jaccard 相似度 ≥ 70% |
+| 📋 题库匹配 | Excel 题库精准命中 | Jaccard 相似度 ≥ 50% |
 | 📖 知识库匹配 | Wiki 知识库直接命中 | Jaccard 相似度 ≥ 50% |
 | 📖 知识库推断 | LLM + KB 上下文推理 | Excel ≥ 40% 或 Wiki ≥ 20% |
 | 🤖 AI解答 | 纯 LLM 直接作答 | 无 KB 匹配 |

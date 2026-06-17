@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -41,8 +42,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,6 +59,7 @@ import com.examhelper.app.ExamApplication
 import com.examhelper.app.knowledge.KBEngine
 import com.examhelper.app.knowledge.KnowledgeBase
 import com.examhelper.app.knowledge.KnowledgeBaseManager
+import com.examhelper.app.knowledge.ZipImportHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,8 +69,14 @@ import kotlinx.coroutines.withContext
 fun KnowledgeBaseScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var showNewDialog by remember { mutableStateOf(false) }
+    var showViewDialog by remember { mutableStateOf(false) }
+    var viewKBEntries by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var viewKBName by remember { mutableStateOf("") }
     var newKBName by remember { mutableStateOf("") }
     var isImportingDoc by remember { mutableStateOf(false) }
+    var isImportingExcel by remember { mutableStateOf(false) }
+    var excelImportProgress by remember { mutableFloatStateOf(0f) }
+    var excelImportMessage by remember { mutableStateOf("") }
     var refreshKey by remember { mutableStateOf(0L) }
     val displayData = remember(refreshKey) {
         KnowledgeBaseManager.allKBs.map { kb -> Triple(kb, kb.name, kb.count) }
@@ -76,37 +86,78 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
     val excelLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
+        android.util.Log.d("KBImport", "Received ${uris?.size ?: 0} files")
         if (uris.isNullOrEmpty()) return@rememberLauncherForActivityResult
         scope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                isImportingExcel = true
+                excelImportProgress = 0f
+                excelImportMessage = "正在准备导入..."
+            }
+            
             var totalImported = 0
             var totalSkipped = 0
             var totalFailed = 0
+            
             for (uri in uris) {
                 try {
                     val ctx = ExamApplication.instance.applicationContext
-                    val inputStream = ctx.contentResolver.openInputStream(uri)
-                    val fileIndex = uris.indexOf(uri)
-                    val tmpFile = java.io.File(ctx.cacheDir, "kb_import_${System.nanoTime()}_${fileIndex}.xlsx")
-                    tmpFile.outputStream().use { inputStream?.copyTo(it) }
-                    val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(tmpFile.absolutePath) ?: -1
-                    tmpFile.delete()
-                    when {
-                        count == -2 -> totalSkipped++
-                        count == -3 -> withContext(Dispatchers.Main) {
-                            Toast.makeText(ExamApplication.instance, "请先在设置中配置 API Key", Toast.LENGTH_LONG).show()
+                    val fileName = getFileNameFromUri(ctx, uri)
+                    android.util.Log.d("KBImport", "Processing file: $fileName")
+                    
+                    if (fileName.lowercase().endsWith(".zip")) {
+                        android.util.Log.d("KBImport", "Detected ZIP file: $fileName")
+                        val result = KnowledgeBaseManager.importZipFromUri(ctx, uri) { current, total, name ->
+                            scope.launch(Dispatchers.Main) {
+                                excelImportProgress = current.toFloat() / total
+                                excelImportMessage = "正在导入 $current/$total: $name"
+                            }
                         }
-                        count == -4 -> withContext(Dispatchers.Main) {
-                            Toast.makeText(ExamApplication.instance, "列检测失败，请手动调整 Excel 文件格式", Toast.LENGTH_LONG).show()
+                        android.util.Log.d("KBImport", "ZIP import result: ${result.importedEntries} entries, ${result.skippedFiles} skipped, ${result.failedFiles} failed")
+                        totalImported += result.importedEntries
+                        totalSkipped += result.skippedFiles
+                        totalFailed += result.failedFiles
+                    } else {
+                        val inputStream = ctx.contentResolver.openInputStream(uri)
+                        val fileIndex = uris.indexOf(uri)
+                        val extension = fileName.substringAfterLast('.', "xlsx")
+                        val tmpFile = java.io.File(ctx.cacheDir, "kb_import_${System.nanoTime()}_${fileIndex}.${extension}")
+                        tmpFile.outputStream().use { inputStream?.copyTo(it) }
+                        
+                        withContext(Dispatchers.Main) {
+                            excelImportProgress = 0.5f
+                            excelImportMessage = "正在导入: $fileName"
                         }
-                        count >= 0 -> { totalImported += count; KnowledgeBaseManager.save() }
-                        else -> totalFailed++
+                        
+                        val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(tmpFile.absolutePath) ?: -1
+                        tmpFile.delete()
+                        
+                        when {
+                            count == -2 -> totalSkipped++
+                            count == -3 -> withContext(Dispatchers.Main) {
+                                Toast.makeText(ExamApplication.instance, "请先在设置中配置 API Key", Toast.LENGTH_LONG).show()
+                            }
+                            count == -4 -> withContext(Dispatchers.Main) {
+                                val message = if (fileName.lowercase().endsWith(".et")) {
+                                    "ET 文件兼容导入失败，请用 WPS 转为 xls/xlsx 后再导入"
+                                } else {
+                                    "列检测失败，请手动调整 Excel 文件格式"
+                                }
+                                Toast.makeText(ExamApplication.instance, message, Toast.LENGTH_LONG).show()
+                            }
+                            count >= 0 -> { totalImported += count; KnowledgeBaseManager.save() }
+                            else -> totalFailed++
+                        }
                     }
                 } catch (e: Exception) {
+                    android.util.Log.e("KBImport", "Error processing file", e)
                     totalFailed++
                 }
             }
+            
             withContext(Dispatchers.Main) {
-                refreshKey++  // Force UI recomposition
+                isImportingExcel = false
+                refreshKey++
                 val msg = buildString {
                     if (totalImported > 0) append("导入成功: $totalImported 条")
                     if (totalSkipped > 0) append("，跳过: $totalSkipped 个文件")
@@ -162,6 +213,28 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
             Text("已激活: ${KnowledgeBaseManager.activeKBName}", color = Color(0xFF22C55E), fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
 
+            if (isImportingExcel) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.06f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        LinearProgressIndicator(
+                            progress = { excelImportProgress },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color(0xFF22C55E)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = excelImportMessage,
+                            color = Color.White.copy(0.8f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+
             if (displayData.isEmpty()) {
                 Text("暂无知识库，点击下方按钮创建", color = Color.White.copy(0.5f))
                 Spacer(Modifier.height(12.dp))
@@ -196,16 +269,27 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                                 KnowledgeBaseManager.selectKB(index)
                                 excelLauncher.launch(arrayOf(
                                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    "application/vnd.ms-excel"
+                                    "application/vnd.ms-excel",
+                                    "application/zip",
+                                    "application/x-zip-compressed",
+                                    "application/octet-stream",
+                                    "*/*"
                                 ))
                             }) {
-                                Icon(Icons.Filled.UploadFile, contentDescription = "导入Excel", tint = Color(0xFF22C55E), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Filled.UploadFile, contentDescription = "导入表格/ZIP", tint = Color(0xFF22C55E), modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = {
                                 KnowledgeBaseManager.selectKB(index)
                                 docLauncher.launch(arrayOf("text/plain", "text/markdown", "text/x-markdown"))
                             }) {
                                 Icon(Icons.Filled.Description, contentDescription = "导入文档", tint = Color(0xFF3B82F6), modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = {
+                                viewKBName = kb.name
+                                viewKBEntries = kb.entries.take(200).map { it.question to it.answer }
+                                showViewDialog = true
+                            }) {
+                                Icon(Icons.Filled.Visibility, contentDescription = "查看题目", tint = Color(0xFFA78BFA), modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = {
                                 KnowledgeBaseManager.deleteKB(index)
@@ -281,5 +365,47 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                 containerColor = Color(0xFF1E1E2E)
             )
         }
+
+        if (showViewDialog) {
+            AlertDialog(
+                onDismissRequest = { showViewDialog = false },
+                title = { Text("「$viewKBName」题目列表（前200条）", color = Color.White) },
+                text = {
+                    LazyColumn(modifier = Modifier.height(400.dp)) {
+                        itemsIndexed(viewKBEntries) { idx, (question, answer) ->
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = "${idx + 1}. $question",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    text = "答: $answer",
+                                    color = Color(0xFF22C55E),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                if (idx < viewKBEntries.size - 1) {
+                                    Spacer(Modifier.height(4.dp))
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showViewDialog = false }) { Text("关闭") }
+                },
+                containerColor = Color(0xFF1E1E2E)
+            )
+        }
     }
+}
+
+private fun getFileNameFromUri(context: android.content.Context, uri: android.net.Uri): String {
+    val cursor = context.contentResolver.query(uri, null, null, null, null)
+    return cursor?.use {
+        if (it.moveToFirst()) {
+            val idx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0) it.getString(idx) else uri.lastPathSegment ?: "unknown"
+        } else uri.lastPathSegment ?: "unknown"
+    } ?: (uri.lastPathSegment ?: "unknown")
 }

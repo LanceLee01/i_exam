@@ -57,6 +57,45 @@ class SolvePipelineTest {
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // Loading feedback
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `solve emits loading state before slow knowledge base search`() {
+        runBlocking {
+            val mockKB = mockk<KnowledgeBase>()
+            mockkObject(KnowledgeBaseManager)
+            every { KnowledgeBaseManager.activeKB } returns mockKB
+            every { mockKB.search(any(), any()) } answers {
+                Thread.sleep(200)
+                emptyList()
+            }
+            coEvery { mockAppConfig.getSnapshot() } returns defaultSnapshot()
+            coEvery { anyConstructed<KBEngine>().searchByQuestion(any()) } returns SearchResult(
+                pages = emptyList(),
+                ftsPages = emptyList(),
+                trigramPages = emptyList()
+            )
+            mockkConstructor(LLMClient::class)
+            every { anyConstructed<LLMClient>().chatStream(any(), any(), any(), any(), any(), any(), any()) } returns flowOf("[1] A")
+
+            val pipeline = SolvePipeline(mockContext)
+
+            ExtractedTextBus.sidebarState.test {
+                awaitItem()
+
+                pipeline.solve("1、Question 1?\nA. yes\nB. no")
+
+                val firstState = awaitItem()
+                assertTrue(firstState is SidebarState.Loading)
+                assertEquals("正在准备解答...", (firstState as SidebarState.Loading).message)
+
+                cancelAndConsumeRemainingEvents()
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // L1: Excel 题库精准匹配 — score ≥ 0.70 → EXCEL_MATCH early return
     // ══════════════════════════════════════════════════════════════════════
 

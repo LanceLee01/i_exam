@@ -21,6 +21,9 @@ class SolvePipeline(private val context: Context) {
 
     suspend fun solve(text: String) {
         val requestStartMs = System.currentTimeMillis()
+        ExtractedTextBus.updateSidebarState(
+            SidebarState.Loading("正在准备解答...", requestStartMs)
+        )
         val config = ExamApplication.instance.appConfig.getSnapshot()
         val maxTokens = config.maxTokens
 
