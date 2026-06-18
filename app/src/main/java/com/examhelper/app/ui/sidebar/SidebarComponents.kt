@@ -25,15 +25,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.examhelper.app.ui.theme.LocalExamHelperColors
 import com.examhelper.app.ui.theme.TextError
 import com.examhelper.app.ui.theme.TextSecondary
 
 @Composable
 fun SectionHeader(title: String) {
+    val colors = LocalExamHelperColors.current
     Text(
         text = "── $title ──",
         style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
+        color = colors.Primary,
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(bottom = 8.dp),
         textAlign = TextAlign.Center
