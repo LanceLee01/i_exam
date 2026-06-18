@@ -603,7 +603,7 @@ object KnowledgeBaseManager {
                             entryCount = 0
                         )
                     })
-                } else {
+                } else if (!kd.importRecords.isNullOrEmpty()) {
                     kb.importRecords.addAll(kd.importRecords)
                 }
                 kbs.add(kb)
