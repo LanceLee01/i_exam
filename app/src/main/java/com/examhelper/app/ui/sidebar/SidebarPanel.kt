@@ -40,6 +40,7 @@ import com.examhelper.app.ExamApplication
 import com.examhelper.app.knowledge.KBEntry
 import com.examhelper.app.knowledge.KnowledgeBaseManager
 import com.examhelper.app.pipeline.SolvePipeline
+import com.examhelper.app.ui.theme.LocalExamHelperColors
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
@@ -53,6 +54,7 @@ fun SidebarPanel(onHide: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
+    val colors = LocalExamHelperColors.current
 
     val isAccessibilityConnected by ExtractedTextBus.accessibilityConnected.collectAsState()
 
@@ -81,7 +83,7 @@ fun SidebarPanel(onHide: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = colors.Primary,
                 modifier = Modifier.size(24.dp)
             )
             Spacer(Modifier.width(8.dp))
@@ -89,20 +91,20 @@ fun SidebarPanel(onHide: () -> Unit) {
                 text = "i考助手",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = colors.OnSurface
             )
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onHide, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = "关闭",
-                    tint = Color.White.copy(alpha = 0.6f),
+                    tint = colors.OnSurfaceMuted,
                     modifier = Modifier.size(20.dp)
                 )
             }
         }
 
-        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+        HorizontalDivider(color = colors.Outline)
 
         // ── 主内容区 ──
         Column(
@@ -168,7 +170,7 @@ fun SidebarPanel(onHide: () -> Unit) {
         }
 
         // ── 底部状态栏 ──
-        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+        HorizontalDivider(color = colors.Outline)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
