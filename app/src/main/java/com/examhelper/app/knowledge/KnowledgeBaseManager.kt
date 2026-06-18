@@ -509,7 +509,7 @@ object KnowledgeBaseManager {
                     context.assets.open(assetName).use { input ->
                         tmpFile.outputStream().use { output -> input.copyTo(output) }
                     }
-                    val count = kb.importExcelWithDedup(tmpFile.absolutePath)
+                    val count = kb.importExcelWithDedup(tmpFile.absolutePath, displayFileName = assetName)
                     Log.d("KBManager", "Imported $assetName: $count entries")
                 } catch (e: Exception) {
                     Log.e("KBManager", "Failed to import $assetName", e)
@@ -570,7 +570,8 @@ object KnowledgeBaseManager {
                         id = kb.id,
                         name = kb.name,
                         entries = kb.entries,
-                        importedHashes = kb.importedHashes.toList()
+                        importedHashes = kb.importedHashes.toList(),
+                        importRecords = kb.importRecords.toList()
                     )
                 },
                 activeKbIndex = activeIndex
@@ -592,7 +593,19 @@ object KnowledgeBaseManager {
                 // Fix null questionType from old JSON data (Gson doesn't use Kotlin defaults)
                 kb.entries.addAll(kd.entries)
                 kb.importedHashes.addAll(kd.importedHashes)
-                kb.importedHashes.addAll(kd.importedHashes)
+                // 兼容旧数据：如果 importRecords 为空但 importedHashes 有值，生成占位记录
+                if (kd.importRecords.isEmpty() && kd.importedHashes.isNotEmpty()) {
+                    kb.importRecords.addAll(kd.importedHashes.map { hash ->
+                        ImportRecord(
+                            fileName = "未知文件(首次导入)",
+                            hash = hash,
+                            importedAt = 0L,
+                            entryCount = 0
+                        )
+                    })
+                } else {
+                    kb.importRecords.addAll(kd.importRecords)
+                }
                 kbs.add(kb)
             }
             activeIndex = data.activeKbIndex.coerceIn(-1, kbs.size - 1)
@@ -626,7 +639,7 @@ object KnowledgeBaseManager {
                     error = "请先激活知识库"
                 )
 
-                val count = kb.importExcelWithDedup(file.absolutePath)
+                val count = kb.importExcelWithDedup(file.absolutePath, displayFileName = file.name)
                 when {
                     count == -2 -> skippedFiles++
                     count == -3 || count == -4 -> failedFiles++
@@ -658,7 +671,8 @@ private data class KBData(
     val id: String,
     val name: String,
     val entries: List<KBEntry>,
-    val importedHashes: List<String>
+    val importedHashes: List<String>,
+    val importRecords: List<ImportRecord> = emptyList()
 )
 
 private data class KBStorageData(
