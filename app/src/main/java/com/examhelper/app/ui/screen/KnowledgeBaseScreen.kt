@@ -68,10 +68,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun KnowledgeBaseScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
+    var detailKbIndex by remember { mutableStateOf(-1) }
     var showNewDialog by remember { mutableStateOf(false) }
-    var showViewDialog by remember { mutableStateOf(false) }
-    var viewKBEntries by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var viewKBName by remember { mutableStateOf("") }
     var newKBName by remember { mutableStateOf("") }
     var isImportingDoc by remember { mutableStateOf(false) }
     var isImportingExcel by remember { mutableStateOf(false) }
@@ -129,7 +127,10 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                             excelImportMessage = "正在导入: $fileName"
                         }
                         
-                        val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(tmpFile.absolutePath) ?: -1
+                        val count = KnowledgeBaseManager.activeKB?.importExcelWithDedup(
+                            tmpFile.absolutePath,
+                            displayFileName = fileName
+                        ) ?: -1
                         tmpFile.delete()
                         
                         when {
@@ -191,6 +192,14 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    if (detailKbIndex >= 0) {
+        KbDetailScreen(
+            kbIndex = detailKbIndex,
+            onBack = { detailKbIndex = -1; refreshKey++ }
+        )
+        return
     }
 
     Scaffold(
@@ -285,9 +294,7 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
                                 Icon(Icons.Filled.Description, contentDescription = "导入文档", tint = Color(0xFF3B82F6), modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = {
-                                viewKBName = kb.name
-                                viewKBEntries = kb.entries.take(200).map { it.question to it.answer }
-                                showViewDialog = true
+                                detailKbIndex = index
                             }) {
                                 Icon(Icons.Filled.Visibility, contentDescription = "查看题目", tint = Color(0xFFA78BFA), modifier = Modifier.size(20.dp))
                             }
@@ -366,37 +373,6 @@ fun KnowledgeBaseScreen(onBack: () -> Unit) {
             )
         }
 
-        if (showViewDialog) {
-            AlertDialog(
-                onDismissRequest = { showViewDialog = false },
-                title = { Text("「$viewKBName」题目列表（前200条）", color = Color.White) },
-                text = {
-                    LazyColumn(modifier = Modifier.height(400.dp)) {
-                        itemsIndexed(viewKBEntries) { idx, (question, answer) ->
-                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                Text(
-                                    text = "${idx + 1}. $question",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Text(
-                                    text = "答: $answer",
-                                    color = Color(0xFF22C55E),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                                if (idx < viewKBEntries.size - 1) {
-                                    Spacer(Modifier.height(4.dp))
-                                }
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showViewDialog = false }) { Text("关闭") }
-                },
-                containerColor = Color(0xFF1E1E2E)
-            )
-        }
     }
 }
 
