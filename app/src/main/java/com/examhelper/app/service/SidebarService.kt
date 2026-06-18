@@ -130,7 +130,7 @@ class SidebarService : Service() {
         // ComposeView 作为子视图，只负责显示指示条 UI
         val composeView = ComposeView(this).apply {
             setContent {
-                ExamHelperTheme {
+                ExamHelperTheme(sidebarMode = true) {
                     EdgeHandle(hasContent = true)
                 }
             }
@@ -190,7 +190,7 @@ class SidebarService : Service() {
 
         val composeView = ComposeView(this).apply {
             setContent {
-                ExamHelperTheme {
+                ExamHelperTheme(sidebarMode = true) {
                     SidebarPanel(onHide = { hidePanel() })
                 }
             }

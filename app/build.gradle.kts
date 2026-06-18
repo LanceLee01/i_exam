@@ -13,8 +13,8 @@ android {
         applicationId = "com.examhelper.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.1.0"
+        versionCode = 5
+        versionName = "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -82,6 +82,8 @@ dependencies {
     // Excel
     implementation("org.apache.poi:poi:5.2.5")
     implementation("org.apache.poi:poi-ooxml:5.2.5")
+    implementation("org.apache.poi:poi-scratchpad:5.2.5")  // PPT (.ppt) support
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0") // PDF support
 
     // Room
     val roomVersion = "2.6.1"

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wiki 详情 — i学助手</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #E8E8ED; display: flex; justify-content: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
+.phone { width: 390px; min-height: 844px; position: relative; overflow-y: auto; }
+
+/* === Light Theme === */
+.light { background: #FDFCFB; }
+.light .header { display: flex; align-items: center; padding: 14px 16px; gap: 10px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.light .back-btn { width: 32px; height: 32px; border-radius: 8px; border: none; background: rgba(0,0,0,0.04); cursor: pointer; font-size: 14px; color: #8E8E93; }
+.light .page-title { font-size: 17px; font-weight: 700; color: #1C1C1E; flex: 1; }
+.light .meta-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; flex-wrap: wrap; border-bottom: 1px solid rgba(0,0,0,0.04); }
+.light .meta-type { font-size: 11px; padding: 3px 10px; border-radius: 6px; background: rgba(59,130,246,0.08); color: #3B82F6; font-weight: 500; }
+.light .meta-tag { font-size: 11px; padding: 3px 10px; border-radius: 6px; background: rgba(0,0,0,0.04); color: #8E8E93; }
+.light .meta-source { font-size: 11px; color: #8E8E93; margin-left: auto; }
+.light .content { padding: 20px 16px; }
+.light h2 { font-size: 18px; font-weight: 700; color: #1C1C1E; margin: 20px 0 10px; }
+.light h3 { font-size: 15px; font-weight: 600; color: #1C1C1E; margin: 18px 0 8px; }
+.light p { font-size: 14px; line-height: 1.75; color: #1C1C1E; margin-bottom: 12px; }
+.light ol { padding-left: 20px; margin-bottom: 16px; }
+.light ol li { font-size: 14px; line-height: 1.7; color: #1C1C1E; margin-bottom: 6px; }
+.light .image-block { margin: 16px 0; border-radius: 12px; overflow: hidden; background: rgba(0,0,0,0.02); }
+.light .image-block img { width: 100%; display: block; }
+.light .image-caption { font-size: 11px; color: #8E8E93; text-align: center; padding: 8px; }
+.light .tip-box { background: rgba(59,130,246,0.05); border-left: 3px solid #3B82F6; border-radius: 8px; padding: 12px 14px; margin: 16px 0; font-size: 13px; color: #1C1C1E; line-height: 1.6; }
+.light .tip-box strong { color: #3B82F6; }
+.light .wikilinks { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(0,0,0,0.06); }
+.light .wikilinks-title { font-size: 14px; font-weight: 600; color: #1C1C1E; margin-bottom: 12px; }
+.light .wikilink-card { display: flex; align-items: center; padding: 12px; gap: 10px; background: #FFF; border-radius: 10px; margin-bottom: 8px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.04); }
+.light .wikilink-icon { font-size: 20px; }
+.light .wikilink-title-text { font-size: 13px; font-weight: 500; color: #1C1C1E; flex: 1; }
+.light .wikilink-arrow { color: #8E8E93; font-size: 12px; }
+
+/* === Dark Theme === */
+.dark { background: #0F0F1A; }
+.dark .header { display: flex; align-items: center; padding: 14px 16px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.dark .back-btn { width: 32px; height: 32px; border-radius: 8px; border: none; background: rgba(255,255,255,0.06); cursor: pointer; font-size: 14px; color: rgba(255,255,255,0.5); }
+.dark .page-title { font-size: 17px; font-weight: 700; color: #FFF; flex: 1; }
+.dark .meta-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.dark .meta-type { font-size: 11px; padding: 3px 10px; border-radius: 6px; background: rgba(124,58,237,0.12); color: #A78BFA; font-weight: 500; }
+.dark .meta-tag { font-size: 11px; padding: 3px 10px; border-radius: 6px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); }
+.dark .meta-source { font-size: 11px; color: rgba(255,255,255,0.4); margin-left: auto; }
+.dark .content { padding: 20px 16px; }
+.dark h2 { font-size: 18px; font-weight: 700; color: #FFF; margin: 20px 0 10px; }
+.dark h3 { font-size: 15px; font-weight: 600; color: #FFF; margin: 18px 0 8px; }
+.dark p { font-size: 14px; line-height: 1.75; color: rgba(255,255,255,0.85); margin-bottom: 12px; }
+.dark ol { padding-left: 20px; margin-bottom: 16px; }
+.dark ol li { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.85); margin-bottom: 6px; }
+.dark .image-block { margin: 16px 0; border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+.dark .image-caption { font-size: 11px; color: rgba(255,255,255,0.4); text-align: center; padding: 8px; }
+.dark .tip-box { background: rgba(124,58,237,0.08); border-left: 3px solid #A78BFA; border-radius: 8px; padding: 12px 14px; margin: 16px 0; font-size: 13px; color: rgba(255,255,255,0.85); line-height: 1.6; }
+.dark .tip-box strong { color: #A78BFA; }
+.dark .wikilinks { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+.dark .wikilinks-title { font-size: 14px; font-weight: 600; color: #FFF; margin-bottom: 12px; }
+.dark .wikilink-card { display: flex; align-items: center; padding: 12px; gap: 10px; background: rgba(255,255,255,0.04); border-radius: 10px; margin-bottom: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.06); }
+.dark .wikilink-icon { font-size: 20px; }
+.dark .wikilink-title-text { font-size: 13px; font-weight: 500; color: #FFF; flex: 1; }
+.dark .wikilink-arrow { color: rgba(255,255,255,0.3); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ============ LIGHT THEME ============ -->
+<div class="phone light">
+  <div class="header">
+    <button class="back-btn">←</button>
+    <span class="page-title">触电急救基本步骤</span>
+  </div>
+  <div class="meta-bar">
+    <span class="meta-type">规程</span>
+    <span class="meta-tag">安全</span><span class="meta-tag">触电</span><span class="meta-tag">急救</span><span class="meta-tag">CPR</span>
+    <span class="meta-source">📄 安规手册.txt</span>
+  </div>
+
+  <div class="content">
+    <h2>概述</h2>
+    <p>发现有人触电时，首先应确保自身安全，立即切断电源。若无法切断，则用干燥绝缘物分离触电者，判断意识和呼吸，无反应立即拨打120，进行心肺复苏（CPR）直至专业救援到达。</p>
+
+    <!-- Inline image -->
+    <div class="image-block">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='358' height='200'%3E%3Crect fill='%23E8F0FE' width='358' height='200'/%3E%3Crect x='80' y='30' width='200' height='140' rx='12' fill='%233B82F6' opacity='0.08'/%3E%3Ccircle cx='180' cy='60' r='20' fill='%23EF4444' opacity='0.2'/%3E%3Ctext x='180' y='66' text-anchor='middle' fill='%23EF4444' font-size='18' font-weight='700'%3E⚡%3C/text%3E%3Ctext x='180' y='100' text-anchor='middle' fill='%233B82F6' font-size='12' font-weight='600'%3E① 切断电源%3C/text%3E%3Cline x1='140' y1='110' x2='130' y2='155' stroke='%233B82F6' stroke-width='2' opacity='0.3'/%3E%3Ctext x='125' y='170' text-anchor='middle' fill='%231C1C1E' font-size='10'%3E② 判断意识%3C/text%3E%3Cline x1='220' y1='110' x2='230' y2='155' stroke='%233B82F6' stroke-width='2' opacity='0.3'/%3E%3Ctext x='235' y='170' text-anchor='middle' fill='%231C1C1E' font-size='10'%3E③ 拨打120%3C/text%3E%3C/svg%3E">
+      <div class="image-caption">▲ 图1：触电急救三步骤</div>
+    </div>
+
+    <h3>详细内容</h3>
+    <ol>
+      <li>立即切断电源，若无法切断则用干燥绝缘物分离触电者</li>
+      <li>判断意识和呼吸，无反应立即拨打120</li>
+      <li>进行心肺复苏（CPR）直至专业救援到达</li>
+      <li>现场急救同时注意保护事故现场</li>
+    </ol>
+
+    <!-- Tip box -->
+    <div class="tip-box">
+      <strong>⚠️ 安全提示：</strong>施救前必须确保自身与带电体保持安全距离。使用绝缘工具，严禁直接用手接触触电者身体。高压触电需等待专业人员断电后再施救。
+    </div>
+
+    <!-- Second image -->
+    <div class="image-block">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='358' height='180'%3E%3Crect fill='%23F0FDF4' width='358' height='180'/%3E%3Crect x='30' y='20' width='140' height='140' rx='10' fill='%2310B981' opacity='0.06' stroke='%2310B981' stroke-width='1.5' stroke-opacity='0.15'/%3E%3Ctext x='100' y='60' text-anchor='middle' fill='%2310B981' font-size='28'%3E🛡%3C/text%3E%3Ctext x='100' y='90' text-anchor='middle' fill='%231C1C1E' font-size='11' font-weight='600'%3E绝缘手套%3C/text%3E%3Ctext x='100' y='108' text-anchor='middle' fill='%238E8E93' font-size='9'%3E耐压等级 10kV%3C/text%3E%3Crect x='190' y='20' width='140' height='140' rx='10' fill='%2310B981' opacity='0.06' stroke='%2310B981' stroke-width='1.5' stroke-opacity='0.15'/%3E%3Ctext x='260' y='60' text-anchor='middle' fill='%2310B981' font-size='28'%3E🥾%3C/text%3E%3Ctext x='260' y='90' text-anchor='middle' fill='%231C1C1E' font-size='11' font-weight='600'%3E绝缘靴%3C/text%3E%3Ctext x='260' y='108' text-anchor='middle' fill='%238E8E93' font-size='9'%3E耐压等级 15kV%3C/text%3E%3C/svg%3E">
+      <div class="image-caption">▲ 图2：常见绝缘防护用品</div>
+    </div>
+
+    <!-- Wikilinks -->
+    <div class="wikilinks">
+      <div class="wikilinks-title">📎 相关概念</div>
+      <div class="wikilink-card">
+        <span class="wikilink-icon">📄</span>
+        <span class="wikilink-title-text">绝缘防护 — 预防触电的关键措施</span>
+        <span class="wikilink-arrow">→</span>
+      </div>
+      <div class="wikilink-card">
+        <span class="wikilink-icon">📄</span>
+        <span class="wikilink-title-text">安全用电规程 — 日常工作的安全要求</span>
+        <span class="wikilink-arrow">→</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DARK THEME ============ -->
+<div class="phone dark">
+  <div class="header">
+    <button class="back-btn">←</button>
+    <span class="page-title">触电急救基本步骤</span>
+  </div>
+  <div class="meta-bar">
+    <span class="meta-type">规程</span>
+    <span class="meta-tag">安全</span><span class="meta-tag">触电</span><span class="meta-tag">急救</span><span class="meta-tag">CPR</span>
+    <span class="meta-source">📄 安规手册.txt</span>
+  </div>
+
+  <div class="content">
+    <h2>概述</h2>
+    <p>发现有人触电时，首先应确保自身安全，立即切断电源。若无法切断，则用干燥绝缘物分离触电者，判断意识和呼吸，无反应立即拨打120，进行心肺复苏（CPR）直至专业救援到达。</p>
+
+    <div class="image-block">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='358' height='200'%3E%3Crect fill='%231A1A2E' width='358' height='200'/%3E%3Crect x='80' y='30' width='200' height='140' rx='12' fill='%237C3AED' opacity='0.08'/%3E%3Ccircle cx='180' cy='60' r='20' fill='%23EF4444' opacity='0.15'/%3E%3Ctext x='180' y='66' text-anchor='middle' fill='%23EF4444' font-size='18' font-weight='700'%3E⚡%3C/text%3E%3Ctext x='180' y='100' text-anchor='middle' fill='%23A78BFA' font-size='12' font-weight='600'%3E① 切断电源%3C/text%3E%3Cline x1='140' y1='110' x2='130' y2='155' stroke='%23A78BFA' stroke-width='2' opacity='0.3'/%3E%3Ctext x='125' y='170' text-anchor='middle' fill='%23FFFFFF' opacity='0.85' font-size='10'%3E② 判断意识%3C/text%3E%3Cline x1='220' y1='110' x2='230' y2='155' stroke='%23A78BFA' stroke-width='2' opacity='0.3'/%3E%3Ctext x='235' y='170' text-anchor='middle' fill='%23FFFFFF' opacity='0.85' font-size='10'%3E③ 拨打120%3C/text%3E%3C/svg%3E">
+      <div class="image-caption">▲ 图1：触电急救三步骤</div>
+    </div>
+
+    <h3>详细内容</h3>
+    <ol>
+      <li>立即切断电源，若无法切断则用干燥绝缘物分离触电者</li>
+      <li>判断意识和呼吸，无反应立即拨打120</li>
+      <li>进行心肺复苏（CPR）直至专业救援到达</li>
+    </ol>
+
+    <div class="tip-box">
+      <strong>⚠️ 安全提示：</strong>施救前必须确保自身与带电体保持安全距离。使用绝缘工具，严禁直接用手接触触电者身体。高压触电需等待专业人员断电后再施救。
+    </div>
+
+    <div class="image-block">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='358' height='180'%3E%3Crect fill='%231A1A2E' width='358' height='180'/%3E%3Crect x='30' y='20' width='140' height='140' rx='10' fill='%2310B981' opacity='0.04' stroke='%2310B981' stroke-width='1.5' stroke-opacity='0.15'/%3E%3Ctext x='100' y='60' text-anchor='middle' fill='%2310B981' font-size='28'%3E🛡%3C/text%3E%3Ctext x='100' y='90' text-anchor='middle' fill='%23FFFFFF' font-size='11' font-weight='600' opacity='0.85'%3E绝缘手套%3C/text%3E%3Ctext x='100' y='108' text-anchor='middle' fill='%23FFFFFF' font-size='9' opacity='0.4'%3E耐压等级 10kV%3C/text%3E%3Crect x='190' y='20' width='140' height='140' rx='10' fill='%2310B981' opacity='0.04' stroke='%2310B981' stroke-width='1.5' stroke-opacity='0.15'/%3E%3Ctext x='260' y='60' text-anchor='middle' fill='%2310B981' font-size='28'%3E🥾%3C/text%3E%3Ctext x='260' y='90' text-anchor='middle' fill='%23FFFFFF' font-size='11' font-weight='600' opacity='0.85'%3E绝缘靴%3C/text%3E%3Ctext x='260' y='108' text-anchor='middle' fill='%23FFFFFF' font-size='9' opacity='0.4'%3E耐压等级 15kV%3C/text%3E%3C/svg%3E">
+      <div class="image-caption">▲ 图2：常见绝缘防护用品</div>
+    </div>
+
+    <div class="wikilinks">
+      <div class="wikilinks-title">📎 相关概念</div>
+      <div class="wikilink-card">
+        <span class="wikilink-icon">📄</span>
+        <span class="wikilink-title-text">绝缘防护 — 预防触电的关键措施</span>
+        <span class="wikilink-arrow">→</span>
+      </div>
+      <div class="wikilink-card">
+        <span class="wikilink-icon">📄</span>
+        <span class="wikilink-title-text">安全用电规程 — 日常工作的安全要求</span>
+        <span class="wikilink-arrow">→</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

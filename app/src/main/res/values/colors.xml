@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="brand_primary">#FF2563EB</color>
-    <color name="brand_secondary">#FF1E40AF</color>
+    <color name="brand_primary">#FFF27A3E</color>
+    <color name="brand_secondary">#FFD6652D</color>
     <color name="sidebar_bg">#F0121220</color>
     <color name="sidebar_edge">#40FFFFFF</color>
     <color name="text_correct">#FF22C55E</color>

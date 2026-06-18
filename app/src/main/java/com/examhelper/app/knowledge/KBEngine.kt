@@ -28,6 +28,12 @@ data class SearchResult(
     val trigramPages: List<WikiPage> = emptyList()
 )
 
+data class LlmAnswer(
+    val question: String,
+    val answer: String,
+    val references: List<Pair<String, String>>  // (pageUid, pageTitle)
+)
+
 class KBEngine(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
@@ -37,7 +43,12 @@ class KBEngine(private val context: Context) {
         return Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "text/markdown", "text/x-markdown"))
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
+                "text/plain", "text/markdown", "text/x-markdown",
+                "application/pdf",
+                "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ))
         }
     }
 
@@ -88,12 +99,22 @@ class KBEngine(private val context: Context) {
                 }
             }
 
-            if (pages.isEmpty()) {
-                return@withContext ImportResult(false, error = "LLM 未生成任何知识页，请检查文档内容")
-            }
+            // Fallback: if parser produced 0 pages, use full response as a single page
+            val finalPages = if (pages.isEmpty()) {
+                Log.w(TAG, "Parser returned 0 pages, creating fallback page from raw response")
+                listOf(WikiPage(
+                    title = fileName.removeSuffix(".pptx").removeSuffix(".ppt").removeSuffix(".pdf")
+                        .removeSuffix(".xlsx").removeSuffix(".xls").removeSuffix(".txt").removeSuffix(".md"),
+                    content = result.content.take(4000),
+                    summary = result.content.lines().firstOrNull()?.take(200) ?: "知识页面",
+                    pageType = "concept",
+                    tags = "知识, 文档",
+                    sources = sourceId
+                ))
+            } else pages
 
-            db.wikiPageDao().insertAll(pages)
-            Log.d(TAG, "Inserted ${pages.size} wiki pages")
+            db.wikiPageDao().insertAll(finalPages)
+            Log.d(TAG, "Inserted ${finalPages.size} wiki pages")
 
             val sourceFile = SourceFile(
                 id = sourceId,
@@ -101,13 +122,13 @@ class KBEngine(private val context: Context) {
                 fileName = fileName,
                 fileType = getFileType(uri),
                 contentHash = hash,
-                pageCount = pages.size
+                pageCount = finalPages.size
             )
             db.sourceFileDao().insert(sourceFile)
 
-            val allTitles = pages.map { it.uid to it.title }.toMap()
+            val allTitles = finalPages.map { it.uid to it.title }.toMap()
             val links = mutableListOf<Wikilink>()
-            for (page in pages) {
+            for (page in finalPages) {
                 val refs = extractWikilinks(page.content)
                 for ((label, targetTitle) in refs) {
                     val targetPage = pages.firstOrNull { it.title == targetTitle }
@@ -125,7 +146,7 @@ class KBEngine(private val context: Context) {
                 Log.d(TAG, "Inserted ${links.size} wikilinks")
             }
 
-            ImportResult(success = true, pagesGenerated = pages.size)
+            ImportResult(success = true, pagesGenerated = finalPages.size)
         } catch (e: Exception) {
             Log.e(TAG, "importFile failed", e)
             ImportResult(false, error = e.message ?: "未知错误")
@@ -172,6 +193,50 @@ class KBEngine(private val context: Context) {
         }
     }
 
+    /** LLM-powered natural language Q&A over wiki knowledge base */
+    suspend fun answerQuestion(question: String): LlmAnswer {
+        // Step 1: Hybrid search for relevant pages
+        val searchResult = searchByQuestion(question)
+        val topPages = searchResult.pages.take(5)
+        if (topPages.isEmpty()) return LlmAnswer("", "知识库中没有相关内容", emptyList())
+
+        // Step 2: Build context from top pages
+        val context = topPages.joinToString("\n\n---\n\n") { page ->
+            "【标题】${page.title}\n【类型】${page.pageType}\n【标签】${page.tags}\n【摘要】${page.summary}\n【正文】${page.content.take(800)}"
+        }
+
+        // Step 3: Call LLM
+        val config = ExamApplication.instance.appConfig.getSnapshot()
+        val systemPrompt = """你是知识库问答助手。根据提供的知识库页面内容回答问题。
+如果答案在提供的页面中找不到，如实说"知识库中暂无相关信息"。
+回答时引用具体页面标题。格式：先给出简洁答案，然后列出参考页面。"""
+
+        val userMessage = "知识库内容：\n$context\n\n问题：$question\n\n请根据上述知识库内容回答问题，并列出参考的页面标题。"
+
+        val result = llmClient.chatSync(
+            endpoint = config.apiEndpoint,
+            apiKey = config.apiKey,
+            model = config.modelName,
+            temperature = 0.3f,
+            maxTokens = 1024,
+            systemPrompt = systemPrompt,
+            userMessage = userMessage
+        )
+
+        return when (result) {
+            is LLMClient.Result.Success -> {
+                Log.d(TAG, "LLM answer received (${result.content.length} chars)")
+                LlmAnswer(
+                    question = question,
+                    answer = result.content,
+                    references = topPages.map { it.uid to it.title }
+                )
+            }
+            is LLMClient.Result.Error -> LlmAnswer(question, "问答出错: ${result.message}", emptyList())
+            is LLMClient.Result.NetworkError -> LlmAnswer(question, "网络连接失败", emptyList())
+        }
+    }
+
     suspend fun getPageCount(): Int = db.wikiPageDao().getCount()
 
     suspend fun getPage(uid: String): WikiPage? = db.wikiPageDao().getByUid(uid)
@@ -186,6 +251,10 @@ class KBEngine(private val context: Context) {
         db.sourceFileDao().clearAll()
     }
 
+    suspend fun getSourceFileCount(): Int = db.sourceFileDao().getAll().size
+
+    suspend fun getPageById(id: Long): WikiPage? = db.wikiPageDao().getById(id)
+
     suspend fun deletePage(uid: String) {
         val page = db.wikiPageDao().getByUid(uid) ?: return
         db.wikilinkDao().deleteAllForPage(page.id)
@@ -193,12 +262,121 @@ class KBEngine(private val context: Context) {
     }
 
     private suspend fun readFileContent(uri: Uri): String? {
+        val name = getFileName(uri).lowercase()
         return try {
-            context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
+            when {
+                name.endsWith(".pdf") -> readPdfContent(uri)
+                name.endsWith(".pptx") -> readPptxContent(uri)
+                name.endsWith(".ppt") -> readPptContent(uri)
+                name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".et") -> readExcelContent(uri)
+                else -> context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "readFileContent failed", e)
+            Log.e(TAG, "readFileContent failed for $name", e)
             null
         }
+    }
+
+    private fun readPdfContent(uri: Uri): String {
+        // PDF text extraction using PDFBox Android port
+        val sb = StringBuilder()
+        try {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                val loader = com.tom_roush.pdfbox.android.PDFBoxResourceLoader()
+                val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(stream)
+                val stripper = com.tom_roush.pdfbox.text.PDFTextStripper()
+                sb.append(stripper.getText(document))
+                document.close()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "PDF extraction failed, trying raw text", e)
+            // Fallback: try reading as raw bytes
+            try {
+                context.contentResolver.openInputStream(uri)?.bufferedReader().use {
+                    val text = it?.readText() ?: ""
+                    if (text.isNotBlank()) sb.append(text)
+                }
+            } catch (_: Exception) {}
+        }
+        return sb.toString()
+    }
+
+    private fun readPptxContent(uri: Uri): String {
+        val sb = StringBuilder()
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val ppt = org.apache.poi.xslf.usermodel.XMLSlideShow(stream)
+            ppt.use {
+                for ((idx, slide) in it.slides.withIndex()) {
+                    sb.appendLine("## 第${idx + 1}页")
+                    val texts = slide.shapes.filterIsInstance<org.apache.poi.xslf.usermodel.XSLFTextShape>()
+                    // First text shape with larger font is likely the title
+                    val title = texts.firstOrNull { t ->
+                        t.textParagraphs.any { p -> p.textRuns.any { r -> r.fontSize > 18.0 || r.isBold } }
+                    } ?: texts.firstOrNull()
+                    val body = texts.filter { it != title }
+                    if (title != null) {
+                        sb.appendLine("### ${title.text.trim()}")
+                    }
+                    for (shape in body) {
+                        val text = shape.text.trim()
+                        if (text.isNotBlank() && text.length > 2) {
+                            // Bullet points
+                            for (line in text.lines()) {
+                                val trimmed = line.trim()
+                                if (trimmed.isNotBlank()) sb.appendLine("- $trimmed")
+                            }
+                        }
+                    }
+                    sb.appendLine()
+                }
+            }
+        }
+        return sb.toString().ifBlank {
+            // Fallback: simple text extraction
+            val fallback = StringBuilder()
+            context.contentResolver.openInputStream(uri)?.use { s ->
+                val p = org.apache.poi.xslf.usermodel.XMLSlideShow(s)
+                p.use { for (slide in it.slides) { for (shape in slide.shapes) { if (shape is org.apache.poi.xslf.usermodel.XSLFTextShape) fallback.appendLine(shape.text) } } }
+            }
+            fallback.toString()
+        }
+    }
+
+    private fun readPptContent(uri: Uri): String {
+        val sb = StringBuilder()
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val ppt = org.apache.poi.hslf.usermodel.HSLFSlideShow(stream)
+            ppt.use {
+                for (slide in it.slides) {
+                    for (shape in slide.shapes) {
+                        if (shape is org.apache.poi.hslf.usermodel.HSLFTextShape) {
+                            sb.appendLine(shape.text)
+                        }
+                    }
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    private fun readExcelContent(uri: Uri): String {
+        val sb = StringBuilder()
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val wb = org.apache.poi.ss.usermodel.WorkbookFactory.create(stream)
+            wb.use {
+                for (sheetIdx in 0 until it.numberOfSheets) {
+                    val sheet = it.getSheetAt(sheetIdx)
+                    sb.appendLine("--- ${it.getSheetName(sheetIdx)} ---")
+                    for (row in sheet) {
+                        val cols = (0 until row.lastCellNum.coerceAtMost(10))
+                            .map { i -> row.getCell(i)?.toString()?.trim() ?: "" }
+                            .filter { it.isNotBlank() }
+                        if (cols.isNotEmpty()) sb.appendLine(cols.joinToString(" | "))
+                    }
+                }
+            }
+        }
+        return sb.toString()
     }
 
     private fun getFileName(uri: Uri): String {
@@ -218,6 +396,10 @@ class KBEngine(private val context: Context) {
     private fun getFileType(uri: Uri): String {
         val name = getFileName(uri).lowercase()
         return when {
+            name.endsWith(".pdf") -> "pdf"
+            name.endsWith(".pptx") -> "pptx"
+            name.endsWith(".ppt") -> "ppt"
+            name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".et") -> "excel"
             name.endsWith(".md") || name.endsWith(".markdown") -> "md"
             else -> "txt"
         }
@@ -231,33 +413,34 @@ class KBEngine(private val context: Context) {
 
     private fun buildWikiPrompt(): String {
         return """
-你是一个知识库构建助手。请分析以下资料，提取核心知识点，为每个知识点生成一个 Wiki 页面。
+你是知识库构建助手。请分析以下资料，提取核心知识点，为每个知识点生成 Wiki 页面。
 
-每个页面使用以下格式（用 --- 分隔不同页面）：
+资料可能是 PPT 幻灯片（每页以"## 第N页"标记，标题在"###"后，正文为"- "列表），也可能是纯文本或 Markdown。
+
+每个页面用 --- 分隔，格式如下：
 
 ---
-type: concept|entity|procedure|definition
-title: 知识点标题（简洁明了）
-tags: 标签1, 标签2, 标签3
+type: 规程
+title: 知识点标题
+tags: 标签1, 标签2
 summary: 一句话概述
 ---
 
 ## 概述
-一句话摘要
+简要说明该知识点是什么
 
 ## 详细内容
-详细解释知识点的内容...
+详细解释，可包含步骤、要点、注意事项等
 
 ## 相关概念
-- [[概念名称]] — 关系说明
+- [[相关概念]] — 关系说明
 
 要求：
-1. 每个独立的知识点生成一个页面
-2. type 根据内容选择: concept(概念) / entity(实体) / procedure(流程/步骤) / definition(定义)
-3. tags 使用 3-5 个中文标签，逗号分隔
-4. 使用 [[概念名称]] 标注与其他知识点的关联
-5. 用中文输出
-6. 如果资料内容较少，生成 1-3 个页面即可
+1. 每个独立知识点生成一个页面，type 选 concept/entity/procedure/definition
+2. tags 用 3-5 个中文标签
+3. [[ ]] 标注关联知识点
+4. 中文输出
+5. 内容少则生成 1-3 页，内容多则多页
         """.trimIndent()
     }
 

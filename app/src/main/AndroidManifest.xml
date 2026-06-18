@@ -14,11 +14,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Android 11+ 包可见性：允许查询并启动 i国网 -->
+    <queries>
+        <package android:name="com.dlxx.mam.Internal" />
+    </queries>
+
     <application
         android:name=".ExamApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="i学助手"
         android:supportsRtl="true"
         android:theme="@style/Theme.ExamHelper"
         android:networkSecurityConfig="@xml/network_security_config"

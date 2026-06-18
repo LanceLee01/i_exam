@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库 - i学助手</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FDFCFB; display: flex; justify-content: center; }
+.phone { width: 390px; min-height: 844px; background: #FDFCFB; position: relative; overflow-y: auto; }
+.content { padding: 20px 16px 100px; }
+.onSurface { color: #1C1C1E; }
+.onSurfaceSecondary { color: #8E8E93; }
+
+/* Overview */
+.overview-card {
+  background: #FFF; border-radius: 16px; padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04); display: flex; gap: 20px;
+}
+.overview-stat { text-align: center; flex: 1; }
+.overview-count { font-size: 30px; font-weight: 700; }
+.overview-label { font-size: 11px; color: #8E8E93; margin-top: 4px; }
+
+/* Section title */
+.section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; margin-top: 4px; }
+.section-bar { width: 3px; height: 16px; border-radius: 2px; background: #3B82F6; }
+.section-text { font-size: 16px; font-weight: 700; color: #1C1C1E; }
+
+/* Search */
+.search-bar {
+  height: 48px; border-radius: 14px; background: #FFF;
+  display: flex; align-items: center; padding: 0 16px; gap: 8px; margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.search-bar svg { width: 20px; height: 20px; color: #8E8E93; flex-shrink: 0; }
+.search-input { flex: 1; border: none; outline: none; font-size: 14px; color: #1C1C1E; background: transparent; }
+.search-input::placeholder { color: rgba(0,0,0,0.25); }
+
+/* Filter */
+.filter-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.chip { padding: 7px 14px; border-radius: 20px; font-size: 12px; border: 1px solid rgba(0,0,0,0.10); color: #8E8E93; cursor: pointer; background: #FFF; }
+.chip.active { background: rgba(59,130,246,0.10); border-color: #3B82F6; color: #3B82F6; font-weight: 500; }
+
+/* Wiki List Item — rich card */
+.w-item {
+  background: #FFF; border-radius: 12px; margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04); overflow: hidden;
+  cursor: pointer; transition: transform 0.15s;
+}
+.w-item:hover { transform: translateY(-1px); }
+.w-thumb {
+  height: 140px; background: linear-gradient(135deg, #E8F0FE, #D4E4FC);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.w-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.w-thumb-placeholder { font-size: 48px; opacity: 0.3; }
+.w-body { padding: 14px; }
+.w-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.w-title { font-size: 14px; font-weight: 600; color: #1C1C1E; flex: 1; }
+.w-type { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+.w-type.procedure { background: rgba(59,130,246,0.08); color: #3B82F6; }
+.w-type.concept { background: rgba(16,185,129,0.08); color: #10B981; }
+.w-type.flow { background: rgba(245,158,11,0.08); color: #F59E0B; }
+.w-tags { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+.w-tag { font-size: 10px; padding: 1px 8px; border-radius: 4px; background: rgba(0,0,0,0.04); color: #8E8E93; }
+.w-summary { font-size: 12px; color: #8E8E93; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.w-meta-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.04); }
+.w-source { font-size: 10px; color: #8E8E93; }
+.w-source-type { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: rgba(0,0,0,0.04); color: #8E8E93; }
+
+/* Import format bar */
+.format-bar {
+  display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.format-badge {
+  padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 500;
+  background: rgba(59,130,246,0.06); color: #3B82F6;
+  display: flex; align-items: center; gap: 4px;
+}
+
+/* Bottom */
+.bottom-actions { display: flex; gap: 10px; padding: 16px 0; }
+.btn-primary { flex: 1; height: 44px; border-radius: 12px; background: #3B82F6; color: #FFF; border: none; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.btn-secondary { flex: 1; height: 44px; border-radius: 12px; background: rgba(59,130,246,0.10); color: #3B82F6; border: none; font-size: 14px; font-weight: 500; cursor: pointer; }
+
+/* Nav */
+.nav-bar { padding: 12px 16px; position: sticky; bottom: 0; background: #FDFCFB; }
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-evenly;
+  background: rgba(255,255,255,0.94); border-radius: 24px; padding: 8px 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.04);
+  position: relative;
+}
+.nav-item { display: flex; flex-direction: column; align-items: center; padding: 4px 10px; cursor: pointer; }
+.nav-icon { font-size: 16px; width: 22px; height: 22px; text-align: center; }
+.nav-label { font-size: 8px; font-weight: 600; color: #8E8E93; }
+.nav-label.active { color: #3B82F6; }
+.nav-indicator { width: 32px; height: 3px; border-radius: 2px; background: #3B82F6; margin-bottom: 4px; }
+.fab {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: linear-gradient(135deg, #F27A3E, #D6652D);
+  border: 2px solid rgba(255,255,255,0.06);
+  box-shadow: 0 8px 24px rgba(242,122,62,0.30);
+  display: flex; align-items: center; justify-content: center;
+  color: #FFF; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  position: absolute; top: -10px;
+}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="content">
+
+    <!-- Overview -->
+    <div class="overview-card">
+      <div class="overview-stat">
+        <div class="overview-count" style="color:#3B82F6;">156</div>
+        <div class="overview-label">Wiki 页面</div>
+      </div>
+      <div class="overview-stat">
+        <div class="overview-count" style="color:#10B981;">23</div>
+        <div class="overview-label">导入文档</div>
+      </div>
+      <div class="overview-stat">
+        <div class="overview-count" style="color:#8E8E93;">5</div>
+        <div class="overview-label">分类</div>
+      </div>
+    </div>
+
+    <!-- Supported formats bar -->
+    <div class="format-bar">
+      <span class="format-badge">📄 PPT</span>
+      <span class="format-badge">📕 PDF</span>
+      <span class="format-badge">📊 Excel</span>
+      <span class="format-badge">📝 TXT</span>
+      <span class="format-badge">📋 MD</span>
+    </div>
+
+    <!-- Search -->
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" placeholder="搜索知识...">
+    </div>
+
+    <!-- Section -->
+    <div class="section-title">
+      <div class="section-bar"></div>
+      <span class="section-text">知识页面</span>
+    </div>
+
+    <!-- Wiki Page 1 — with thumbnail image -->
+    <div class="w-item">
+      <div class="w-thumb">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='140'%3E%3Crect fill='%233B82F6' opacity='0.08' width='360' height='140'/%3E%3Ctext x='180' y='60' text-anchor='middle' fill='%233B82F6' font-size='14' font-weight='600'%3E触电急救流程图%3C/text%3E%3Cline x1='80' y1='78' x2='280' y2='78' stroke='%233B82F6' stroke-width='3' opacity='0.15'/%3E%3Ccircle cx='80' cy='100' r='12' fill='%233B82F6' opacity='0.12'/%3E%3Ctext x='80' y='105' text-anchor='middle' fill='%233B82F6' font-size='9'%3E1%3C/text%3E%3Ccircle cx='160' cy='100' r='12' fill='%233B82F6' opacity='0.12'/%3E%3Ctext x='160' y='105' text-anchor='middle' fill='%233B82F6' font-size='9'%3E2%3C/text%3E%3Ccircle cx='240' cy='100' r='12' fill='%233B82F6' opacity='0.12'/%3E%3Ctext x='240' y='105' text-anchor='middle' fill='%233B82F6' font-size='9'%3E3%3C/text%3E%3Cline x1='92' y1='100' x2='148' y2='100' stroke='%233B82F6' stroke-width='2' opacity='0.2'/%3E%3Cline x1='172' y1='100' x2='228' y2='100' stroke='%233B82F6' stroke-width='2' opacity='0.2'/%3E%3C/svg%3E">
+      </div>
+      <div class="w-body">
+        <div class="w-header">
+          <span class="w-title">触电急救基本步骤</span>
+          <span class="w-type procedure">规程</span>
+        </div>
+        <div class="w-tags"><span class="w-tag">安全</span><span class="w-tag">触电</span><span class="w-tag">急救</span><span class="w-tag">CPR</span></div>
+        <div class="w-summary">发现有人触电时，首先应确保自身安全，立即切断电源。若无法切断，则用干燥绝缘物分离触电者...</div>
+        <div class="w-meta-row">
+          <span class="w-source">📄 安规手册.txt</span>
+          <span class="w-source-type">图文 · 3张图片</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wiki Page 2 — no thumbnail -->
+    <div class="w-item">
+      <div class="w-body">
+        <div class="w-header">
+          <span class="w-title">绝缘防护技术规范</span>
+          <span class="w-type concept">概念</span>
+        </div>
+        <div class="w-tags"><span class="w-tag">安全</span><span class="w-tag">防护</span><span class="w-tag">绝缘</span></div>
+        <div class="w-summary">预防触电的关键措施，包括使用绝缘工具、穿戴绝缘防护用品、保持安全距离等基本要求。绝缘等级分为...</div>
+        <div class="w-meta-row">
+          <span class="w-source">📕 安全规程详解.pdf</span>
+          <span class="w-source-type">图文 · 5张图片</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wiki Page 3 — with thumbnail -->
+    <div class="w-item">
+      <div class="w-thumb">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='140'%3E%3Crect fill='%2310B981' opacity='0.06' width='360' height='140'/%3E%3Crect x='50' y='20' width='260' height='100' rx='10' fill='%2310B981' opacity='0.08'/%3E%3Ctext x='180' y='55' text-anchor='middle' fill='%2310B981' font-size='13' font-weight='600'%3E工作票流程图%3C/text%3E%3Cline x1='100' y1='70' x2='100' y2='105' stroke='%2310B981' stroke-width='2' opacity='0.3'/%3E%3Cline x1='180' y1='70' x2='180' y2='105' stroke='%2310B981' stroke-width='2' opacity='0.3'/%3E%3Cline x1='260' y1='70' x2='260' y2='105' stroke='%2310B981' stroke-width='2' opacity='0.3'/%3E%3Ccircle cx='100' cy='70' r='6' fill='%2310B981' opacity='0.4'/%3E%3Ccircle cx='180' cy='70' r='6' fill='%2310B981' opacity='0.4'/%3E%3Ccircle cx='260' cy='70' r='6' fill='%2310B981' opacity='0.4'/%3E%3C/svg%3E">
+      </div>
+      <div class="w-body">
+        <div class="w-header">
+          <span class="w-title">工作票制度与流程</span>
+          <span class="w-type flow">流程</span>
+        </div>
+        <div class="w-tags"><span class="w-tag">管理</span><span class="w-tag">工作票</span><span class="w-tag">制度</span></div>
+        <div class="w-summary">电气作业必须执行的工作票制度，包括签发、许可、监护、间断、转移和终结全过程管理...</div>
+        <div class="w-meta-row">
+          <span class="w-source">📊 电力安规总则.xlsx</span>
+          <span class="w-source-type">图文 · 2张图片</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Nav -->
+  <div class="nav-bar">
+    <div class="nav-inner">
+      <div class="nav-item"><div class="nav-icon">⌂</div><span class="nav-label">首页</span></div>
+      <div class="nav-item"><div class="nav-icon">📖</div><span class="nav-label">题库</span></div>
+      <div class="fab">Start</div>
+      <div class="nav-item"><div class="nav-indicator"></div><div class="nav-icon">📚</div><span class="nav-label active">知识库</span></div>
+      <div class="nav-item"><div class="nav-icon">⚙</div><span class="nav-label">设置</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

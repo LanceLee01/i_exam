@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>题库 - i学助手</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FDFCFB; display: flex; justify-content: center; }
+.phone { width: 390px; min-height: 844px; background: #FDFCFB; position: relative; overflow: hidden; }
+
+/* Light Theme */
+.surface { background: #FDFCFB; }
+.surfaceCard { background: #FFFFFF; }
+.primary { color: #F27A3E; }
+.primaryBg { background: #F27A3E; }
+.onSurface { color: #1C1C1E; }
+.onSurfaceSecondary { color: #8E8E93; }
+.success { color: #10B981; }
+.info { color: #3B82F6; }
+.outline { border-color: rgba(0,0,0,0.06); }
+
+/* Layout */
+.content { padding: 20px 16px 0; }
+
+/* Overview Card */
+.overview-card {
+  background: #FFF;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.overview-count { font-size: 36px; font-weight: 700; color: #F27A3E; }
+.overview-label { font-size: 13px; color: #8E8E93; margin-top: 4px; }
+.overview-row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.06); }
+.overview-kb { font-size: 13px; color: #8E8E93; }
+.overview-switch { font-size: 13px; color: #F27A3E; font-weight: 500; cursor: pointer; }
+
+/* Search Bar */
+.search-bar {
+  height: 48px; border-radius: 14px; background: #FFF;
+  display: flex; align-items: center; padding: 0 16px; gap: 8px;
+  margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.search-bar svg { width: 20px; height: 20px; color: #8E8E93; flex-shrink: 0; }
+.search-input { flex: 1; border: none; outline: none; font-size: 14px; color: #1C1C1E; background: transparent; }
+.search-input::placeholder { color: rgba(0,0,0,0.25); }
+
+/* Filter Chips */
+.filter-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.chip { padding: 8px 14px; border-radius: 20px; font-size: 12px; border: 1px solid rgba(0,0,0,0.10); color: #8E8E93; cursor: pointer; background: #FFF; }
+.chip.active { background: rgba(242,122,62,0.10); border-color: #F27A3E; color: #F27A3E; font-weight: 500; }
+
+/* Question List Item */
+.q-item {
+  background: #FFF; border-radius: 12px; padding: 14px; margin-bottom: 8px;
+  display: flex; align-items: flex-start; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.q-num { width: 28px; height: 28px; border-radius: 8px; background: rgba(242,122,62,0.10); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #F27A3E; flex-shrink: 0; }
+.q-body { flex: 1; min-width: 0; }
+.q-text { font-size: 13px; color: #1C1C1E; line-height: 1.4; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.q-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.q-answer { font-size: 13px; font-weight: 700; color: #10B981; }
+.q-type { font-size: 10px; color: #8E8E93; background: rgba(0,0,0,0.04); padding: 2px 8px; border-radius: 4px; }
+.q-options { font-size: 12px; color: #8E8E93; line-height: 1.6; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(0,0,0,0.06); }
+.q-options span.opt-letter { color: #1C1C1E; font-weight: 600; margin-right: 2px; }
+.q-options span.correct { color: #10B981; font-weight: 700; }
+.q-actions { display: flex; gap: 4px; flex-shrink: 0; align-self: flex-start; }
+.q-actions button { width: 28px; height: 28px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; color: #8E8E93; }
+
+/* Bottom Actions — compact import + prominent manage */
+.bottom-section { padding: 0 0 24px; }
+.import-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 12px; margin-bottom: 14px;
+  background: #FFF; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  cursor: pointer; border: 1px solid rgba(0,0,0,0.05);
+}
+.import-bar .icon { font-size: 22px; }
+.import-bar .label { font-size: 13px; color: #1C1C1E; flex: 1; font-weight: 500; }
+.import-bar .formats { font-size: 10px; color: #8E8E93; display: flex; gap: 3px; }
+.import-bar .formats span { padding: 2px 5px; border-radius: 3px; background: rgba(0,0,0,0.04); }
+.import-bar .arrow { color: #8E8E93; font-size: 14px; }
+
+.manage-card {
+  background: linear-gradient(135deg, #FFF8F4, #FFF);
+  border: 1.5px solid rgba(242,122,62,0.2);
+  border-radius: 14px; padding: 16px;
+  box-shadow: 0 2px 8px rgba(242,122,62,0.06);
+  cursor: pointer; display: flex; align-items: center; gap: 12px;
+}
+.manage-icon-box {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: linear-gradient(135deg, #F27A3E, #D6652D);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #FFF; box-shadow: 0 2px 8px rgba(242,122,62,0.25);
+}
+.manage-info { flex: 1; }
+.manage-title { font-size: 14px; font-weight: 700; color: #1C1C1E; }
+.manage-sub { font-size: 11px; color: #8E8E93; margin-top: 3px; }
+.manage-badge {
+  display: inline-block; margin-top: 6px; padding: 3px 8px;
+  border-radius: 4px; background: rgba(242,122,62,0.1);
+  color: #F27A3E; font-size: 10px; font-weight: 600;
+}
+.manage-actions { display: flex; flex-direction: column; gap: 6px; }
+.manage-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.08);
+  background: #FFF; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #8E8E93; transition: all 0.15s;
+}
+.manage-btn:hover { border-color: #F27A3E; color: #F27A3E; background: rgba(242,122,62,0.04); }
+.manage-btn.primary-btn { background: #F27A3E; border-color: #F27A3E; color: #FFF; }
+.manage-btn.primary-btn:hover { background: #D6652D; }
+
+/* Empty State */
+.empty-state { text-align: center; padding: 60px 20px; color: #8E8E93; font-size: 14px; }
+
+/* Nav Bar */
+.nav-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; max-width: 390px; margin: 0 auto;
+  padding: 12px 16px;
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-evenly;
+  background: rgba(255,255,255,0.94); border-radius: 24px; padding: 8px 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.04);
+  position: relative;
+}
+.nav-item { display: flex; flex-direction: column; align-items: center; padding: 4px 10px; cursor: pointer; }
+.nav-indicator { width: 32px; height: 3px; border-radius: 2px; background: linear-gradient(135deg, #F27A3E, #D6652D); margin-bottom: 4px; }
+.nav-icon { width: 22px; height: 22px; margin-bottom: 2px; }
+.nav-label { font-size: 8px; font-weight: 600; color: #8E8E93; }
+.nav-label.active { color: #F27A3E; }
+.fab {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: linear-gradient(135deg, #F27A3E, #D6652D);
+  border: 2px solid rgba(255,255,255,0.06);
+  box-shadow: 0 8px 24px rgba(242,122,62,0.30);
+  display: flex; align-items: center; justify-content: center;
+  color: #FFF; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  position: absolute; top: -18px;
+}
+</style>
+</head>
+<body>
+<div class="phone surface">
+  <div class="content">
+
+    <!-- Overview Card -->
+    <div class="overview-card">
+      <div class="overview-count">12,847</div>
+      <div class="overview-label">总题目数</div>
+      <div class="overview-row">
+        <span class="overview-kb">激活: 安规2026_信息通信</span>
+        <span class="overview-switch">切换题库 ▾</span>
+      </div>
+    </div>
+
+    <!-- Import & Manage -->
+    <div class="bottom-section">
+      <div class="import-bar">
+        <span class="icon">📤</span>
+        <span class="label">导入题目</span>
+        <span class="formats"><span>.xlsx</span><span>.xls</span><span>.et</span><span>.zip</span></span>
+        <span class="arrow">→</span>
+      </div>
+
+      <div class="manage-card">
+        <div class="manage-icon-box">📋</div>
+        <div class="manage-info">
+          <div class="manage-title">安规2026_信息通信</div>
+          <div class="manage-sub">12,847 条题目 · 最近导入 2026-06-18</div>
+          <div class="manage-badge">● 已激活</div>
+        </div>
+        <div class="manage-actions">
+          <button class="manage-btn primary-btn" title="查看全部题目">📖</button>
+          <button class="manage-btn" title="切换题库">🔄</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" placeholder="搜索题目...">
+    </div>
+
+    <!-- Filter Chips -->
+    <div class="filter-row">
+      <span class="chip active">全部</span>
+      <span class="chip">单选题</span>
+      <span class="chip">多选题</span>
+      <span class="chip">判断题</span>
+    </div>
+
+    <!-- Question List -->
+    <div class="q-item">
+      <div class="q-num">1</div>
+      <div class="q-body">
+        <div class="q-text">电气设备发生火灾时，应首先采取的正确措施是？</div>
+        <div class="q-meta">
+          <span class="q-answer">答案: B</span>
+          <span class="q-type">单选题</span>
+        </div>
+        <div class="q-options">
+          <span class="opt-letter">A.</span> 用水灭火 &nbsp;&nbsp;
+          <span class="opt-letter correct">B.</span><span class="correct"> 切断电源</span> &nbsp;&nbsp;
+          <span class="opt-letter">C.</span> 用泡沫灭火器 &nbsp;&nbsp;
+          <span class="opt-letter">D.</span> 立即报告上级
+        </div>
+      </div>
+      <div class="q-actions">
+        <button title="编辑">✏️</button>
+        <button title="删除">🗑️</button>
+      </div>
+    </div>
+
+    <div class="q-item">
+      <div class="q-num">2</div>
+      <div class="q-body">
+        <div class="q-text">触电急救的首要步骤是，发现有人触电时应首先？</div>
+        <div class="q-meta">
+          <span class="q-answer">答案: A</span>
+          <span class="q-type">单选题</span>
+        </div>
+        <div class="q-options">
+          <span class="opt-letter correct">A.</span><span class="correct"> 切断电源</span> &nbsp;&nbsp;
+          <span class="opt-letter">B.</span> 进行人工呼吸 &nbsp;&nbsp;
+          <span class="opt-letter">C.</span> 拨打120 &nbsp;&nbsp;
+          <span class="opt-letter">D.</span> 将触电者拖离现场
+        </div>
+      </div>
+      <div class="q-actions">
+        <button title="编辑">✏️</button>
+        <button title="删除">🗑️</button>
+      </div>
+    </div>
+
+    <div class="q-item">
+      <div class="q-num">3</div>
+      <div class="q-body">
+        <div class="q-text">以下哪项属于保证安全的组织措施？</div>
+        <div class="q-meta">
+          <span class="q-answer">答案: A B C</span>
+          <span class="q-type">多选题</span>
+        </div>
+        <div class="q-options">
+          <span class="opt-letter correct">A.</span><span class="correct"> 工作票制度</span> &nbsp;&nbsp;
+          <span class="opt-letter correct">B.</span><span class="correct"> 工作许可制度</span> &nbsp;&nbsp;
+          <span class="opt-letter correct">C.</span><span class="correct"> 工作监护制度</span> &nbsp;&nbsp;
+          <span class="opt-letter">D.</span> 停电制度
+        </div>
+      </div>
+      <div class="q-actions">
+        <button title="编辑">✏️</button>
+        <button title="删除">🗑️</button>
+      </div>
+    </div>
+
+    <div class="q-item">
+      <div class="q-num">4</div>
+      <div class="q-body">
+        <div class="q-text">绝缘手套使用前必须检查是否完好，并做漏气试验。</div>
+        <div class="q-meta">
+          <span class="q-answer">答案: 正确</span>
+          <span class="q-type">判断题</span>
+        </div>
+        <div class="q-options">
+          <span class="opt-letter correct">✓</span><span class="correct"> 正确</span> &nbsp;&nbsp;
+          <span class="opt-letter">✗</span> 错误
+        </div>
+      </div>
+      <div class="q-actions">
+        <button title="编辑">✏️</button>
+        <button title="删除">🗑️</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+  <!-- Nav Bar -->
+  </div>
+
+  <!-- Nav Bar -->
+  <div class="nav-bar">
+    <div class="nav-inner">
+      <div class="nav-item"><div class="nav-icon">⌂</div><span class="nav-label">首页</span></div>
+      <div class="nav-item"><div class="nav-indicator"></div><div class="nav-icon">📖</div><span class="nav-label active">题库</span></div>
+      <div class="fab">Start</div>
+      <div class="nav-item"><div class="nav-icon">📚</div><span class="nav-label">知识库</span></div>
+      <div class="nav-item"><div class="nav-icon">⚙</div><span class="nav-label">设置</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -29,6 +29,7 @@ class AppConfig(private val context: Context) {
         private val KEY_WATERMARK_KEYWORDS = stringSetPreferencesKey("watermark_keywords")
         private val KEY_SETUP_COMPLETE = booleanPreferencesKey("setup_complete")
         private val KEY_SIDEBAR_RUNNING = booleanPreferencesKey("sidebar_running")
+        private val KEY_IS_DARK_MODE = booleanPreferencesKey("is_dark_mode")
 
         const val DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1"
         const val DEFAULT_API_KEY = "sk-nzwiwWiLqYyT5dxG9DXSUSAvm9uOlyYZgn4gQC5LqWNl8r5clhfqCWFZxGMOsxm7"
@@ -101,6 +102,14 @@ class AppConfig(private val context: Context) {
 
     val sidebarRunning: Flow<Boolean> = context.dataStore.data.map { prefs ->
         prefs[KEY_SIDEBAR_RUNNING] ?: false
+    }
+
+    fun isDarkMode(): Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_IS_DARK_MODE] ?: false
+    }
+
+    suspend fun setIsDarkMode(dark: Boolean) {
+        context.dataStore.edit { it[KEY_IS_DARK_MODE] = dark }
     }
 
     suspend fun setApiEndpoint(endpoint: String) {

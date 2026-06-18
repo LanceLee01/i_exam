@@ -10,15 +10,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
-import com.examhelper.app.knowledge.KnowledgeBaseManager
 import com.examhelper.app.service.SidebarService
-import com.examhelper.app.ui.screen.KnowledgeBaseScreen
-import com.examhelper.app.ui.screen.SettingsScreen
+import com.examhelper.app.ui.screen.MainScreen
 import com.examhelper.app.ui.screen.WelcomeScreen
 import com.examhelper.app.ui.theme.ExamHelperTheme
 import kotlinx.coroutines.flow.first
@@ -35,17 +30,13 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             val setupComplete = appConfig.setupComplete.first()
+            val isDarkMode = appConfig.isDarkMode().first()
 
             setContent {
-                ExamHelperTheme {
-                    var showKB by remember { mutableStateOf(false) }
+                ExamHelperTheme(appDarkTheme = isDarkMode) {
                     when {
                         !setupComplete -> WelcomeScreen(onGetStarted = { handleSetupComplete() })
-                        showKB -> KnowledgeBaseScreen(onBack = { showKB = false })
-                        else -> SettingsScreen(
-                            onBack = { finish() },
-                            onOpenKB = { showKB = true }
-                        )
+                        else -> MainScreen()
                     }
                 }
             }
@@ -54,7 +45,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 每次回到 App 时检查并启动侧边栏服务
         lifecycleScope.launch {
             val setupComplete = ExamApplication.instance.appConfig.setupComplete.first()
             if (setupComplete && canDrawOverlays()) {
@@ -65,27 +55,22 @@ class MainActivity : ComponentActivity() {
 
     private fun handleSetupComplete() {
         lifecycleScope.launch {
-            // 1. 检查悬浮窗权限
             if (!canDrawOverlays()) {
                 requestOverlayPermission()
                 return@launch
             }
 
-            // 2. 提示开启无障碍服务
             if (!isAccessibilityServiceEnabled()) {
                 openAccessibilitySettings()
                 return@launch
             }
 
-            // 3. 标记设置完成，显示设置页面
             ExamApplication.instance.appConfig.setSetupComplete(true)
 
-            // 4. 启动侧边栏服务
             if (canDrawOverlays()) {
                 startSidebarService()
             }
 
-            // 刷新 UI
             recreate()
         }
     }
