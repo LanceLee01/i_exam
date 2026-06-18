@@ -594,7 +594,7 @@ object KnowledgeBaseManager {
                 kb.entries.addAll(kd.entries)
                 kb.importedHashes.addAll(kd.importedHashes)
                 // 兼容旧数据：如果 importRecords 为空但 importedHashes 有值，生成占位记录
-                if (kd.importRecords.isEmpty() && kd.importedHashes.isNotEmpty()) {
+                if (kd.importRecords.isNullOrEmpty() && kd.importedHashes.isNotEmpty()) {
                     kb.importRecords.addAll(kd.importedHashes.map { hash ->
                         ImportRecord(
                             fileName = "未知文件(首次导入)",
