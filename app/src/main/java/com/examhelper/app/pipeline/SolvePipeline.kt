@@ -182,7 +182,7 @@ class SolvePipeline(private val context: Context) {
                 SidebarState.Loading("题库匹配中... 已匹配 ${numberedPairs.size} 题，正在消解 ${conflictQ.size} 道冲突")
             )
             // Extract question blocks from exam text
-            val qPattern = Regex("""(\d+)、""")
+            val qPattern = Regex("""(\d+)[、.]""")
             val qMatches = qPattern.findAll(text).toList()
             val blocks = if (qMatches.size <= 1) {
                 listOf(text)
@@ -340,7 +340,7 @@ class SolvePipeline(private val context: Context) {
     // ── Question number helpers ──────────────────────────
 
     private fun extractQuestionNumbers(text: String): List<Pair<Int, IntRange>> {
-        val pattern = Regex("""(\d+)、""")
+        val pattern = Regex("""(\d+)[、.]""")
         return pattern.findAll(text).mapNotNull { match ->
             val num = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
             val start = match.range.first
@@ -359,7 +359,7 @@ class SolvePipeline(private val context: Context) {
     }
 
     private fun extractUnmatchedQuestionText(text: String, matchedNumbers: Set<Int>, unmatchedNumbers: Set<Int>): String {
-        val questionPattern = Regex("""(\d+)、""")
+        val questionPattern = Regex("""(\d+)[、.]""")
         val matches = questionPattern.findAll(text).toList()
 
         val result = StringBuilder()
@@ -383,7 +383,7 @@ class SolvePipeline(private val context: Context) {
     private fun findQuestionNumber(text: String, kbQuestion: String): Int? {
         val normalizedQuery = text.replace(Regex("（\\s*）"), "（）")
         val normalizedQuestion = kbQuestion.replace(Regex("（\\s*）"), "（）")
-        val questionPattern = Regex("""(\d+)、""")
+        val questionPattern = Regex("""(\d+)[、.]""")
 
         // 1) Exact substring match (fast path)
         val exactIdx = normalizedQuery.indexOf(normalizedQuestion)
@@ -411,7 +411,7 @@ class SolvePipeline(private val context: Context) {
         }
 
         // 2) Fuzzy match: hybrid text similarity to find best-matching question block
-        val qPattern = Regex("""(\d+)、""")
+        val qPattern = Regex("""(\d+)[、.]""")
         val qMatches = qPattern.findAll(normalizedQuery).toList()
         val blocks = if (qMatches.size <= 1) {
             listOf(normalizedQuery)
@@ -726,16 +726,26 @@ class SolvePipeline(private val context: Context) {
                 result[qNum] = ans
             }
         }
+        // 补全 LLM 漏答的题目
+        val missing = expectedNumbers.filter { it !in result }
+        if (missing.isNotEmpty()) {
+            Log.w(TAG, "L4 missing answers for Q${missing.sorted()}, filling with '不确定'")
+            missing.forEach { result[it] = "不确定" }
+        }
         return result
     }
 
     private fun normalizeAnswer(text: String): String {
         val t = text.trim().removePrefix(":").removePrefix("：").removePrefix(".").trim()
+        // 判断题
         if (Regex("""^(正确|对|yes|✓|√|是|true|T)$""", RegexOption.IGNORE_CASE).matches(t)) return "正确"
         if (Regex("""^(错误|错|no|×|✗|否|false|F)$""", RegexOption.IGNORE_CASE).matches(t)) return "错误"
+        // 不确定
+        if (Regex("""不确定""").containsMatchIn(t)) return "不确定"
+        // 选择题：提取所有选项字母
         val letters = Regex("""[A-Fa-f]""").findAll(t).map { it.value.uppercase() }.toSet()
         if (letters.isNotEmpty()) return letters.sorted().joinToString(" ")
-        return t.take(20)
+        return t.take(30)
     }
 
     companion object {

@@ -22,7 +22,7 @@
 |:---|:---|
 | **屏幕读取** | 通过 AccessibilityService 遍历 i国网 界面节点树，提取题目文字 |
 | **水印过滤** | 自动过滤"非涉密平台""严禁处理"等干扰水印 |
-| **4 级答题流水线** | 题库精准匹配 → 知识库检索 → KB 推断 → AI 直接答题 |
+| **3 级答题流水线** | 题库混合匹配 → 联网搜索增强 → AI 直接答题 |
 | **流式解答** | SSE 流式接收 LLM 回复，实时显示在悬浮侧边栏 |
 | **自动点击** | 解析 LLM 答案（A-F），通过 Accessibility 手势自动点击选项 |
 | **知识库管理** | 支持 Excel 题库导入 + txt/md 文档 LLM 解析入库 |
@@ -125,8 +125,8 @@ adb install -r app-debug.apk
 
 | 标签 | 含义 | 触发条件 |
 |:---|:---|:---|
-| 📋 题库匹配 | Excel 题库精准命中 | Jaccard 相似度 ≥ 50% |
-| 📖 知识库匹配 | Wiki 知识库直接命中 | Jaccard 相似度 ≥ 50% |
+| 📋 题库匹配 | Excel 题库混合评分命中 | 混合相似度 ≥ 50% |
+| 📖 知识库匹配 | Wiki 知识库直接命中 | 混合相似度 ≥ 50%（当前未接入） |
 | 📖 知识库推断 | LLM + KB 上下文推理 | Excel ≥ 40% 或 Wiki ≥ 20% |
 | 🤖 AI解答 | 纯 LLM 直接作答 | 无 KB 匹配 |
 
@@ -146,11 +146,20 @@ adb install -r app-debug.apk
 3. 选择 .xlsx 文件
 
 **Excel 格式要求：**
-| A 列（题目） | B 列（答案） | C 列（来源，可选） |
-|:---|:---|:---|
-| 电气设备发生火灾时，应首先？ | B | 2024 年题库 |
+| A 列（题目） | B 列（答案） | C 列（来源，可选） | D 列（选项文本，可选） | E 列（题型，可选） |
+|:---|:---|:---|:---|:---|
+| 电气设备发生火灾时，应首先？ | B | 2024 年题库 | A.用水 B.干粉 C.二氧化碳 D.切断电源 | 单选题 |
 
-**匹配算法：** 字符级 Trigram Jaccard 相似度，≥70% 直接命中。
+> **提示：** D 列（选项文本）和 E 列（题型：单选题/多选题/判断题）为可选列，但提供后可提升匹配精度——选项文本用于冲突消解时的选项相似度比对，题型用于过滤不匹配的题库条目。
+
+**匹配算法：** 混合相似度评分（Trigram 50% + Bigram 30% + Token 20%），结合选项文本相似度和 LCS（最长公共子序列）救援机制。评分 ≥ 50% 直接命中。搜索采用两阶段策略：快速字符集预过滤 → 混合评分，支持特征缓存加速。
+
+**冲突消解机制：** 当同一题号匹配到多条不同答案的题库记录时，按三级优先级消解：
+1. **选项文本匹配** — 从考试界面提取选项文字，与题库记录中 D 列的选项做 Trigram Jaccard 比对（≥50% 且所有命中答案一致）
+2. **题型过滤** — 按 E 列题型（单选题/多选题/判断题）过滤不匹配的条目后，按 `分数×1000 + 题目长度` 排序取最优
+3. **未消解冲突** — 该题下放至 LLM 答题（不采用题库答案）
+
+**空题干保护：** 若某题提取到的有效文字不足 10 个字符（去除标点/数字/题型标签后），自动标记为「不确定」并跳过 LLM，避免浪费 API 调用。
 
 ### Wiki 知识库（L2 语义检索）
 
@@ -221,7 +230,7 @@ summary: 发现有人触电时应立即采取的措施和急救步骤
 │  SidebarService          (前台服务)                │
 │  ├── EdgeHandle          (边栏指示条)              │
 │  └── SidebarPanel        (答题面板 UI)             │
-│       └── SolvePipeline  (4级流水线)               │
+│       └── SolvePipeline  (L1+L3+L4 流水线)          │
 ├─────────────────────────────────────────────────┤
 │  ExamAccessibilityService (无障碍服务)              │
 │  ├── 屏幕文字提取 (节点树遍历)                      │
@@ -265,13 +274,24 @@ summary: 发现有人触电时应立即采取的措施和急救步骤
 ```
 用户点击「解答」
   → SolvePipeline.solve(text)
-    ├── L1: KnowledgeBaseManager.search() → ≥70% → Done(EXCEL_MATCH)
-    ├── L2: KBEngine.searchByQuestion()   → ≥50% → Done(KB_MATCH)
-    ├── L3: 构建 KB 上下文 prompt        → LLM.chatStream() → Done(KB_INFER)
-    └── L4: 纯 user prompt              → LLM.chatStream() → Done(LLM_DIRECT)
+    ├── L1: KnowledgeBaseManager.search() → 混合评分 ≥ 50% → Done(EXCEL_MATCH)
+    │       ├── 精准子串匹配（score = 1.0，快速路径）
+    │       ├── 字符集预过滤 → 混合评分（Trigram + Bigram + Token）
+    │       ├── 选项文本相似度加权（score×0.6 + optScore×0.4）
+    │       └── LCS 救援（边界匹配 0.15~0.50 时启用）
+    │       ├── 题号定位（findQuestionNumber: 精准匹配 → 模糊混合匹配）
+    │       ├── 冲突消解（同题号多答案：选项匹配 → 题型过滤 → 分数排序）
+    │       └── 未消解冲突 → 下放至 LLM
+    ├── 空题干检测：有意义字符 < 10 → 自动标记「不确定」
+    ├── L3: Tavily 联网搜索（需配置 API Key）
+    │       └── SearchManager → 提取查询 → Tavily API → 拼接参考资料
+    └── L4: LLM SSE 流式答题（剩余未匹配题目）
+            └── L1 答案优先覆盖 L4 同题号结果
   → ExtractedTextBus.updateSidebarState()
   → SidebarPanel 重组渲染
 ```
+
+> **注意：** L2（Wiki 知识库检索）模块 `tryWikiMatchAll()` 已实现但当前未接入流水线。流水线直接从 L1 跳到 L3/L4。
 
 ### 无障碍服务配置
 
@@ -309,7 +329,10 @@ app/src/main/java/com/examhelper/app/
 │   └── WatermarkFilter.kt             # 屏幕水印过滤
 ├── knowledge/
 │   ├── KBEngine.kt                    # Wiki 知识库引擎（导入/搜索/管理）
-│   ├── KnowledgeBaseManager.kt        # Excel 题库管理器（JSON 持久化）
+│   ├── KnowledgeBaseManager.kt        # Excel 题库管理器（JSON 持久化 + 混合搜索）
+│   ├── ColumnDetector.kt              # Excel 列自动检测
+│   ├── ColumnMapping.kt               # Excel 列映射配置
+│   ├── ZipImportHelper.kt             # ZIP 批量导入助手
 │   └── db/
 │       ├── AppDatabase.kt             # Room 数据库单例
 │       ├── WikiPage.kt                # WikiPage 实体 + FTS4 索引
@@ -319,9 +342,11 @@ app/src/main/java/com/examhelper/app/
 │       ├── SourceFile.kt              # 源文件记录实体
 │       └── SourceFileDao.kt           # SourceFile DAO
 ├── network/
-│   └── LLMClient.kt                   # OpenAI 协议 LLM 客户端 (SSE 流式)
+│   ├── LLMClient.kt                   # OpenAI 协议 LLM 客户端 (SSE 流式)
+│   └── TavilyClient.kt                # Tavily 联网搜索客户端
 ├── pipeline/
-│   └── SolvePipeline.kt               # 4 级答题流水线
+│   ├── SolvePipeline.kt               # 答题流水线（L1 题库匹配 + 冲突消解 + L3/L4）
+│   └── SearchManager.kt               # 搜索增强管理器
 ├── service/
 │   ├── SidebarService.kt              # 悬浮侧边栏前台服务
 │   ├── ExamAccessibilityService.kt    # 无障碍服务（读屏 + 自动点击）
@@ -329,7 +354,10 @@ app/src/main/java/com/examhelper/app/
 ├── ui/
 │   ├── sidebar/
 │   │   ├── EdgeHandle.kt              # 右边缘指示条 UI
-│   │   └── SidebarPanel.kt            # 答题面板 UI（含所有状态渲染）
+│   │   ├── SidebarPanel.kt            # 答题面板主入口（状态驱动 + 操作分发）
+│   │   ├── SidebarStateRenderer.kt    # 各状态 UI 渲染（Idle/Preview/Streaming/Done/Error）
+│   │   ├── SidebarComponents.kt       # 共享 UI 组件
+│   │   └── SidebarActions.kt          # 操作按钮组件（读取/解答/保存/填入）
 │   ├── screen/
 │   │   ├── WelcomeScreen.kt           # 4 步引导页
 │   │   ├── SettingsScreen.kt          # API 配置页 + KB 入口
@@ -338,7 +366,11 @@ app/src/main/java/com/examhelper/app/
 │       ├── Theme.kt                   # Compose Material 3 主题
 │       └── Type.kt                    # 字体排印
 └── util/
-    └── ExtractedTextBus.kt            # 事件总线 + SidebarState 定义
+    ├── ExtractedTextBus.kt            # 事件总线 + SidebarState 定义
+    ├── AccessibilityParseUtils.kt     # 答案解析 + 题型提取 + 选项匹配
+    ├── ExamConstants.kt               # 常量定义（正则/选项字母等）
+    ├── OptionTextUtils.kt             # 选项文本处理工具
+    └── ReferenceFormatter.kt          # 参考资料格式化
 ```
 
 ---
@@ -411,8 +443,8 @@ export JAVA_HOME="/path/to/jdk"
 | 模型名称 | 设置页 / AppConfig | `deepseek-chat` |
 | Temperature | 设置页 / AppConfig | 0.3 |
 | Max Tokens | 设置页 / AppConfig | 2048 |
-| 知识库匹配阈值 (L1) | SidebarPanel | 70% |
-| 知识库匹配阈值 (L2) | SidebarPanel | 50% |
+| 知识库匹配阈值 (L1) | SolvePipeline | 50% |
+| 知识库匹配阈值 (L2) | SolvePipeline | 50%（当前未接入流水线） |
 | 知识库推断阈值 | SidebarPanel | 40% / 20% |
 | 侧边栏宽度 | SidebarService | 65% 屏幕宽度 |
 | 文档导入上限 | KBEngine | 8000 字符 |
@@ -443,4 +475,5 @@ export JAVA_HOME="/path/to/jdk"
 
 | 版本 | 日期 | 说明 |
 |:---|:---|:---|
+| 1.1.0 | 2026-06-18 | L1 混合评分算法重构（Trigram+Bigram+Token+选项+LCS）、冲突消解机制、空题干保护、自动列检测 |
 | 1.0.0 | 2026-06-14 | 初始版本：无障碍读屏、流式解答、自动点击、知识库管理 |

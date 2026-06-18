@@ -1,5 +1,6 @@
 package com.examhelper.app.ui.sidebar
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -129,6 +130,15 @@ fun SidebarPanel(onHide: () -> Unit) {
                 isPending = state is SidebarState.Loading
             )
 
+            // 解答按钮 — 识别到文字后显示，放在 AnimatedContent 外避免动画重叠
+            if (state is SidebarState.Preview) {
+                val previewText = (state as SidebarState.Preview).text
+                SolveButton(onClick = {
+                    Log.d("SidebarPanel", "SolveButton clicked, text length=${previewText.length}")
+                    scope.launch(Dispatchers.Default) { pipeline.solve(previewText) }
+                })
+            }
+
             // 自动填入按钮（有答案时显示在读取屏幕下方）
             if (lastAnswer.isNotEmpty()) {
                 AutoFillButton(
@@ -140,7 +150,6 @@ fun SidebarPanel(onHide: () -> Unit) {
             // 根据状态显示内容
             SidebarStateRenderer(
                 state = state,
-                onSolve = { text -> scope.launch(Dispatchers.Default) { pipeline.solve(text) } },
                 onRework = { text ->
                     ExtractedTextBus.updateSidebarState(
                         SidebarState.Preview(text)

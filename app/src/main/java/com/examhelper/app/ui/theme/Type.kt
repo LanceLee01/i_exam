@@ -54,10 +54,9 @@ val ExamHelperTypography = Typography(
     )
 )
 
-// 答案字母专用等宽粗体
+// 答案行专用：紧凑小字 + 加粗区分
 val AnswerLabel = TextStyle(
     fontWeight = FontWeight.Bold,
-    fontSize = 16.sp,
-    lineHeight = 24.sp,
-    fontFamily = FontFamily.Monospace
+    fontSize = 15.sp,
+    lineHeight = 22.sp
 )

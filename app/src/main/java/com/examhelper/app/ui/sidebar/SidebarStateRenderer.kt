@@ -9,6 +9,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,10 +46,10 @@ import com.examhelper.app.util.ExtractedTextBus.SidebarState
 import com.examhelper.app.util.ReferenceFormatter
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SidebarStateRenderer(
     state: SidebarState,
-    onSolve: (text: String) -> Unit,
     onRework: (text: String) -> Unit,
     onSaveToKB: (text: String, answer: String) -> Unit,
     onDoneState: (answer: String, text: String) -> Unit
@@ -63,12 +65,12 @@ fun SidebarStateRenderer(
         }
     ) { currentState ->
         when (val s = currentState) {
-            is SidebarState.Idle -> {
+            is SidebarState.Idle -> Column {
                 Spacer(Modifier.height(32.dp))
                 StatusHint("空闲检测中...")
             }
 
-            is SidebarState.Loading -> {
+            is SidebarState.Loading -> Column {
                 var elapsedSec by remember { mutableIntStateOf(0) }
                 LaunchedEffect(s.startTimeMs) {
                     while (true) {
@@ -115,44 +117,37 @@ fun SidebarStateRenderer(
                         Text(
                             "${s.message}（${elapsedSec}s）$promptInfo",
                             color = colors.OnSurfaceSecondary,
-                            fontSize = 13.sp
+                            fontSize = 14.sp
                         )
                         if (etaInfo.isNotBlank() && elapsedSec > ttftSec.toInt()) {
                             Text(
                                 etaInfo,
                                 color = colors.OnSurfaceMuted,
-                                fontSize = 12.sp
+                                fontSize = 13.sp
                             )
                         }
                     }
                 }
             }
 
-            is SidebarState.Preview -> {
-                Spacer(Modifier.height(12.dp))
-
-                SolveButton(onClick = {
-                    Log.d("SidebarPanel", "SolveButton clicked, text length=${s.text.length}")
-                    onSolve(s.text)
-                })
-
+            is SidebarState.Preview -> Column {
                 Spacer(Modifier.height(12.dp))
 
                 SectionHeader("识别结果")
                 Text(
                     text = s.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.OnSurface.copy(alpha = 0.85f),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.OnSurface,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(colors.SurfaceCard)
+                        .background(colors.SurfaceCardHover)
                         .padding(12.dp),
-                    lineHeight = 22.sp
+                    lineHeight = 24.sp
                 )
             }
 
-            is SidebarState.Done -> {
+            is SidebarState.Done -> Column {
                 Log.d("SidebarPanel", "Done state rendered, answer length=${s.answer.length}")
                 onDoneState(s.answer, s.text)
 
@@ -164,7 +159,7 @@ fun SidebarStateRenderer(
                     val l1Questions = s.questionSources.filterValues { it.contains("题库") }.keys.sorted()
                     val l4Questions = s.questionSources.filterValues { it.contains("AI") || it.contains("LLM") }.keys.sorted()
                     val others = s.questionSources.filterValues { !it.contains("题库") && !it.contains("AI") && !it.contains("LLM") }
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                     ) {
                         if (l1Questions.isNotEmpty()) {
@@ -172,12 +167,12 @@ fun SidebarStateRenderer(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(colors.Success.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 7.dp, vertical = 3.dp)
                             ) {
                                 Text(
                                     text = "📋 ${formatRange(l1Questions)}",
                                     color = colors.Success,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -188,12 +183,12 @@ fun SidebarStateRenderer(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(colors.Info.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 7.dp, vertical = 3.dp)
                             ) {
                                 Text(
                                     text = "🤖 ${formatRange(l4Questions)}",
                                     color = colors.Info,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -203,12 +198,12 @@ fun SidebarStateRenderer(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
                                     .background(colors.Success.copy(alpha = 0.15f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .padding(horizontal = 7.dp, vertical = 3.dp)
                             ) {
                                 Text(
                                     text = "$label: $q",
                                     color = colors.Success,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -218,28 +213,28 @@ fun SidebarStateRenderer(
                     Text(
                         text = "来源: ${s.source.label}",
                         color = colors.Success.copy(alpha = 0.7f),
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
 
-                // Answer lines with source dots and styling
+                // Answer lines
                 val lines = s.answer.lines()
                 lines.forEachIndexed { idx, line ->
                     val trimmed = line.trim()
                     if (trimmed.isEmpty()) return@forEachIndexed
 
-                    val isAnswerLine = Regex("""^\s*[\[【]?(\d+)[\]】]?\s*[A-Da-d\s正确错误对错]+""").containsMatchIn(trimmed)
-                    val qNumMatch = Regex("""^[\[【]?(\d+)""").find(trimmed)
-                    val qNum = qNumMatch?.groupValues?.get(1)?.toIntOrNull()
+                    val qNum = Regex("""^[\[【]?(\d+)[\]】]?[、.\s:：]""").find(trimmed)
+                        ?.groupValues?.get(1)?.toIntOrNull()
 
                     Row(
-                        modifier = Modifier.padding(vertical = 3.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Source indicator dot
-                        if (isAnswerLine && qNum != null) {
+                        if (qNum != null) {
                             val isFromKB = s.questionSources[qNum]?.contains("题库") == true
                             Box(
                                 modifier = Modifier
@@ -247,23 +242,17 @@ fun SidebarStateRenderer(
                                     .clip(RoundedCornerShape(3.dp))
                                     .background(if (isFromKB) colors.Success else colors.Info)
                             )
-                            Spacer(Modifier.width(8.dp))
-                        } else if (isAnswerLine) {
-                            Spacer(Modifier.width(14.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(text = trimmed, style = AnswerLabel, color = colors.OnSurface)
+                        } else {
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = trimmed,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.OnSurfaceSecondary
+                            )
                         }
-
-                        // Answer text
-                        Text(
-                            text = trimmed,
-                            style = if (isAnswerLine) AnswerLabel else MaterialTheme.typography.bodyMedium,
-                            color = if (isAnswerLine) colors.OnSurface else colors.OnSurfaceSecondary,
-                            fontWeight = if (isAnswerLine) FontWeight.Bold else FontWeight.Normal,
-                            lineHeight = if (isAnswerLine) 24.sp else 22.sp
-                        )
                     }
-
-                    // Shimmer skeleton after last answer line (only for streaming transitions)
-                    // Not needed for Done state — this is just the final rendered answer
                 }
 
                 // Tavily reference
@@ -271,60 +260,58 @@ fun SidebarStateRenderer(
                     .filter { (_, source) -> source != "题库匹配" }
                     .keys.sorted().toList()
                 ReferenceFormatter.formatSingleReference(s.references, llmQuestionNumbers)?.let { refText ->
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         text = refText,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = colors.OnSurfaceSecondary,
-                        modifier = Modifier.padding(vertical = 2.dp),
-                        lineHeight = 18.sp
+                        modifier = Modifier.padding(horizontal = 15.dp, vertical = 4.dp),
+                        lineHeight = 22.sp
                     )
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 ReworkButton(onClick = { onRework(s.text) })
                 Spacer(Modifier.height(8.dp))
                 SaveToKBButton(onClick = { onSaveToKB(s.text, s.answer) })
             }
 
-            is SidebarState.Streaming -> {
+            is SidebarState.Streaming -> Column {
                 Log.d("SidebarPanel", "Streaming state, partialAnswer length=${s.partialAnswer.length}")
                 Spacer(Modifier.height(8.dp))
 
-                Column {
-                    Text(
-                        text = s.partialAnswer,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.OnSurface,
-                        modifier = Modifier.fillMaxWidth(),
-                        lineHeight = 22.sp
-                    )
+                Text(
+                    text = s.partialAnswer,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.OnSurface,
+                    modifier = Modifier.fillMaxWidth(),
+                    lineHeight = 22.sp
+                )
 
-                    // Shimmer skeleton below streaming content
-                    Spacer(Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    colors = listOf(
-                                        colors.Outline,
-                                        colors.SurfaceCardHover,
-                                        colors.Outline
-                                    )
+                // Shimmer skeleton below streaming content
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    colors.Outline,
+                                    colors.SurfaceCardHover,
+                                    colors.Outline
                                 )
                             )
-                    )
-                }
+                        )
+                )
             }
 
-            is SidebarState.Answering -> {
+            is SidebarState.Answering -> Column {
                 Spacer(Modifier.height(24.dp))
                 StatusHint(s.text, isError = false)
             }
 
-            is SidebarState.Error -> {
+            is SidebarState.Error -> Column {
                 Log.d("SidebarPanel", "Error state: ${s.message}")
                 Spacer(Modifier.height(24.dp))
                 StatusHint(s.message, isError = true)

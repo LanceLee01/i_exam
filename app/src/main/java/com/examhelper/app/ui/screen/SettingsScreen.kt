@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.examhelper.app.ExamApplication
 import com.examhelper.app.data.AppConfig
 import com.examhelper.app.knowledge.KnowledgeBaseManager
@@ -83,6 +85,8 @@ fun SettingsScreen(
     var temperature by remember { mutableFloatStateOf(AppConfig.DEFAULT_TEMPERATURE) }
     var maxTokens by remember { mutableIntStateOf(AppConfig.DEFAULT_MAX_TOKENS) }
 
+    var systemPrompt by remember { mutableStateOf("") }
+
     var isSaving by remember { mutableStateOf(false) }
     var saveMessage by remember { mutableStateOf("") }
 
@@ -94,6 +98,7 @@ fun SettingsScreen(
         modelName = snapshot.modelName
         temperature = snapshot.temperature
         maxTokens = snapshot.maxTokens
+        systemPrompt = snapshot.systemPrompt
     }
 
     Scaffold(
@@ -212,6 +217,65 @@ fun SettingsScreen(
                 isNumeric = true
             )
 
+            Spacer(Modifier.height(8.dp))
+
+            // ── 系统提示词 ──
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.06f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.Api,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "系统提示词",
+                            color = Color.White.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "恢复默认",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .clickable { systemPrompt = AppConfig.DEFAULT_SYSTEM_PROMPT }
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = systemPrompt,
+                        onValueChange = { systemPrompt = it },
+                        placeholder = { Text("输入系统提示词...", color = Color.White.copy(alpha = 0.3f)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                            color = Color.White,
+                            lineHeight = 18.sp
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color.White.copy(alpha = 0.3f),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
 
             // ── 知识库 ──
@@ -261,6 +325,7 @@ fun SettingsScreen(
                             appConfig.setModelName(modelName)
                             appConfig.setTemperature(temperature)
                             appConfig.setMaxTokens(maxTokens)
+                            appConfig.setSystemPrompt(systemPrompt)
                             appConfig.setSetupComplete(true)
                             saveMessage = "配置已保存"
                         } catch (e: Exception) {

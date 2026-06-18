@@ -63,9 +63,9 @@ fun ReadScreenButton(
             .scale(scale),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = colors.Primary.copy(alpha = 0.20f),
-            contentColor = colors.Primary,
-            disabledContainerColor = colors.Primary.copy(alpha = 0.10f),
+            containerColor = colors.Primary.copy(alpha = 0.35f),
+            contentColor = Color.White,
+            disabledContainerColor = colors.Primary.copy(alpha = 0.15f),
             disabledContentColor = colors.OnSurfaceMuted
         ),
         interactionSource = interactionSource
