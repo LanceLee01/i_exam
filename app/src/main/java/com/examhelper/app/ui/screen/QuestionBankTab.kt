@@ -9,7 +9,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -51,6 +53,11 @@ fun QuestionBankTab(
     var editingEntry by remember { mutableStateOf<Pair<Int, KBEntry>?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
     var detailKbIndex by remember { mutableStateOf(-1) }
+    var showRemoteDialog by remember { mutableStateOf(false) }
+    var remoteFiles by remember { mutableStateOf<List<com.examhelper.app.network.RemoteFile>>(emptyList()) }
+    var remoteLoading by remember { mutableStateOf(false) }
+    var remoteDownloading by remember { mutableStateOf<String?>(null) }
+    var remoteError by remember { mutableStateOf<String?>(null) }
 
     val kb = remember(refreshKey) { KnowledgeBaseManager.activeKB }
     val allEntries = remember(kb, refreshKey) { kb?.entries?.toList() ?: emptyList() }
@@ -150,35 +157,50 @@ fun QuestionBankTab(
             }
         }
 
-        // ── Import bar ──
+        // ── Import bars ──
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Local import
+            Row(
+                modifier = Modifier.weight(1f).height(42.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(colors.surfaceCard)
+                    .clickable { importLauncher.launch(arrayOf("*/*")) }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("📤", fontSize = 16.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("本地导入", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = colors.onSurface, modifier = Modifier.weight(1f))
+                Text("→", fontSize = 14.sp, color = colors.onSurfaceSecondary)
+            }
+            // Remote import
+            Row(
+                modifier = Modifier.weight(1f).height(42.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(colors.info.copy(alpha = 0.08f))
+                    .clickable {
+                        showRemoteDialog = true; remoteFiles = emptyList(); remoteError = null; remoteLoading = true
+                        scope.launch(Dispatchers.IO) {
+                            com.examhelper.app.network.RemoteTikuClient.listFiles().fold(
+                                onSuccess = { withContext(Dispatchers.Main) { remoteFiles = it; remoteLoading = false } },
+                                onFailure = { withContext(Dispatchers.Main) { remoteError = it.message; remoteLoading = false } }
+                            )
+                        }
+                    }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("☁️", fontSize = 16.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("云端导入", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = colors.info)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
         if (isImporting) {
             LinearProgressIndicator(progress = { importProgress }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), color = colors.success)
             Text(importMessage, fontSize = 11.sp, color = colors.onSurfaceSecondary, modifier = Modifier.padding(bottom = 4.dp))
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth().height(42.dp)
-                .clip(RoundedCornerShape(12.dp)).background(colors.surfaceCard)
-                .clickable { importLauncher.launch(arrayOf("*/*")) }
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("📤", fontSize = 18.sp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("导入题目", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onSurface, modifier = Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                for (f in listOf(".xlsx", ".xls", ".et", ".zip")) {
-                    Box(modifier = Modifier.background(colors.outline, RoundedCornerShape(3.dp)).padding(horizontal = 5.dp, vertical = 2.dp)) {
-                        Text(f, fontSize = 9.sp, color = colors.onSurfaceSecondary)
-                    }
-                }
-            }
-            Text("→", fontSize = 14.sp, color = colors.onSurfaceSecondary)
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // ── Search ──
         SearchBar(query = searchQuery, onQueryChange = { searchQuery = it }, placeholder = "搜索题目...", colors = colors, height = 44, radius = 12)
@@ -215,6 +237,42 @@ fun QuestionBankTab(
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
         }
+    }
+
+    if (showRemoteDialog) {
+        RemoteImportDialog(
+            colors = colors,
+            files = remoteFiles,
+            isLoading = remoteLoading,
+            downloadingFile = remoteDownloading,
+            error = remoteError,
+            onDismiss = { showRemoteDialog = false },
+            onRefresh = {
+                remoteLoading = true; remoteError = null
+                scope.launch(Dispatchers.IO) {
+                    com.examhelper.app.network.RemoteTikuClient.listFiles().fold(
+                        onSuccess = { withContext(Dispatchers.Main) { remoteFiles = it; remoteLoading = false } },
+                        onFailure = { withContext(Dispatchers.Main) { remoteError = it.message; remoteLoading = false } }
+                    )
+                }
+            },
+            onDownload = { file ->
+                remoteDownloading = file.name
+                scope.launch(Dispatchers.IO) {
+                    val result = com.examhelper.app.network.RemoteTikuClient.download(file.name, ExamApplication.instance.cacheDir)
+                    withContext(Dispatchers.Main) {
+                        remoteDownloading = null
+                        if (result.success && result.localPath != null) {
+                            val count = kb?.importExcelWithDedup(result.localPath, displayFileName = file.name) ?: -1
+                            if (count >= 0) { KnowledgeBaseManager.save(); refreshKey++; Toast.makeText(ExamApplication.instance, "导入成功: $count 条", Toast.LENGTH_SHORT).show() }
+                            java.io.File(result.localPath).delete()
+                        } else {
+                            remoteError = result.error
+                        }
+                    }
+                }
+            },
+        )
     }
 
     // ── Dialogs ──
@@ -385,4 +443,78 @@ private fun getFileNameFromUri(context: android.content.Context, uri: android.ne
             if (idx >= 0) it.getString(idx) else uri.lastPathSegment ?: "unknown"
         } else uri.lastPathSegment ?: "unknown"
     } ?: (uri.lastPathSegment ?: "unknown")
+}
+
+// ── Remote Import Dialog ──────────────────────────────────────────
+
+@Composable
+private fun RemoteImportDialog(
+    colors: com.examhelper.app.ui.theme.AppColors,
+    files: List<com.examhelper.app.network.RemoteFile>,
+    isLoading: Boolean,
+    downloadingFile: String?,
+    error: String?,
+    onDismiss: () -> Unit,
+    onRefresh: () -> Unit,
+    onDownload: (com.examhelper.app.network.RemoteFile) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("☁️ 云端题库", color = colors.onSurface, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.weight(1f))
+                if (!isLoading) {
+                    TextButton(onClick = onRefresh) { Text("刷新", color = colors.primary, fontSize = 12.sp) }
+                }
+            }
+        },
+        text = {
+            Column(modifier = Modifier.height(400.dp).verticalScroll(rememberScrollState())) {
+                Text("服务器: 106.14.10.27", fontSize = 11.sp, color = colors.onSurfaceSecondary, modifier = Modifier.padding(bottom = 8.dp))
+                if (isLoading) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = colors.primary, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("加载中...", fontSize = 13.sp, color = colors.onSurfaceSecondary)
+                    }
+                } else if (error != null) {
+                    Text("连接失败: $error", color = colors.error, fontSize = 13.sp)
+                } else if (files.isEmpty()) {
+                    Text("服务器暂无题库文件", color = colors.onSurfaceSecondary, fontSize = 13.sp)
+                    Text("将 Excel 文件上传到服务器 /www/wwwroot/default/tiku/ 目录", fontSize = 11.sp, color = colors.onSurfaceMuted, modifier = Modifier.padding(top = 8.dp))
+                } else {
+                    files.forEach { file ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surfaceCard).padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(if (file.name.endsWith(".zip")) "📦" else "📊", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(file.name, fontSize = 12.sp, color = colors.onSurface, fontWeight = FontWeight.Medium)
+                                Text(formatSize(file.size), fontSize = 10.sp, color = colors.onSurfaceSecondary)
+                            }
+                            if (downloadingFile == file.name) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = colors.primary, strokeWidth = 2.dp)
+                            } else {
+                                Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(colors.primary).clickable { onDownload(file) }.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                                    Text("导入", fontSize = 11.sp, color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭", color = colors.primary) } },
+        containerColor = colors.surfaceCard,
+    )
+}
+
+private fun formatSize(bytes: Long): String = when {
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+    else -> "${"%.1f".format(bytes.toDouble() / 1024 / 1024)} MB"
 }
