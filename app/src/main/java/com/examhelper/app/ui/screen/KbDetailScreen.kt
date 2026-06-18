@@ -49,8 +49,7 @@ fun KbDetailScreen(kbIndex: Int, onBack: () -> Unit) {
         if (searchQuery.length >= 2) {
             // 简单子串匹配：题目或答案包含搜索词即匹配
             all.filter { (_, entry) ->
-                entry.question.contains(searchQuery, ignoreCase = true) ||
-                entry.answer.contains(searchQuery, ignoreCase = true)
+                entry.question.contains(searchQuery, ignoreCase = true)
             }
         } else {
             all
@@ -303,7 +302,7 @@ private fun KbEntryRow(
                         text = entry.question,
                         color = Color.White,
                         style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
+                        maxLines = 4,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
