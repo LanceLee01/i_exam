@@ -536,6 +536,60 @@ object KnowledgeBaseManager {
                 kb.buildFeatureCache()
             }
         }
+
+        // 迁移：为旧数据补充导入文件记录（反向匹配 asset 文件哈希）
+        for (kb in kbs) {
+            val allPlaceholders = kb.importRecords.all { it.importedAt == 0L }
+            if ((kb.importRecords.isEmpty() || allPlaceholders) && kb.importedHashes.isNotEmpty()) {
+                // 清除旧的占位记录
+                kb.importRecords.clear()
+                val assetFiles = listOf(
+                    "D类-一线人员.et",
+                    "34-通信安规.xls",
+                    "35-信息安规.xls",
+                    "1-习总书记安全生产重要论述.xls",
+                    "33-通信安规.xls"
+                )
+                for (assetName in assetFiles) {
+                    try {
+                        val tmpFile = File(context.filesDir, "migrate_$assetName")
+                        context.assets.open(assetName).use { input ->
+                            tmpFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        val hash = KBEntry.computeSHA256(tmpFile.readBytes())
+                        if (hash in kb.importedHashes) {
+                            kb.importRecords.add(
+                                ImportRecord(
+                                    fileName = assetName,
+                                    hash = hash,
+                                    importedAt = System.currentTimeMillis(),
+                                    entryCount = 0
+                                )
+                            )
+                            Log.d("KBManager", "Migrated import record: $assetName")
+                        }
+                    } catch (_: Exception) { }
+                }
+                // 未能匹配的哈希用占位记录
+                val matched = kb.importRecords.map { it.hash }.toSet()
+                for (hash in kb.importedHashes) {
+                    if (hash !in matched) {
+                        kb.importRecords.add(
+                            ImportRecord(
+                                fileName = "历史导入记录",
+                                hash = hash,
+                                importedAt = System.currentTimeMillis(),
+                                entryCount = 0
+                            )
+                        )
+                    }
+                }
+                if (kb.importRecords.isNotEmpty()) {
+                    save()
+                    Log.d("KBManager", "Populated ${kb.importRecords.size} import records for ${kb.name}")
+                }
+            }
+        }
     }
 
     fun addKB(name: String): KnowledgeBase {
@@ -597,7 +651,7 @@ object KnowledgeBaseManager {
                 if (kd.importRecords.isNullOrEmpty() && kd.importedHashes.isNotEmpty()) {
                     kb.importRecords.addAll(kd.importedHashes.map { hash ->
                         ImportRecord(
-                            fileName = "未知文件(首次导入)",
+                            fileName = "历史导入记录",
                             hash = hash,
                             importedAt = 0L,
                             entryCount = 0

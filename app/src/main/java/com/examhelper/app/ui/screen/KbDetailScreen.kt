@@ -47,11 +47,10 @@ fun KbDetailScreen(kbIndex: Int, onBack: () -> Unit) {
     val displayEntries = remember(searchQuery, refreshTrigger) {
         val all = kb.entries.mapIndexed { idx, entry -> IndexedValue(idx, entry) }
         if (searchQuery.length >= 2) {
-            val results = kb.search(searchQuery)
-            // 将搜索结果映射回原始索引
-            results.mapNotNull { (entry, _) ->
-                val origIdx = kb.entries.indexOf(entry)
-                if (origIdx >= 0) IndexedValue(origIdx, entry) else null
+            // 简单子串匹配：题目或答案包含搜索词即匹配
+            all.filter { (_, entry) ->
+                entry.question.contains(searchQuery, ignoreCase = true) ||
+                entry.answer.contains(searchQuery, ignoreCase = true)
             }
         } else {
             all
@@ -517,7 +516,7 @@ private fun ImportFilesDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = if (record.importedAt > 0) dateFormat.format(Date(record.importedAt)) else "首次导入",
+                                        text = if (record.importedAt > 0) dateFormat.format(Date(record.importedAt)) else "历史记录",
                                         color = Color.White.copy(0.4f),
                                         style = MaterialTheme.typography.labelSmall
                                     )
