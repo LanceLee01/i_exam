@@ -1,6 +1,9 @@
 package com.examhelper.app.ui.sidebar
 
-import androidx.compose.foundation.layout.Row
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,15 +19,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.examhelper.app.ui.theme.LocalExamHelperColors
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 
@@ -33,6 +38,11 @@ fun ReadScreenButton(
     isAccessibilityConnected: Boolean,
     isPending: Boolean
 ) {
+    val colors = LocalExamHelperColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f)
+
     Button(
         onClick = {
             if (!isAccessibilityConnected) {
@@ -47,16 +57,23 @@ fun ReadScreenButton(
             ExtractedTextBus.sendEvent(ExtractedTextBus.Event.RequestExtract)
         },
         enabled = !isPending,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .scale(scale),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary
-        )
+            containerColor = colors.Primary.copy(alpha = 0.20f),
+            contentColor = colors.Primary,
+            disabledContainerColor = colors.Primary.copy(alpha = 0.10f),
+            disabledContentColor = colors.OnSurfaceMuted
+        ),
+        interactionSource = interactionSource
     ) {
         if (isPending) {
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
-                color = Color.White,
+                color = colors.Primary,
                 strokeWidth = 2.dp
             )
             Spacer(Modifier.width(8.dp))
@@ -78,21 +95,33 @@ fun AutoFillButton(
     lastAnswer: String,
     lastExamText: String
 ) {
+    val colors = LocalExamHelperColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f)
+
     Spacer(Modifier.height(8.dp))
     Button(
         onClick = {
             ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(lastAnswer, lastExamText))
         },
-        modifier = Modifier.fillMaxWidth().height(48.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .scale(scale),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF22C55E)
-        )
+            containerColor = Color.Transparent,
+            contentColor = colors.OnSurface
+        ),
+        border = BorderStroke(1.5.dp, colors.Success),
+        interactionSource = interactionSource
     ) {
         Icon(
             Icons.Filled.Check,
             contentDescription = null,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(20.dp),
+            tint = colors.Success
         )
         Spacer(Modifier.width(8.dp))
         Text("自动填入", fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -101,13 +130,23 @@ fun AutoFillButton(
 
 @Composable
 fun SolveButton(onClick: () -> Unit) {
+    val colors = LocalExamHelperColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f)
+
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(48.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .scale(scale),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF22C55E)
-        )
+            containerColor = colors.Success,
+            contentColor = Color.White
+        ),
+        interactionSource = interactionSource
     ) {
         Icon(
             Icons.Filled.Psychology,
@@ -121,12 +160,20 @@ fun SolveButton(onClick: () -> Unit) {
 
 @Composable
 fun ReworkButton(onClick: () -> Unit) {
+    val colors = LocalExamHelperColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f)
+
     Button(
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.scale(scale),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-        )
+            containerColor = Color.Transparent,
+            contentColor = colors.OnSurfaceSecondary
+        ),
+        interactionSource = interactionSource
     ) {
         Icon(
             Icons.Filled.Psychology,
@@ -140,18 +187,30 @@ fun ReworkButton(onClick: () -> Unit) {
 
 @Composable
 fun SaveToKBButton(onClick: () -> Unit) {
+    val colors = LocalExamHelperColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f)
+
     Button(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(42.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .scale(scale),
         shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFFF59E0B)
-        )
+            containerColor = Color.Transparent,
+            contentColor = colors.OnSurface
+        ),
+        border = BorderStroke(1.dp, colors.Warning.copy(alpha = 0.5f)),
+        interactionSource = interactionSource
     ) {
         Icon(
             Icons.Filled.Add,
             contentDescription = null,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(18.dp),
+            tint = colors.Warning
         )
         Spacer(Modifier.width(6.dp))
         Text("保存到题库", fontSize = 14.sp, fontWeight = FontWeight.Bold)
