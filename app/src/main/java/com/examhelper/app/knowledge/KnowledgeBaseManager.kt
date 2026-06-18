@@ -125,6 +125,14 @@ data class KBEntry(
     }
 }
 
+/** 记录每次导入的文件信息 */
+data class ImportRecord(
+    val fileName: String,
+    val hash: String,
+    val importedAt: Long = System.currentTimeMillis(),
+    val entryCount: Int = 0
+)
+
 /** Split exam text into individual question blocks by "N、" pattern */
 private fun extractQuestionBlocks(text: String): List<String> {
     val pattern = Regex("""(\d+)、""")
@@ -172,6 +180,7 @@ data class KnowledgeBase(
 ) {
     val entries = mutableListOf<KBEntry>()
     val importedHashes = mutableSetOf<String>()
+    val importRecords = mutableListOf<ImportRecord>()
     val count: Int get() = entries.size
 
     // Pre-computed feature cache for fast hybrid search
@@ -191,6 +200,32 @@ data class KnowledgeBase(
             )
         }
         Log.d("KnowledgeBase", "[$name] Built feature cache for ${entries.size} entries")
+    }
+
+    /** 更新指定索引的条目并重建缓存 */
+    fun updateEntry(index: Int, entry: KBEntry) {
+        if (index in entries.indices) {
+            entries[index] = entry
+            buildFeatureCache()
+        }
+    }
+
+    /** 批量删除条目（传入索引集合，自动从高到低删除以避免索引偏移） */
+    fun deleteEntries(indices: Set<Int>) {
+        val sorted = indices.sortedDescending()
+        for (idx in sorted) {
+            if (idx in entries.indices) {
+                entries.removeAt(idx)
+            }
+        }
+        if (sorted.isNotEmpty()) {
+            buildFeatureCache()
+        }
+    }
+
+    /** 返回导入文件列表（按导入时间倒序） */
+    fun getImportFiles(): List<ImportRecord> {
+        return importRecords.sortedByDescending { it.importedAt }
     }
 
     fun importExcel(path: String, mapping: ColumnMapping? = null): Int {
@@ -232,7 +267,7 @@ data class KnowledgeBase(
         }
     }
 
-    fun importExcelWithDedup(path: String, mapping: ColumnMapping? = null): Int {
+    fun importExcelWithDedup(path: String, mapping: ColumnMapping? = null, displayFileName: String? = null): Int {
         return try {
             val file = File(path)
             val bytes = file.readBytes()
@@ -273,6 +308,17 @@ data class KnowledgeBase(
             stream.close()
 
             importedHashes.add(hash)
+            // Record import file info
+            val fileName = displayFileName ?: File(path).name
+            importRecords.add(
+                ImportRecord(
+                    fileName = fileName,
+                    hash = hash,
+                    importedAt = System.currentTimeMillis(),
+                    entryCount = imported  // imported is the count from this batch
+                )
+            )
+            Log.d("KnowledgeBase", "[$name] Recorded import: $fileName ($imported entries)")
             Log.d("KnowledgeBase", "[$name] imported $imported entries, total=${entries.size}")
             buildFeatureCache()
             imported
