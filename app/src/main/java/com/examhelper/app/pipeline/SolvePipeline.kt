@@ -89,6 +89,29 @@ class SolvePipeline(private val context: Context) {
                 val optionsText = extractAllOptions(qText)
                 Log.w(TAG, "Q$qNum options search: optionsText='${optionsText.take(80)}'")
                 if (optionsText.isBlank()) continue
+                // 选项匹配：normalize 分隔符（. → -，空格 → |）使其与题库 options 格式一致
+                val normalizedOptions = optionsText.replace(Regex("[.、]"), "-")
+                    .replace(" ", "|")
+                    .replace(Regex("-+"), "-")
+                // 直接跟每个题库 entry 的 options 字段做 jaccard 匹配
+                val allEntries = KnowledgeBaseManager.activeKB!!.entries.filter { it.options.isNotBlank() }
+                val bestByOptions = allEntries.maxByOrNull { entry ->
+                    KBEntry.jaccard(
+                        KBEntry.computeTrigrams(normalizedOptions),
+                        KBEntry.computeTrigrams(entry.options)
+                    )
+                }
+                if (bestByOptions != null) {
+                    val bestScore = KBEntry.jaccard(
+                        KBEntry.computeTrigrams(normalizedOptions),
+                        KBEntry.computeTrigrams(bestByOptions.options)
+                    )
+                    val answer = normalizeTfAnswer(bestByOptions.answer, bestByOptions.source)
+                    Log.w(TAG, "Q$qNum empty stem rescued by options normaliz: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestByOptions.question.take(40)}'")
+                    optionsRescued[qNum] = answer
+                    rescuedFromEmpty.add(qNum)
+                    continue  // 已救，跳过 search 匹配
+                }
                 // 用选项文本去题库搜索，尝试匹配到真题的选项行
                 val kbHits = KnowledgeBaseManager.activeKB!!.search(optionsText, options = "", topN = 10)
                     .filter { (_, score) -> score >= 0.50f }
