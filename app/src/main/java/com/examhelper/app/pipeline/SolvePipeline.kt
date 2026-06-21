@@ -87,15 +87,19 @@ class SolvePipeline(private val context: Context) {
             for (qNum in emptyStemQ.toList()) {
                 val qText = extractSingleQuestionText(text, qNum)
                 val optionsText = extractAllOptions(qText)
+                Log.w(TAG, "Q$qNum options search: optionsText='${optionsText.take(80)}'")
                 if (optionsText.isBlank()) continue
                 // 用选项文本去题库搜索，尝试匹配到真题的选项行
                 val kbHits = KnowledgeBaseManager.activeKB!!.search(optionsText, options = "", topN = 10)
                     .filter { (_, score) -> score >= 0.50f }
-                if (kbHits.isEmpty()) continue
+                if (kbHits.isEmpty()) {
+                    Log.w(TAG, "Q$qNum options match FAILED: search returned 0 KB hits >= 0.50 for '${optionsText.take(40)}'")
+                    continue
+                }
                 // 取最高分匹配
                 val (bestEntry, bestScore) = kbHits.first()
                 val answer = normalizeTfAnswer(bestEntry.answer, bestEntry.source)
-                Log.d(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestEntry.question.take(40)}'")
+                Log.w(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestEntry.question.take(40)}'")
                 optionsRescued[qNum] = answer
                 rescuedFromEmpty.add(qNum)
             }
