@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "plugins": {
+    "superpowers@claude-plugins-official": [
+      {
+        "scope": "project",
+        "installPath": "C:\\Users\\lasal\\.claude\\plugins\\cache\\claude-plugins-official\\superpowers\\6.0.3",
+        "version": "6.0.3",
+        "installedAt": "2026-06-21T03:27:57.311Z",
+        "lastUpdated": "2026-06-21T03:27:57.311Z",
+        "gitCommitSha": "896224c4b1879920ab573417e68fd51d2ccc9072",
+        "projectPath": "d:\\claude\\i_exam\\i_exam"
+      }
+    ]
+  }
+}

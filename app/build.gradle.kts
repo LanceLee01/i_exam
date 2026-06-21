@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.examhelper.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.examhelper.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 5
         versionName = "3.0.0"
 

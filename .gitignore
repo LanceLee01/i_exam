@@ -12,3 +12,5 @@ local.properties
 /app/release
 .superpowers/
 i_exam/
+hs_err_pid*.log
+replay_pid*.log
