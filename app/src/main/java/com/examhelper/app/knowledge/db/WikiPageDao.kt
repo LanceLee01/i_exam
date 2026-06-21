@@ -58,4 +58,7 @@ interface WikiPageDao {
 
     @Query("SELECT wiki_pages.* FROM wiki_pages JOIN wiki_pages_fts ON wiki_pages.id = wiki_pages_fts.rowid WHERE wiki_pages_fts MATCH :query LIMIT :limit")
     suspend fun searchFts(query: String, limit: Int): List<WikiPage>
+
+    @Query("SELECT * FROM wiki_pages WHERE title LIKE '%' || :query || '%' OR summary LIKE '%' || :query || '%' LIMIT 20")
+    suspend fun searchByTitleLike(query: String): List<WikiPage>
 }

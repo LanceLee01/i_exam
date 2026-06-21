@@ -271,29 +271,31 @@ class SolvePipeline(private val context: Context) {
     // ── L2: Wiki 知识库检索 ─────────────────────────────
 
     private suspend fun tryWikiMatchAll(text: String, skipNumbers: Set<Int>): Map<Int, String> {
-        val wikiResult = kbEngine.searchByQuestion(text)
-        val combinedPages = (wikiResult.ftsPages + wikiResult.trigramPages).distinctBy { it.id }
-        if (combinedPages.isEmpty()) return emptyMap()
-
-        val topScore = combinedPages.maxOfOrNull { page ->
-            val pTri = KBEntry.computeTrigrams(page.title + page.summary.take(200))
-            val qTri = KBEntry.computeTrigrams(text)
-            KBEntry.jaccard(qTri, pTri)
-        } ?: 0f
-
-        if (topScore < 0.50f) return emptyMap()
-
-        // Build a per-question match: check which exam questions this wiki page is relevant to
-        val answer = kbEngine.getAnswerFromKB(text, combinedPages) ?: ""
-        if (answer.isBlank()) return emptyMap()
-
-        // Use the highest-scoring wiki page to answer all unmatched questions
         val unmatchedQ = extractQuestionNumbers(text).map { it.first }.filter { it !in skipNumbers }
+        if (unmatchedQ.isEmpty()) return emptyMap()
+
         val result = mutableMapOf<Int, String>()
-        for (q in unmatchedQ) {
-            result[q] = answer
+        for (qNum in unmatchedQ.sorted()) {
+            try {
+                val qText = extractSingleQuestionText(text, qNum)
+                val wikiResult = kbEngine.searchByQuestion(qText)
+                val pages = wikiResult.pages
+                if (pages.isEmpty()) continue
+
+                // Take the top page and use its summary as the answer
+                val topPage = pages.first()
+                val answer = topPage.summary.take(200)
+                if (answer.isNotBlank()) {
+                    result[qNum] = answer
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "L2 search failed for Q$qNum: ${e.message}")
+            }
         }
-        Log.d(TAG, "L2 matched ${result.size} questions")
+
+        if (result.isNotEmpty()) {
+            Log.d(TAG, "L2 matched ${result.size} questions: ${result.keys.sorted()}")
+        }
         return result
     }
 

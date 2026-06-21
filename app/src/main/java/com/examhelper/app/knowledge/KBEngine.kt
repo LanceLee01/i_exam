@@ -10,6 +10,8 @@ import com.examhelper.app.knowledge.db.SourceFile
 import com.examhelper.app.knowledge.db.WikiPage
 import com.examhelper.app.knowledge.db.Wikilink
 import com.examhelper.app.network.LLMClient
+import com.examhelper.app.network.EmbeddingClient
+import com.examhelper.app.knowledge.db.WikiPageEmbedding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.security.MessageDigest
@@ -158,6 +160,30 @@ class KBEngine(private val context: Context) {
                 Log.d(TAG, "Inserted ${links.size} wikilinks")
             }
 
+            // Generate embeddings for new pages
+            try {
+                val embConfig = ExamApplication.instance.appConfig.getSnapshot()
+                if (embConfig.apiKey.isNotBlank()) {
+                    val embClient = EmbeddingClient(embConfig.apiKey)
+                    for (page in finalPages) {
+                        try {
+                            val embText = page.title + " " + page.summary
+                            val result = embClient.embed(embText)
+                            if (result != null) {
+                                val bytes = WikiPageEmbedding.floatArrayToBytes(result.values)
+                                db.wikiPageEmbeddingDao().insert(
+                                    WikiPageEmbedding(pageId = page.id, embedding = bytes)
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to embed page ${page.title}: ${e.message}")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Embedding generation failed, pages imported without vectors: ${e.message}")
+            }
+
             ImportResult(success = true, pagesGenerated = truncatedPages.size)
         } catch (e: Exception) {
             Log.e(TAG, "importFile failed", e)
@@ -166,32 +192,44 @@ class KBEngine(private val context: Context) {
     }
 
     suspend fun searchByQuestion(questionText: String): SearchResult {
-        val ftsResults = try {
-            val query = buildFtsQuery(questionText)
-            db.wikiPageDao().searchFts(query, 10)
-        } catch (e: Exception) {
-            Log.w(TAG, "FTS search failed: ${e.message}")
-            emptyList()
+        // 1. Get embedding client
+        val config = ExamApplication.instance.appConfig.getSnapshot()
+        val embeddingClient = if (config.apiKey.isNotBlank()) {
+            EmbeddingClient(config.apiKey)
+        } else null
+
+        // 2. Try embedding search first
+        if (embeddingClient != null) {
+            try {
+                val result = embeddingClient.embed(questionText)
+                if (result != null) {
+                    val allEmbeddings = db.wikiPageEmbeddingDao().getAll()
+                    if (allEmbeddings.isNotEmpty()) {
+                        // Convert to (pageId, floatArray) pairs
+                        val candidates = allEmbeddings.map { emb ->
+                            emb.pageId to WikiPageEmbedding.bytesToFloatArray(emb.embedding)
+                        }
+                        val topResults = EmbeddingClient.topK(result.values, candidates, 10)
+                        // Load pages for top results
+                        val pages = topResults.mapNotNull { (pageId, _) ->
+                            db.wikiPageDao().getById(pageId)
+                        }
+                        return SearchResult(pages = pages)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Embedding search failed, falling back to text search: ${e.message}")
+            }
         }
 
-        val allPages = db.wikiPageDao().getAll()
-        val qTrigrams = KBEntry.computeTrigrams(questionText)
-
-        val trigramResults = allPages
-            .map { page ->
-                val pageTriContent = KBEntry.computeTrigrams(page.title + page.summary + page.content)
-                page to KBEntry.jaccard(qTrigrams, pageTriContent)
-            }
-            .filter { it.second > 0.1f }
-            .sortedByDescending { it.second }
-            .take(10)
-            .map { it.first }
-
-        return SearchResult(
-            pages = (ftsResults + trigramResults).distinctBy { it.id },
-            ftsPages = ftsResults,
-            trigramPages = trigramResults
-        )
+        // 3. Fallback: simple text search using SQL LIKE
+        val fallbackPages = try {
+            db.wikiPageDao().searchByTitleLike(questionText)
+        } catch (e: Exception) {
+            Log.w(TAG, "Text search failed: ${e.message}")
+            emptyList()
+        }
+        return SearchResult(pages = fallbackPages)
     }
 
     suspend fun canAnswerFromKB(questionText: String, pages: List<WikiPage>): Boolean {
