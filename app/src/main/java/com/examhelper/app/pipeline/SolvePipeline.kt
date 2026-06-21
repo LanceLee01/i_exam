@@ -63,18 +63,16 @@ class SolvePipeline(private val context: Context) {
         val emptyStemQ = mutableSetOf<Int>()
         val meaningfulUnmatched = allUnmatchedQ.filter { qNum ->
             val qText = extractSingleQuestionText(text, qNum)
-            // Strip type labels, option markers, whitespace, punctuation — keep only real question text
-            val meaningful = qText
-                .replace("单选题", "").replace("多选题", "").replace("判断题", "")
-                .replace("正确", "").replace("错误", "")
-                .replace(Regex("""[\s（）、.A-Fa-f\d①②③④⑤⑥⑦⑧⑨⑩]"""), "")
-            val hasContent = meaningful.length >= 10
-            // 选项文本可能被误判为题干：如果只剩零星汉字且大部分是选项结构，也应标记 empty
-            val chineseChars = meaningful.count { it in '一'..'鿿' || it in '㐀'..'䶿' }
-            val hasRealStem = hasContent && chineseChars >= 3
+            // Split into lines, distinguish option lines from stem lines
+            val lines = qText.lines().map { it.trim() }.filter { it.isNotBlank() }
+            val optionLines = lines.filter { Regex("^[A-Fa-f]\\s*[.、:：)）]").containsMatchIn(it) }
+            val stemLines = lines.filter { !Regex("^[A-Fa-f]\\s*[.、:：)）]").containsMatchIn(it) }
+            // Chinese char count in stem lines
+            val chineseCount = stemLines.joinToString("").count { it in '一'..'鿿' }
+            val hasRealStem = chineseCount >= 3 || (!stemLines.isEmpty() && stemLines.joinToString("").length >= 10)
             if (!hasRealStem) {
                 emptyStemQ.add(qNum)
-                Log.d(TAG, "Q$qNum stem too short/empty (meaningful=${meaningful.length} chars, chinese=$chineseChars), options text only: '${qText.take(60)}'")
+                Log.d(TAG, "Q$qNum stem empty (chinese=$chineseCount, stemLines=${stemLines.size}, optionLines=${optionLines.size}): '${qText.take(80)}'")
             }
             hasRealStem
         }
