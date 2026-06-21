@@ -61,10 +61,8 @@ class SolvePipeline(private val context: Context) {
         // Filter out questions with empty/near-empty stems (these can't be answered by LLM)
         val allUnmatchedQ = unmatchedQ.toSet()
         val emptyStemQ = mutableSetOf<Int>()
-        // 统计日志：打印 Q34 的被处理文本
         val meaningfulUnmatched = allUnmatchedQ.filter { qNum ->
             val qText = extractSingleQuestionText(text, qNum)
-            if (qNum == 34) Log.w(TAG, "!!!Q34 text = '$qText'")
             // Split into lines, distinguish option lines from stem lines
             val lines = qText.lines().map { it.trim() }.filter { it.isNotBlank() }
             val optionLines = lines.filter { Regex("^[A-Fa-f]\\s*[.、:：)）]").containsMatchIn(it) }
@@ -74,7 +72,7 @@ class SolvePipeline(private val context: Context) {
             val hasRealStem = chineseCount >= 3 || (!stemLines.isEmpty() && stemLines.joinToString("").length >= 10)
             if (!hasRealStem) {
                 emptyStemQ.add(qNum)
-                Log.w(TAG, "Q$qNum stem empty (chinese=$chineseCount, stemLines=${stemLines.size}, optionLines=${optionLines.size}): '${qText.take(80)}'")
+                Log.d(TAG, "Q$qNum stem empty (chinese=$chineseCount, stemLines=${stemLines.size}, optionLines=${optionLines.size}): '${qText.take(80)}'")
             }
             hasRealStem
         }
@@ -87,7 +85,7 @@ class SolvePipeline(private val context: Context) {
             for (qNum in emptyStemQ.toList()) {
                 val qText = extractSingleQuestionText(text, qNum)
                 val optionsText = extractAllOptions(qText)
-                Log.w(TAG, "Q$qNum options search: optionsText='${optionsText.take(80)}'")
+                Log.d(TAG, "Q$qNum options search: optionsText='${optionsText.take(80)}'")
                 if (optionsText.isBlank()) continue
                 // 选项匹配：normalize 分隔符（. → -，空格 → |）使其与题库 options 格式一致
                 val normalizedOptions = optionsText.replace(Regex("[.、]"), "-")
@@ -107,7 +105,7 @@ class SolvePipeline(private val context: Context) {
                         KBEntry.computeTrigrams(bestByOptions.options)
                     )
                     val answer = normalizeTfAnswer(bestByOptions.answer, bestByOptions.source)
-                    Log.w(TAG, "Q$qNum empty stem rescued by options normaliz: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestByOptions.question.take(40)}'")
+                    Log.d(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestByOptions.question.take(40)}'")
                     optionsRescued[qNum] = answer
                     rescuedFromEmpty.add(qNum)
                     continue  // 已救，跳过 search 匹配
@@ -115,25 +113,17 @@ class SolvePipeline(private val context: Context) {
                 // 用选项文本去题库搜索，尝试匹配到真题的选项行
                 val kbHits = KnowledgeBaseManager.activeKB!!.search(optionsText, options = "", topN = 10)
                     .filter { (_, score) -> score >= 0.50f }
-                if (kbHits.isEmpty()) {
-                    Log.w(TAG, "Q$qNum options match FAILED: search returned 0 KB hits >= 0.50 for '${optionsText.take(40)}'")
-                    continue
-                }
+                if (kbHits.isEmpty()) continue
                 // 取最高分匹配
                 val (bestEntry, bestScore) = kbHits.first()
                 val answer = normalizeTfAnswer(bestEntry.answer, bestEntry.source)
-                Log.w(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestEntry.question.take(40)}'")
+                Log.d(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestEntry.question.take(40)}'")
                 optionsRescued[qNum] = answer
                 rescuedFromEmpty.add(qNum)
             }
-            // 尝试用选项匹配的题目也计数
-            val triedQ = emptyStemQ - rescuedFromEmpty
-            if (triedQ.isNotEmpty()) {
-                Log.w(TAG, "Options search failed for Q${triedQ.sorted()}: no KB hit")
-            }
             if (rescuedFromEmpty.isNotEmpty()) {
                 emptyStemQ.removeAll(rescuedFromEmpty)
-                Log.w(TAG, "Options rescue: ${rescuedFromEmpty.size} questions saved from empty stem: $rescuedFromEmpty")
+                Log.d(TAG, "Options rescue: ${rescuedFromEmpty.size} questions saved from empty stem: $rescuedFromEmpty")
             }
         }
         // 仍然空的加入直接答案
@@ -142,7 +132,7 @@ class SolvePipeline(private val context: Context) {
         val unmatchedText = if (meaningfulQ.isEmpty() && optionsRescued.isEmpty()) ""
             else extractUnmatchedQuestionText(text, l1Keys, meaningfulQ)
 
-        Log.w(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ meaningfulQ=${meaningfulQ.size} emptyStemQ=${emptyStemQ.size} optionsRescued=${rescuedFromEmpty.size}")
+        Log.d(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ meaningfulQ=${meaningfulQ.size} emptyStemQ=${emptyStemQ.size} optionsRescued=${rescuedFromEmpty.size}")
 
         // If all unmatched questions are empty-stem, skip LLM entirely
         if (meaningfulQ.isEmpty()) {
