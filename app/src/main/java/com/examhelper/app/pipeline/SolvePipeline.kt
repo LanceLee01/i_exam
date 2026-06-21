@@ -42,7 +42,7 @@ class SolvePipeline(private val context: Context) {
         val allQ = extractQuestionNumbers(text).map { it.first }.toSet()
         val unmatchedQ = (allQ - l1Keys).sorted()
 
-        Log.d(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ l1Keys=$l1Keys")
+        // Build text for ONLY unmatched questions
 
         // If all matched, return directly
         if (unmatchedQ.isEmpty()) {
@@ -69,11 +69,14 @@ class SolvePipeline(private val context: Context) {
                 .replace("正确", "").replace("错误", "")
                 .replace(Regex("""[\s（）、.A-Fa-f\d①②③④⑤⑥⑦⑧⑨⑩]"""), "")
             val hasContent = meaningful.length >= 10
-            if (!hasContent) {
+            // 选项文本可能被误判为题干：如果只剩零星汉字且大部分是选项结构，也应标记 empty
+            val chineseChars = meaningful.count { it in '一'..'鿿' || it in '㐀'..'䶿' }
+            val hasRealStem = hasContent && chineseChars >= 3
+            if (!hasRealStem) {
                 emptyStemQ.add(qNum)
-                Log.d(TAG, "Q$qNum stem too short/empty (meaningful=${meaningful.length} chars), marking as 不确定: '${qText.take(60)}'")
+                Log.d(TAG, "Q$qNum stem too short/empty (meaningful=${meaningful.length} chars, chinese=$chineseChars), options text only: '${qText.take(60)}'")
             }
-            hasContent
+            hasRealStem
         }
         val meaningfulQ = meaningfulUnmatched.toSet()
 
@@ -106,6 +109,8 @@ class SolvePipeline(private val context: Context) {
 
         val unmatchedText = if (meaningfulQ.isEmpty() && optionsRescued.isEmpty()) ""
             else extractUnmatchedQuestionText(text, l1Keys, meaningfulQ)
+
+        Log.d(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ meaningfulQ=${meaningfulQ.size} emptyStemQ=${emptyStemQ.size} optionsRescued=${rescuedFromEmpty.size}")
 
         // If all unmatched questions are empty-stem, skip LLM entirely
         if (meaningfulQ.isEmpty()) {
