@@ -61,8 +61,10 @@ class SolvePipeline(private val context: Context) {
         // Filter out questions with empty/near-empty stems (these can't be answered by LLM)
         val allUnmatchedQ = unmatchedQ.toSet()
         val emptyStemQ = mutableSetOf<Int>()
+        // 统计日志：打印 Q34 的被处理文本
         val meaningfulUnmatched = allUnmatchedQ.filter { qNum ->
             val qText = extractSingleQuestionText(text, qNum)
+            if (qNum == 34) Log.w(TAG, "!!!Q34 text = '$qText'")
             // Split into lines, distinguish option lines from stem lines
             val lines = qText.lines().map { it.trim() }.filter { it.isNotBlank() }
             val optionLines = lines.filter { Regex("^[A-Fa-f]\\s*[.、:：)）]").containsMatchIn(it) }
@@ -72,7 +74,7 @@ class SolvePipeline(private val context: Context) {
             val hasRealStem = chineseCount >= 3 || (!stemLines.isEmpty() && stemLines.joinToString("").length >= 10)
             if (!hasRealStem) {
                 emptyStemQ.add(qNum)
-                Log.d(TAG, "Q$qNum stem empty (chinese=$chineseCount, stemLines=${stemLines.size}, optionLines=${optionLines.size}): '${qText.take(80)}'")
+                Log.w(TAG, "Q$qNum stem empty (chinese=$chineseCount, stemLines=${stemLines.size}, optionLines=${optionLines.size}): '${qText.take(80)}'")
             }
             hasRealStem
         }
@@ -97,9 +99,14 @@ class SolvePipeline(private val context: Context) {
                 optionsRescued[qNum] = answer
                 rescuedFromEmpty.add(qNum)
             }
+            // 尝试用选项匹配的题目也计数
+            val triedQ = emptyStemQ - rescuedFromEmpty
+            if (triedQ.isNotEmpty()) {
+                Log.w(TAG, "Options search failed for Q${triedQ.sorted()}: no KB hit")
+            }
             if (rescuedFromEmpty.isNotEmpty()) {
                 emptyStemQ.removeAll(rescuedFromEmpty)
-                Log.d(TAG, "Options rescue: ${rescuedFromEmpty.size} questions saved from empty stem: $rescuedFromEmpty")
+                Log.w(TAG, "Options rescue: ${rescuedFromEmpty.size} questions saved from empty stem: $rescuedFromEmpty")
             }
         }
         // 仍然空的加入直接答案
@@ -108,7 +115,7 @@ class SolvePipeline(private val context: Context) {
         val unmatchedText = if (meaningfulQ.isEmpty() && optionsRescued.isEmpty()) ""
             else extractUnmatchedQuestionText(text, l1Keys, meaningfulQ)
 
-        Log.d(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ meaningfulQ=${meaningfulQ.size} emptyStemQ=${emptyStemQ.size} optionsRescued=${rescuedFromEmpty.size}")
+        Log.w(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ meaningfulQ=${meaningfulQ.size} emptyStemQ=${emptyStemQ.size} optionsRescued=${rescuedFromEmpty.size}")
 
         // If all unmatched questions are empty-stem, skip LLM entirely
         if (meaningfulQ.isEmpty()) {
