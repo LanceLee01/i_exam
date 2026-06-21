@@ -28,6 +28,9 @@ interface SourceFileDao {
     @Query("SELECT * FROM source_files WHERE filePath = :path")
     suspend fun getByPath(path: String): SourceFile?
 
+    @Query("SELECT * FROM source_files WHERE contentHash = :hash LIMIT 1")
+    suspend fun getByHash(hash: String): SourceFile?
+
     @Query("DELETE FROM source_files")
     suspend fun clearAll()
 }

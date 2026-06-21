@@ -59,14 +59,18 @@ class KBEngine(private val context: Context) {
 
             val hash = computeSHA256(content)
             val path = uri.toString()
-            val existing = db.sourceFileDao().getByPath(path)
-            if (existing?.contentHash == hash) {
-                Log.d(TAG, "SHA256 match, skipping reimport: $path")
+
+            // Primary dedup: check by content hash (same file content, regardless of path)
+            val existingByHash = db.sourceFileDao().getByHash(hash)
+            if (existingByHash != null) {
+                Log.d(TAG, "SHA256 match, skipping reimport: $path (same as ${existingByHash.filePath})")
                 return@withContext ImportResult(true, skipped = true)
             }
 
             val fileName = getFileName(uri)
-            val sourceId = existing?.id ?: UUID.randomUUID().toString()
+            // Reuse existing source ID if path was previously imported (file updated)
+            val existingByPath = db.sourceFileDao().getByPath(path)
+            val sourceId = existingByPath?.id ?: UUID.randomUUID().toString()
 
             val config = ExamApplication.instance.appConfig.getSnapshot()
             val systemPrompt = buildWikiPrompt()
@@ -113,8 +117,16 @@ class KBEngine(private val context: Context) {
                 ))
             } else pages
 
-            db.wikiPageDao().insertAll(finalPages)
-            Log.d(TAG, "Inserted ${finalPages.size} wiki pages")
+            // Truncate content to guard against excessively large pages
+            val truncatedPages = finalPages.map { page ->
+                if (page.content.length > MAX_CONTENT_LENGTH) {
+                    Log.w(TAG, "Truncating page '${page.title}' content from ${page.content.length} to $MAX_CONTENT_LENGTH chars")
+                    page.copy(content = page.content.take(MAX_CONTENT_LENGTH))
+                } else page
+            }
+
+            db.wikiPageDao().insertAll(truncatedPages)
+            Log.d(TAG, "Inserted ${truncatedPages.size} wiki pages")
 
             val sourceFile = SourceFile(
                 id = sourceId,
@@ -122,13 +134,13 @@ class KBEngine(private val context: Context) {
                 fileName = fileName,
                 fileType = getFileType(uri),
                 contentHash = hash,
-                pageCount = finalPages.size
+                pageCount = truncatedPages.size
             )
             db.sourceFileDao().insert(sourceFile)
 
-            val allTitles = finalPages.map { it.uid to it.title }.toMap()
+            val allTitles = truncatedPages.map { it.uid to it.title }.toMap()
             val links = mutableListOf<Wikilink>()
-            for (page in finalPages) {
+            for (page in truncatedPages) {
                 val refs = extractWikilinks(page.content)
                 for ((label, targetTitle) in refs) {
                     val targetPage = pages.firstOrNull { it.title == targetTitle }
@@ -146,7 +158,7 @@ class KBEngine(private val context: Context) {
                 Log.d(TAG, "Inserted ${links.size} wikilinks")
             }
 
-            ImportResult(success = true, pagesGenerated = finalPages.size)
+            ImportResult(success = true, pagesGenerated = truncatedPages.size)
         } catch (e: Exception) {
             Log.e(TAG, "importFile failed", e)
             ImportResult(false, error = e.message ?: "未知错误")
@@ -537,5 +549,15 @@ summary: 一句话概述
     companion object {
         private const val TAG = "KBEngine"
         private const val MAX_DOC_CHARS = 8000
+        const val MAX_CONTENT_LENGTH = 10000
+
+        @Volatile
+        private var instance: KBEngine? = null
+
+        fun getInstance(context: Context): KBEngine {
+            return instance ?: synchronized(this) {
+                instance ?: KBEngine(context.applicationContext).also { instance = it }
+            }
+        }
     }
 }

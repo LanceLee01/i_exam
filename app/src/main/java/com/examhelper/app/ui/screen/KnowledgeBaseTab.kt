@@ -26,6 +26,7 @@ import com.examhelper.app.ui.components.EmptyState
 import com.examhelper.app.ui.components.SearchBar
 import com.examhelper.app.ui.theme.LocalAppColors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -34,10 +35,11 @@ import kotlinx.coroutines.withContext
 fun KnowledgeBaseTab(isDarkMode: Boolean) {
     val colors = LocalAppColors.current
     val scope = rememberCoroutineScope()
-    val kbEngine = remember { KBEngine(ExamApplication.instance) }
+    val kbEngine = remember { KBEngine.getInstance(ExamApplication.instance) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var isImporting by remember { mutableStateOf(false) }
+    var importProgress by remember { mutableStateOf("") }
     var refreshKey by remember { mutableStateOf(0L) }
     var selectedPageUid by remember { mutableStateOf<String?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
@@ -59,6 +61,7 @@ fun KnowledgeBaseTab(isDarkMode: Boolean) {
 
     LaunchedEffect(searchQuery) {
         if (searchQuery.length >= 2) {
+            delay(300)  // debounce user typing
             withContext(Dispatchers.IO) { searchResults = kbEngine.searchByQuestion(searchQuery).pages }
         } else {
             searchResults = null
@@ -76,12 +79,17 @@ fun KnowledgeBaseTab(isDarkMode: Boolean) {
     val docLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNullOrEmpty()) return@rememberLauncherForActivityResult
         scope.launch(Dispatchers.IO) {
-            withContext(Dispatchers.Main) { isImporting = true }
+            withContext(Dispatchers.Main) { isImporting = true; importProgress = "" }
             var imported = 0
-            for (uri in uris) {
-                try { val r = kbEngine.importFile(uri); if (r.success) imported += r.pagesGenerated } catch (_: Exception) {}
+            var totalGenerated = 0
+            for ((idx, uri) in uris.withIndex()) {
+                try {
+                    val r = kbEngine.importFile(uri)
+                    if (r.success) { imported++; totalGenerated += r.pagesGenerated }
+                    withContext(Dispatchers.Main) { importProgress = "已处理 ${idx + 1}/${uris.size} 个文件，已生成 $totalGenerated 页" }
+                } catch (_: Exception) {}
             }
-            withContext(Dispatchers.Main) { isImporting = false; refreshKey++; if (imported > 0) Toast.makeText(ExamApplication.instance, "导入: $imported 页面", Toast.LENGTH_SHORT).show() }
+            withContext(Dispatchers.Main) { isImporting = false; importProgress = ""; refreshKey++; if (imported > 0) Toast.makeText(ExamApplication.instance, "导入完成: $imported 个文件, $totalGenerated 页面", Toast.LENGTH_SHORT).show() }
         }
     }
 
@@ -140,6 +148,18 @@ fun KnowledgeBaseTab(isDarkMode: Boolean) {
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Import progress indicator
+        if (isImporting && importProgress.isNotEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 4.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = colors.primary, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(importProgress, fontSize = 12.sp, color = colors.onSurfaceSecondary)
+            }
+        }
 
         // LLM Answer card
         if (llmAnswer != null) {

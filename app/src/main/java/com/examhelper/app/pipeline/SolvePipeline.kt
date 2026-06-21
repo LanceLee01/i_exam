@@ -18,7 +18,7 @@ import com.examhelper.app.util.ExtractedTextBus.SidebarState
 
 class SolvePipeline(private val context: Context) {
 
-    private val kbEngine = KBEngine(context)
+    private val kbEngine = KBEngine.getInstance(context)
 
     suspend fun solve(text: String) {
         try {
@@ -306,13 +306,9 @@ class SolvePipeline(private val context: Context) {
 
     private suspend fun getWikiScore(text: String): Pair<List<WikiPage>, Float> {
         val wikiResult = kbEngine.searchByQuestion(text)
-        val combinedPages = (wikiResult.ftsPages + wikiResult.trigramPages).distinctBy { it.id }
-        val topScore = combinedPages.maxOfOrNull { page ->
-            val pTri = KBEntry.computeTrigrams(page.title + page.summary.take(200))
-            val qTri = KBEntry.computeTrigrams(text)
-            KBEntry.jaccard(qTri, pTri)
-        } ?: 0f
-        return combinedPages to topScore
+        val pages = wikiResult.pages
+        val topScore = if (pages.isNotEmpty()) 0.30f else 0f
+        return pages to topScore
     }
 
     private fun buildBaseMessage(

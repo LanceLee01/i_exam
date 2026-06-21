@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -13,7 +14,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.examhelper.app.ExamApplication
@@ -30,7 +36,7 @@ import kotlinx.coroutines.withContext
 fun WikiPageScreen(pageUid: String, onBack: () -> Unit) {
     val colors = LocalAppColors.current
     val scope = rememberCoroutineScope()
-    val kbEngine = remember { KBEngine(ExamApplication.instance) }
+    val kbEngine = remember { KBEngine.getInstance(ExamApplication.instance) }
     var page by remember { mutableStateOf<WikiPage?>(null) }
     var wikilinks by remember { mutableStateOf<List<Wikilink>>(emptyList()) }
     var linkedPageMap by remember { mutableStateOf<Map<Long, WikiPage>>(emptyMap()) }
@@ -85,7 +91,38 @@ fun WikiPageScreen(pageUid: String, onBack: () -> Unit) {
                             Row(modifier = Modifier.padding(vertical = 3.dp)) { Text("•", color = colors.primary, fontSize = 14.sp, modifier = Modifier.width(16.dp)); Text(li.removePrefix("- ").removePrefix("• "), fontSize = 14.sp, color = colors.onSurface, lineHeight = 22.sp) }
                         }
                     }
-                    "text" -> if (section.text.isNotBlank()) Text(section.text, fontSize = 14.sp, color = colors.onSurface, lineHeight = 24.sp, modifier = Modifier.padding(vertical = 4.dp))
+                    "text" -> if (section.text.isNotBlank()) {
+                        if (section.text.contains("[[")) {
+                            val annotated = buildAnnotatedString {
+                                val pattern = Regex("""\[\[([^\]]+)\]\]""")
+                                var lastEnd = 0
+                                pattern.findAll(section.text).forEach { match ->
+                                    append(section.text.substring(lastEnd, match.range.first))
+                                    pushStringAnnotation(tag = "wikilink", annotation = match.groupValues[1])
+                                    withStyle(SpanStyle(color = colors.primary, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
+                                        append(match.groupValues[1])
+                                    }
+                                    pop()
+                                    lastEnd = match.range.last + 1
+                                }
+                                if (lastEnd < section.text.length) append(section.text.substring(lastEnd))
+                            }
+                            ClickableText(
+                                text = annotated,
+                                style = TextStyle(fontSize = 14.sp, color = colors.onSurface, lineHeight = 24.sp),
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                onClick = { offset ->
+                                    annotated.getStringAnnotations(tag = "wikilink", start = offset, end = offset).firstOrNull()?.let { annotation ->
+                                        val targetTitle = annotation.item
+                                        val targetPage = linkedPageMap.values.find { it.title.equals(targetTitle, ignoreCase = true) }
+                                        if (targetPage != null) loadPage(targetPage.uid)
+                                    }
+                                }
+                            )
+                        } else {
+                            Text(section.text, fontSize = 14.sp, color = colors.onSurface, lineHeight = 24.sp, modifier = Modifier.padding(vertical = 4.dp))
+                        }
+                    }
                 }
             }
 
@@ -97,16 +134,18 @@ fun WikiPageScreen(pageUid: String, onBack: () -> Unit) {
                 Spacer(modifier = Modifier.height(10.dp))
                 for (wl in wikilinks) {
                     val linked = linkedPageMap.values.find { it.id == wl.targetId }
-                    if (linked != null) Row(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(colors.surfaceCard).clickable { loadPage(linked.uid) }.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("📄", fontSize = 18.sp)
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(wl.label.ifBlank { linked.title }, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onSurface, modifier = Modifier.weight(1f))
-                        Text("→", fontSize = 12.sp, color = colors.onSurfaceSecondary)
+                    if (linked != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(colors.surfaceCard).clickable { loadPage(linked.uid) }.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("📄", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(wl.label.ifBlank { linked.title }, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onSurface, modifier = Modifier.weight(1f))
+                            Text("→", fontSize = 12.sp, color = colors.onSurfaceSecondary)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
-                    if (linked != null) Spacer(modifier = Modifier.height(6.dp))
                 }
             }
             Spacer(modifier = Modifier.height(32.dp))
