@@ -78,12 +78,20 @@ class SolvePipeline(private val context: Context) {
         }
         val meaningfulQ = meaningfulUnmatched.toSet()
 
-        // 题干空但选项全的题目，尝试用选项文本去题库匹配
+        // 题干空但选项全的题目，先判断题型：判断题跳过选项救援，直接标记"不确定"
         val optionsRescued = mutableMapOf<Int, String>()
         val rescuedFromEmpty = mutableSetOf<Int>()
+        val skippedTypeRescue = mutableSetOf<Int>()
         if (emptyStemQ.isNotEmpty() && KnowledgeBaseManager.activeKB != null) {
             for (qNum in emptyStemQ.toList()) {
                 val qText = extractSingleQuestionText(text, qNum)
+                val qType = detectQuestionTypeForQuestion(text, qNum)
+                // 判断题：题干空 + 选项为"正确/错误"，直接跳过选项救援
+                if (qType == "判断题") {
+                    skippedTypeRescue.add(qNum)
+                    Log.d(TAG, "Q$qNum skipped options rescue: type=判断题")
+                    continue
+                }
                 val optionsText = extractAllOptions(qText)
                 Log.d(TAG, "Q$qNum options search: optionsText='${optionsText.take(80)}'")
                 if (optionsText.isBlank()) continue
@@ -125,6 +133,10 @@ class SolvePipeline(private val context: Context) {
                 emptyStemQ.removeAll(rescuedFromEmpty)
                 Log.d(TAG, "Options rescue: ${rescuedFromEmpty.size} questions saved from empty stem: $rescuedFromEmpty")
             }
+            if (skippedTypeRescue.isNotEmpty()) {
+                emptyStemQ.removeAll(skippedTypeRescue)
+                Log.d(TAG, "Skipped options rescue for ${skippedTypeRescue.size} 判断题: $skippedTypeRescue")
+            }
         }
         // 仍然空的加入直接答案
         val emptyDirectAnswers = emptyStemQ.associateWith { "不确定" }
@@ -132,7 +144,7 @@ class SolvePipeline(private val context: Context) {
         val unmatchedText = if (meaningfulQ.isEmpty() && optionsRescued.isEmpty()) ""
             else extractUnmatchedQuestionText(text, l1Keys, meaningfulQ)
 
-        Log.d(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ meaningfulQ=${meaningfulQ.size} emptyStemQ=${emptyStemQ.size} optionsRescued=${rescuedFromEmpty.size}")
+        Log.d(TAG, "solve: L1=${l1Keys.size} allQ=${allQ.size} unmatchedQ=$unmatchedQ meaningfulQ=${meaningfulQ.size} emptyStemQ=${emptyStemQ.size} optionsRescued=${rescuedFromEmpty.size} skippedTypeRescue=${skippedTypeRescue.size}")
 
         // If all unmatched questions are empty-stem, skip LLM entirely
         if (meaningfulQ.isEmpty()) {
