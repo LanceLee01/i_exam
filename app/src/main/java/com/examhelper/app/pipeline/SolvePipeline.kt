@@ -77,16 +77,43 @@ class SolvePipeline(private val context: Context) {
         }
         val meaningfulQ = meaningfulUnmatched.toSet()
 
-        val unmatchedText = if (meaningfulQ.isEmpty()) ""
-            else extractUnmatchedQuestionText(text, l1Keys, meaningfulQ)
+        // 题干空但选项全的题目，尝试用选项文本去题库匹配
+        val optionsRescued = mutableMapOf<Int, String>()
+        val rescuedFromEmpty = mutableSetOf<Int>()
+        if (emptyStemQ.isNotEmpty() && KnowledgeBaseManager.activeKB != null) {
+            for (qNum in emptyStemQ.toList()) {
+                val qText = extractSingleQuestionText(text, qNum)
+                val optionsText = extractAllOptions(qText)
+                if (optionsText.isBlank()) continue
+                // 用选项文本去题库搜索，尝试匹配到真题的选项行
+                val kbHits = KnowledgeBaseManager.activeKB!!.search(optionsText, options = "", topN = 10)
+                    .filter { (_, score) -> score >= 0.50f }
+                if (kbHits.isEmpty()) continue
+                // 取最高分匹配
+                val (bestEntry, bestScore) = kbHits.first()
+                val answer = normalizeTfAnswer(bestEntry.answer, bestEntry.source)
+                Log.d(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestEntry.question.take(40)}'")
+                optionsRescued[qNum] = answer
+                rescuedFromEmpty.add(qNum)
+            }
+            if (rescuedFromEmpty.isNotEmpty()) {
+                emptyStemQ.removeAll(rescuedFromEmpty)
+                Log.d(TAG, "Options rescue: ${rescuedFromEmpty.size} questions saved from empty stem: $rescuedFromEmpty")
+            }
+        }
+        // 仍然空的加入直接答案
         val emptyDirectAnswers = emptyStemQ.associateWith { "不确定" }
+
+        val unmatchedText = if (meaningfulQ.isEmpty() && optionsRescued.isEmpty()) ""
+            else extractUnmatchedQuestionText(text, l1Keys, meaningfulQ)
 
         // If all unmatched questions are empty-stem, skip LLM entirely
         if (meaningfulQ.isEmpty()) {
             Log.d(TAG, "All unmatched questions have empty stems, skipping LLM")
-            val combined = formatCombinedAnswer(emptyDirectAnswers, l1Answers ?: emptyMap())
+            val combined = formatCombinedAnswer(emptyDirectAnswers, (l1Answers ?: emptyMap()) + optionsRescued)
             val questionSources = (l1Answers ?: emptyMap()).keys.associate { it to "📋 题库匹配" } +
-                emptyStemQ.associate { it to "📋 题库匹配" }
+                emptyStemQ.associate { it to "📋 题库匹配" } +
+                rescuedFromEmpty.associate { it to "📋 题库匹配(选项匹配)" }
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(), questionSources)
             )
@@ -110,7 +137,7 @@ class SolvePipeline(private val context: Context) {
             requestStartMs = requestStartMs,
             text = text,
             maxTokens = maxTokens,
-            l1Answers = (l1Answers ?: emptyMap()) + emptyDirectAnswers,
+            l1Answers = (l1Answers ?: emptyMap()) + emptyDirectAnswers + optionsRescued,
             unmatchedQ = meaningfulUnmatched,
             enhancement = enhancement
         )
