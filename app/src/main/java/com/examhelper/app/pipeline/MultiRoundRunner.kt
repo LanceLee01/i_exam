@@ -2,18 +2,16 @@ package com.examhelper.app.pipeline
 
 import android.util.Log
 import com.examhelper.app.service.PageNavigator
-import com.examhelper.app.service.ExamAccessibilityService
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
 class MultiRoundRunner(
-    private val pipeline: SolvePipeline,
-    private val service: ExamAccessibilityService
+    private val pipeline: SolvePipeline
 ) {
-    private val pageNavigator: PageNavigator
-        get() = PageNavigator(service)
+    // PageNavigator no longer needs ExamAccessibilityService — uses ExtractedTextBus events
+    private val pageNavigator = PageNavigator()
     companion object {
         private const val TAG = "MultiRoundRunner"
         private const val MAX_PAGES = 100
@@ -38,10 +36,13 @@ class MultiRoundRunner(
     }
 
     fun start(scope: CoroutineScope) {
+        Log.e(TAG, "=== MultiRoundRunner.start() called ===")
         cancelled = false
         job = scope.launch(Dispatchers.Default) {
+            Log.e(TAG, "=== MultiRound coroutine STARTED ===")
             try {
                 // Phase 1: Scan all pages
+                Log.e(TAG, "Phase 1: Starting scan...")
                 val allPages = scanAllPages()
                 if (cancelled) return@launch
                 if (allPages.isEmpty()) {

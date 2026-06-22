@@ -19,6 +19,7 @@ object ExtractedTextBus {
         data class TextExtracted(val text: String) : Event()
         data object RequestExtract : Event()
         data class ClickAnswer(val answer: String, val sourceText: String) : Event()
+        data class ClickPage(val target: String) : Event()  // "下一页" or "上一页"
         data object AccessibilityConnected : Event()
         data object AccessibilityDisconnected : Event()
     }

@@ -42,7 +42,6 @@ import com.examhelper.app.knowledge.KBEntry
 import com.examhelper.app.knowledge.KnowledgeBaseManager
 import com.examhelper.app.pipeline.SolvePipeline
 import com.examhelper.app.pipeline.MultiRoundRunner
-import com.examhelper.app.service.ExamAccessibilityService
 import com.examhelper.app.ui.theme.LocalExamHelperColors
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
@@ -58,12 +57,8 @@ fun SidebarPanel(onHide: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
-    val accessibilityService = remember {
-        ExamApplication.instance.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as? ExamAccessibilityService
-    }
-    val multiRoundRunner = remember(accessibilityService) {
-        if (accessibilityService != null) MultiRoundRunner(pipeline, accessibilityService) else null
-    }
+    // MultiRoundRunner now uses ExtractedTextBus events (no direct service reference needed)
+    val multiRoundRunner = remember { MultiRoundRunner(pipeline) }
     var multiRoundRunning by remember { mutableStateOf(false) }
     val colors = LocalExamHelperColors.current
 
@@ -157,16 +152,39 @@ fun SidebarPanel(onHide: () -> Unit) {
                 )
             }
 
+            // ── TEST: 独立「点击下一页」按钮，专项测试翻页 ──
+            Spacer(Modifier.height(8.dp))
+            PageNavTestButton(
+                label = "点击下一页",
+                onClick = {
+                    Log.e("SidebarPanel", "TEST: sending ClickPage(下一页)")
+                    ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("下一页"))
+                }
+            )
+            Spacer(Modifier.height(4.dp))
+            PageNavTestButton(
+                label = "点击上一页",
+                onClick = {
+                    Log.e("SidebarPanel", "TEST: sending ClickPage(上一页)")
+                    ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("上一页"))
+                }
+            )
+
             // 多轮自动答题按钮
             Spacer(Modifier.height(8.dp))
             MultiRoundButton(
                 isRunning = multiRoundRunning,
                 onClick = {
-                    multiRoundRunning = true
-                    multiRoundRunner?.start(scope)
+                    if (multiRoundRunning) {
+                        multiRoundRunner.cancel()
+                        multiRoundRunning = false
+                    } else {
+                        multiRoundRunning = true
+                        multiRoundRunner.start(scope)
+                    }
                 },
                 onStop = {
-                    multiRoundRunner?.cancel()
+                    multiRoundRunner.cancel()
                     multiRoundRunning = false
                 }
             )

@@ -1,14 +1,18 @@
 package com.examhelper.app.service
 
 import android.util.Log
-import android.view.accessibility.AccessibilityNodeInfo
 import com.examhelper.app.pipeline.ScanPageFilter
 import com.examhelper.app.util.ExtractedTextBus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
-class PageNavigator(private val service: ExamAccessibilityService) {
+/**
+ * Page-level operations via ExtractedTextBus events.
+ * Does NOT hold a direct reference to ExamAccessibilityService.
+ * Instead sends ClickPage/RequestExtract/ClickAnswer events that the AccessibilityService listens to.
+ */
+class PageNavigator {
     companion object {
         private const val TAG = "PageNavigator"
         private const val MAX_BACK_PAGES = 100
@@ -33,12 +37,18 @@ class PageNavigator(private val service: ExamAccessibilityService) {
 
     /** Click 'next page' button, returns success */
     suspend fun clickNextPage(): Boolean = withContext(Dispatchers.Main) {
-        clickPageButton("下一页")
+        Log.d(TAG, "clickNextPage: sending ClickPage event")
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("下一页"))
+        delay(800)  // wait for page transition
+        true  // assume success; ExamAccessibilityService logs actual result
     }
 
     /** Click 'previous page' button, returns success */
     suspend fun clickPrevPage(): Boolean = withContext(Dispatchers.Main) {
-        clickPageButton("上一页")
+        Log.d(TAG, "clickPrevPage: sending ClickPage event")
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("上一页"))
+        delay(600)
+        true
     }
 
     /** Navigate back to first page (click '上一页' repeatedly until progress is 1/N) */
@@ -56,53 +66,7 @@ class PageNavigator(private val service: ExamAccessibilityService) {
     /** Click answer options on the current page, wait for fill to complete */
     suspend fun clickAnswer(answer: String, sourceText: String) {
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText))
-        // Wait for auto-click to finish (1500ms per question + buffer)
         val answerCount = answer.lines().size.coerceAtLeast(1)
         delay(1500L * answerCount + 2000L)
-    }
-
-    // ── Internal: Use ExamAccessibilityService directly to access root node ──
-
-    private fun clickPageButton(targetText: String): Boolean {
-        val root = service.rootInActiveWindow ?: run {
-            Log.w(TAG, "clickPageButton: rootInActiveWindow is null")
-            return false
-        }
-        val matches = mutableListOf<AccessibilityNodeInfo>()
-        collectButtonNodes(root, matches, targetText)
-        root.recycle()
-
-        if (matches.isEmpty()) {
-            Log.d(TAG, "clickPageButton: '$targetText' not found")
-            return false
-        }
-
-        val clicked = matches.firstOrNull { it.isClickable } ?: matches.first()
-        val parent = clicked.parent
-        val toClick = if (parent?.isClickable == true) parent else clicked
-        val result = toClick.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        Log.d(TAG, "clickPageButton: '$targetText' clicked=$result")
-
-        matches.forEach { it.recycle() }
-        if (toClick != clicked) clicked.recycle()
-        return result
-    }
-
-    private fun collectButtonNodes(
-        node: AccessibilityNodeInfo,
-        results: MutableList<AccessibilityNodeInfo>,
-        target: String
-    ) {
-        val text = node.text?.toString()?.trim()
-            ?: node.contentDescription?.toString()?.trim() ?: ""
-        if (text == target && node.isVisibleToUser) {
-            results.add(node)
-            return
-        }
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            collectButtonNodes(child, results, target)
-            child.recycle()
-        }
     }
 }

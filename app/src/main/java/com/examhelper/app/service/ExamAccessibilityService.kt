@@ -43,6 +43,9 @@ class ExamAccessibilityService : AccessibilityService() {
                     is ExtractedTextBus.Event.ClickAnswer -> {
                         performAutoClick(event.answer, event.sourceText)
                     }
+                    is ExtractedTextBus.Event.ClickPage -> {
+                        performPageClick(event.target)
+                    }
                     else -> {}
                 }
             }
@@ -62,6 +65,84 @@ class ExamAccessibilityService : AccessibilityService() {
         isConnected = false
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.AccessibilityDisconnected)
         Log.d(TAG, "AccessibilityService destroyed")
+    }
+
+    // ── Page click: reused by ClickPage event for multi-round navigation ──
+
+    private fun performPageClick(target: String) {
+        scope.launch(Dispatchers.Main) {
+            val root = rootInActiveWindow
+            if (root == null) {
+                Log.e(TAG, "performPageClick: rootInActiveWindow is NULL")
+                return@launch
+            }
+            Log.e(TAG, "performPageClick: searching for '$target' in root node tree")
+            val matches = mutableListOf<AccessibilityNodeInfo>()
+            searchPageButton(root, matches, target)
+            Log.e(TAG, "performPageClick: found ${matches.size} node(s) matching '$target'")
+            matches.forEachIndexed { i, node ->
+                val parent = node.parent
+                Log.e(TAG, "  [${i}] text='${node.text}' clickable=${node.isClickable} visible=${node.isVisibleToUser} parentClickable=${parent?.isClickable}")
+            }
+
+            if (matches.isEmpty()) {
+                Log.e(TAG, "performPageClick: '$target' NOT FOUND in node tree")
+                // Dump ALL clickable nodes for diagnosis
+                val allClickable = mutableListOf<String>()
+                dumpClickableNodes(root, allClickable, target, 0)
+                Log.e(TAG, "  All nodes containing '${target[0]}' or '页': ${allClickable.joinToString(" | ")}")
+                root.recycle()
+                return@launch
+            }
+
+            val clicked = matches.firstOrNull { it.isClickable } ?: matches.first()
+            val parent = clicked.parent
+            val toClick = if (parent?.isClickable == true) parent else clicked
+            val clickedText = toClick.text?.toString()?.trim() ?: toClick.contentDescription?.toString()?.trim() ?: "?"
+            Log.e(TAG, "performPageClick: clicking node '$clickedText' clickable=${toClick.isClickable}")
+            val result = toClick.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            Log.e(TAG, "performPageClick: ACTION_CLICK result=$result")
+
+            matches.forEach { it.recycle() }
+            if (toClick != clicked) clicked.recycle()
+            root.recycle()
+        }
+    }
+
+    private fun searchPageButton(
+        node: AccessibilityNodeInfo,
+        results: MutableList<AccessibilityNodeInfo>,
+        target: String
+    ) {
+        val text = node.text?.toString()?.trim()
+            ?: node.contentDescription?.toString()?.trim() ?: ""
+        if (text == target && node.isVisibleToUser) {
+            results.add(node)
+            return
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            searchPageButton(child, results, target)
+            child.recycle()
+        }
+    }
+
+    private fun dumpClickableNodes(
+        node: AccessibilityNodeInfo,
+        results: MutableList<String>,
+        targetFirstChar: String,
+        depth: Int
+    ) {
+        val text = node.text?.toString()?.trim()
+            ?: node.contentDescription?.toString()?.trim() ?: ""
+        if (text.isNotEmpty() && (text.contains(targetFirstChar) || text.contains("页")) && node.isVisibleToUser) {
+            results.add("'$text' clickable=${node.isClickable} depth=$depth")
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            dumpClickableNodes(child, results, targetFirstChar, depth + 1)
+            child.recycle()
+        }
     }
 
     private fun extractAndSendText() {
