@@ -14,3 +14,4 @@ local.properties
 i_exam/
 hs_err_pid*.log
 replay_pid*.log
+log_latest.txt
