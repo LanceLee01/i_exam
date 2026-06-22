@@ -43,7 +43,9 @@ object ExtractedTextBus {
             val progress: Float = 0f,
             val answeredCount: Int = 0,
             val message: String = "",
-            val errorMessage: String = ""
+            val errorMessage: String = "",
+            /** 当前填入的题目摘要（选项+答案） */
+            val currentQuestionSummary: String = ""
         ) : SidebarState()
     }
 

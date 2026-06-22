@@ -9,7 +9,8 @@ object ScanPageFilter {
         Regex("""^上一页$"""),
         Regex("""^下一页$"""),
         Regex("""[-]"""),       // Unicode Private Use Area chars like  
-        Regex("""^[ -~]$""")        // single ASCII char line
+        Regex("""^[ -~]$"""),        // single ASCII char line
+        Regex("""^\d+\.\d+$""")      // decimal numbers (height/weight values, e.g. "3.5", "2.5")
     )
 
     private val PROGRESS_REGEX = Regex("""(\d+)\s*/\s*(\d+)""")

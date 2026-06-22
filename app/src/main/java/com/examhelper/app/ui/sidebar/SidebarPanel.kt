@@ -152,24 +152,6 @@ fun SidebarPanel(onHide: () -> Unit) {
                 )
             }
 
-            // ── TEST: 独立「点击下一页」按钮，专项测试翻页 ──
-            Spacer(Modifier.height(8.dp))
-            PageNavTestButton(
-                label = "点击下一页",
-                onClick = {
-                    Log.e("SidebarPanel", "TEST: sending ClickPage(下一页)")
-                    ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("下一页"))
-                }
-            )
-            Spacer(Modifier.height(4.dp))
-            PageNavTestButton(
-                label = "点击上一页",
-                onClick = {
-                    Log.e("SidebarPanel", "TEST: sending ClickPage(上一页)")
-                    ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("上一页"))
-                }
-            )
-
             // 多轮自动答题按钮
             Spacer(Modifier.height(8.dp))
             MultiRoundButton(

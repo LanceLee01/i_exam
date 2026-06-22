@@ -218,24 +218,6 @@ fun SaveToKBButton(onClick: () -> Unit) {
     }
 }
 
-// ── TEST: 独立的翻页测试按钮 ──
-
-@Composable
-fun PageNavTestButton(label: String, onClick: () -> Unit) {
-    val colors = LocalExamHelperColors.current
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(44.dp),
-        shape = RoundedCornerShape(10.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF2196F3),
-            contentColor = Color.White
-        )
-    ) {
-        Text("🔬 $label", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
 // ── 多轮答题按钮 ──────────────────────────────────────────────
 
 @Composable

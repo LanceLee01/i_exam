@@ -112,6 +112,11 @@ class SolvePipeline(private val context: Context) {
                         KBEntry.computeTrigrams(normalizedOptions),
                         KBEntry.computeTrigrams(bestByOptions.options)
                     )
+                    // 低于阈值不采用，避免噪声选项匹配到无关题库条目
+                    if (bestScore < 0.30f) {
+                        Log.d(TAG, "Q$qNum options rescue rejected: score=${"%.2f".format(bestScore)} < 0.30")
+                        continue
+                    }
                     val answer = normalizeTfAnswer(bestByOptions.answer, bestByOptions.source)
                     Log.d(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestByOptions.question.take(40)}'")
                     optionsRescued[qNum] = answer

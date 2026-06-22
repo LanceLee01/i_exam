@@ -325,7 +325,15 @@ fun SidebarStateRenderer(
                     when (s.phase) {
                         SidebarState.MultiPhase.SCANNING -> "扫描中... 第 ${s.currentPage} 页"
                         SidebarState.MultiPhase.SOLVING -> "解答中..."
-                        SidebarState.MultiPhase.FILLING -> "填入中... ${s.answeredCount}/${s.totalPages}"
+                        SidebarState.MultiPhase.FILLING -> buildString {
+                            append("填入中... ${s.answeredCount}/${s.totalPages}")
+                            if (s.currentQuestionSummary.isNotBlank()) {
+                                append("\n")
+                                append(s.currentQuestionSummary)
+                            } else {
+                                append("\n(摘要为空)")
+                            }
+                        }
                         SidebarState.MultiPhase.DONE -> "完成! 共 ${s.totalPages} 题"
                         SidebarState.MultiPhase.ERROR -> s.errorMessage.ifBlank { "未知错误" }
                     },
