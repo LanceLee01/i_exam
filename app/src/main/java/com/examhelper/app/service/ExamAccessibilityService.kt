@@ -509,8 +509,9 @@ class ExamAccessibilityService : AccessibilityService() {
                     }
                 }
 
-                // 多选确认按钮
-                if (selections.size > 1) {
+                // 多选确认按钮 — 只要不是单选/判断题都点提交
+                val isSingle = selections.size <= 1 && questionTypes[qNum] !in listOf("多选", "多选题")
+                if (!isSingle) {
                     delay(Random.nextLong(200, 500))
                     val freshRoot = rootInActiveWindow ?: root
                     val confirmNode = findConfirmButton(freshRoot)
@@ -583,7 +584,7 @@ class ExamAccessibilityService : AccessibilityService() {
 
     private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val candidates = mutableListOf<AccessibilityNodeInfo>()
-        searchMatches(root, candidates, listOf("确认", "确定"))
+        searchMatches(root, candidates, listOf("确认", "确定", "提交答案"))
         for (node in candidates) {
             var current = node
             while (true) {

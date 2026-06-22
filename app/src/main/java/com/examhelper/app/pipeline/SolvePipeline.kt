@@ -310,8 +310,21 @@ class SolvePipeline(private val context: Context) {
                     }
                 } else entriesForQ
 
+                // If ALL entries filtered out by type, relax type filter and try with ALL entries
+                // (type labels in KB may be inaccurate — don't lose the match entirely)
                 if (typeFiltered.isEmpty()) {
-                    Log.d(TAG_DEBUG, "score-resolve: Q$qNum ALL entries filtered out by type=$examQType — keeping conflict")
+                    Log.d(TAG_DEBUG, "score-resolve: Q$qNum ALL entries filtered out by type=$examQType — retrying with all entries")
+                    val ranked = entriesForQ.sortedByDescending { (entry, score) ->
+                        score * 1000f + entry.question.length
+                    }
+                    val bestEntryByScore = ranked.firstOrNull()
+                    if (bestEntryByScore != null) {
+                        val (bestE, bestScore) = bestEntryByScore
+                        val bestAns = normalizeTfAnswer(bestE.answer, bestE.source)
+                        conflictQ.remove(qNum)
+                        numbered[qNum] = bestAns
+                        Log.d(TAG_DEBUG, "score-resolve(fallback): Q$qNum score=${"%.4f".format(bestScore)} type=${bestE.questionType}(exam=$examQType) ans=$bestAns from '${bestE.question.take(30)}'")
+                    }
                     continue
                 }
 
@@ -409,15 +422,22 @@ class SolvePipeline(private val context: Context) {
     // ── Question number helpers ──────────────────────────
 
     private fun extractQuestionNumbers(text: String): List<Pair<Int, IntRange>> {
+        // Numbers >200 are likely data values (e.g. "20430.25万元"), not question numbers.
+        // Exam question numbers are typically 1–200.
+        val MAX_QUESTION_NUMBER = 200
         val pattern = Regex("""(\d+)[、.]""")
         return pattern.findAll(text).mapNotNull { match ->
             val num = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
+            if (num > MAX_QUESTION_NUMBER) return@mapNotNull null
             val start = match.range.first
             num to (start..start)
         }.toList()
     }
 
     private fun extractSingleQuestionText(text: String, qNum: Int): String {
+        // Question numbers >200 are likely data values (e.g. "20430.25万元"), skip them
+        val MAX_QUESTION_NUMBER = 200
+        if (qNum > MAX_QUESTION_NUMBER) return text.take(200)
         val questionPattern = Regex("""(\d+)[、.]""")
         val matches = questionPattern.findAll(text).toList()
         val matchIdx = matches.indexOfFirst { it.groupValues[1].toIntOrNull() == qNum }
