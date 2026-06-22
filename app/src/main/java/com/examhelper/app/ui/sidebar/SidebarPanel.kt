@@ -41,6 +41,8 @@ import com.examhelper.app.ExamApplication
 import com.examhelper.app.knowledge.KBEntry
 import com.examhelper.app.knowledge.KnowledgeBaseManager
 import com.examhelper.app.pipeline.SolvePipeline
+import com.examhelper.app.pipeline.MultiRoundRunner
+import com.examhelper.app.service.PageNavigator
 import com.examhelper.app.ui.theme.LocalExamHelperColors
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
@@ -48,6 +50,7 @@ import com.examhelper.app.util.ExtractedTextBus.SidebarState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun SidebarPanel(onHide: () -> Unit) {
@@ -55,6 +58,9 @@ fun SidebarPanel(onHide: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
+    val pageNavigator = remember { PageNavigator() }
+    val multiRoundRunner = remember { MultiRoundRunner(pipeline, pageNavigator) }
+    var multiRoundRunning by remember { mutableStateOf(false) }
     val colors = LocalExamHelperColors.current
 
     val isAccessibilityConnected by ExtractedTextBus.accessibilityConnected.collectAsState()
@@ -147,6 +153,20 @@ fun SidebarPanel(onHide: () -> Unit) {
                 )
             }
 
+            // 多轮自动答题按钮
+            Spacer(Modifier.height(8.dp))
+            MultiRoundButton(
+                isRunning = multiRoundRunning,
+                onClick = {
+                    multiRoundRunning = true
+                    multiRoundRunner.start(scope)
+                },
+                onStop = {
+                    multiRoundRunner.cancel()
+                    multiRoundRunning = false
+                }
+            )
+
             // 根据状态显示内容
             SidebarStateRenderer(
                 state = state,
@@ -207,6 +227,17 @@ fun SidebarPanel(onHide: () -> Unit) {
                 color = TextSecondary,
                 modifier = Modifier.weight(1f)
             )
+        }
+    }
+
+    // 监听多轮答题状态变化，完成后自动重置按钮
+    LaunchedEffect(state) {
+        if (state is SidebarState.MultiRound) {
+            val s = state as SidebarState.MultiRound
+            if (s.phase == SidebarState.MultiPhase.DONE ||
+                s.phase == SidebarState.MultiPhase.ERROR) {
+                multiRoundRunning = false
+            }
         }
     }
 }

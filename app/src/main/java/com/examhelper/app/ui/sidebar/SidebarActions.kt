@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Psychology
@@ -214,5 +215,45 @@ fun SaveToKBButton(onClick: () -> Unit) {
         )
         Spacer(Modifier.width(6.dp))
         Text("保存到题库", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+// ── 多轮答题按钮 ──────────────────────────────────────────────
+
+@Composable
+fun MultiRoundButton(
+    isRunning: Boolean,
+    onClick: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val colors = LocalExamHelperColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.96f else 1f)
+
+    Button(
+        onClick = { if (isRunning) onStop() else onClick() },
+        modifier = Modifier.fillMaxWidth().height(48.dp).scale(scale),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isRunning) colors.Error.copy(alpha = 0.3f)
+                            else Color(0xFF7C3AED),
+            contentColor = if (isRunning) colors.Error else Color.White
+        ),
+        interactionSource = interactionSource
+    ) {
+        if (isRunning) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = colors.Error,
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("停止多轮", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        } else {
+            Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("多轮自动答题", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
