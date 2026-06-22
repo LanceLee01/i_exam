@@ -8,7 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
-class PageNavigator {
+class PageNavigator(private val service: ExamAccessibilityService) {
     companion object {
         private const val TAG = "PageNavigator"
         private const val MAX_BACK_PAGES = 100
@@ -61,10 +61,13 @@ class PageNavigator {
         delay(1500L * answerCount + 2000L)
     }
 
-    // ── Internal: Access root node and search for buttons ──
+    // ── Internal: Use ExamAccessibilityService directly to access root node ──
 
     private fun clickPageButton(targetText: String): Boolean {
-        val root = getRootNode() ?: return false
+        val root = service.rootInActiveWindow ?: run {
+            Log.w(TAG, "clickPageButton: rootInActiveWindow is null")
+            return false
+        }
         val matches = mutableListOf<AccessibilityNodeInfo>()
         collectButtonNodes(root, matches, targetText)
         root.recycle()
@@ -83,28 +86,6 @@ class PageNavigator {
         matches.forEach { it.recycle() }
         if (toClick != clicked) clicked.recycle()
         return result
-    }
-
-    private fun getRootNode(): AccessibilityNodeInfo? {
-        return try {
-            val clz = Class.forName("android.view.accessibility.AccessibilityInteractionClient")
-            val getInstance = clz.getDeclaredMethod("getInstance")
-            getInstance.isAccessible = true
-            val client = getInstance.invoke(null)
-            val getRootMethod = client.javaClass.getDeclaredMethod(
-                "findAccessibilityNodeInfoByAccessibilityId",
-                Int::class.java, Long::class.java, Int::class.java,
-                Int::class.javaPrimitiveType, android.os.Bundle::class.java
-            )
-            getRootMethod.isAccessible = true
-            @Suppress("DEPRECATION")
-            val node = getRootMethod.invoke(client, 0, Long.MAX_VALUE, 0, 0, null)
-                as? AccessibilityNodeInfo
-            node
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to get root node via reflection: ${e.message}")
-            null
-        }
     }
 
     private fun collectButtonNodes(

@@ -42,7 +42,7 @@ import com.examhelper.app.knowledge.KBEntry
 import com.examhelper.app.knowledge.KnowledgeBaseManager
 import com.examhelper.app.pipeline.SolvePipeline
 import com.examhelper.app.pipeline.MultiRoundRunner
-import com.examhelper.app.service.PageNavigator
+import com.examhelper.app.service.ExamAccessibilityService
 import com.examhelper.app.ui.theme.LocalExamHelperColors
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
@@ -58,8 +58,12 @@ fun SidebarPanel(onHide: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
-    val pageNavigator = remember { PageNavigator() }
-    val multiRoundRunner = remember { MultiRoundRunner(pipeline, pageNavigator) }
+    val accessibilityService = remember {
+        ExamApplication.instance.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as? ExamAccessibilityService
+    }
+    val multiRoundRunner = remember(accessibilityService) {
+        if (accessibilityService != null) MultiRoundRunner(pipeline, accessibilityService) else null
+    }
     var multiRoundRunning by remember { mutableStateOf(false) }
     val colors = LocalExamHelperColors.current
 
@@ -159,10 +163,10 @@ fun SidebarPanel(onHide: () -> Unit) {
                 isRunning = multiRoundRunning,
                 onClick = {
                     multiRoundRunning = true
-                    multiRoundRunner.start(scope)
+                    multiRoundRunner?.start(scope)
                 },
                 onStop = {
-                    multiRoundRunner.cancel()
+                    multiRoundRunner?.cancel()
                     multiRoundRunning = false
                 }
             )

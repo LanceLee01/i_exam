@@ -2,6 +2,7 @@ package com.examhelper.app.pipeline
 
 import android.util.Log
 import com.examhelper.app.service.PageNavigator
+import com.examhelper.app.service.ExamAccessibilityService
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 import kotlinx.coroutines.*
@@ -9,8 +10,10 @@ import kotlinx.coroutines.flow.*
 
 class MultiRoundRunner(
     private val pipeline: SolvePipeline,
-    private val pageNavigator: PageNavigator
+    private val service: ExamAccessibilityService
 ) {
+    private val pageNavigator: PageNavigator
+        get() = PageNavigator(service)
     companion object {
         private const val TAG = "MultiRoundRunner"
         private const val MAX_PAGES = 100
