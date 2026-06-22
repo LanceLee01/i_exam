@@ -23,6 +23,7 @@ class MultiRoundRunner(
 
     private var job: Job? = null
     private var cancelled = false
+    private var cachedKbAnswerOptions: Map<Int, String> = emptyMap()
 
     sealed class MultiRoundState {
         data object Idle : MultiRoundState()
@@ -92,7 +93,7 @@ class MultiRoundRunner(
                         currentPage = current, totalPages = total, answeredCount = answeredCount,
                         currentQuestionSummary = qSummary)
 
-                    pageNavigator.clickAnswer(answer, filtered)
+                    pageNavigator.clickAnswer(answer, filtered, cachedKbAnswerOptions)
                     Log.e(TAG, "Round $round: filled page $current, total answered=$answeredCount")
 
                     // 4. Check if done
@@ -131,6 +132,7 @@ class MultiRoundRunner(
         // Check if already in Done state (fast path for L1-only solves)
         var current = ExtractedTextBus.sidebarState.value
         if (current is SidebarState.Done) {
+            cachedKbAnswerOptions = current.kbAnswerOptions
             return current.answer
         }
 
@@ -142,6 +144,7 @@ class MultiRoundRunner(
             ExtractedTextBus.sidebarState.collect { s ->
                 if (s is SidebarState.Done && !done) {
                     answer = s.answer
+                    cachedKbAnswerOptions = s.kbAnswerOptions
                     done = true
                 }
             }

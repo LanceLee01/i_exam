@@ -35,8 +35,10 @@ class SolvePipeline(private val context: Context) {
         val maxTokens = config.maxTokens
 
         // L1: Excel KB matching
-        val l1Answers = tryExcelMatchAll(text)
+        val l1Result = tryExcelMatchAll(text)
+        val l1Answers = l1Result?.answers
         val l1Keys = l1Answers?.keys?.toSet() ?: emptySet()
+        val l1OptionsMap = l1Result?.kbAnswerOptions ?: emptyMap()
 
         // Determine all question numbers
         val allQ = extractQuestionNumbers(text).map { it.first }.toSet()
@@ -52,7 +54,7 @@ class SolvePipeline(private val context: Context) {
             val source = AnswerSource.EXCEL_MATCH
             Log.d(TAG, "All ${allQ.size} matched by L1, returning")
             ExtractedTextBus.updateSidebarState(
-                SidebarState.Done(text, combined, source, emptyList(), questionSources)
+                SidebarState.Done(text, combined, source, emptyList(), questionSources, kbAnswerOptions = l1OptionsMap)
             )
             return
         }
@@ -80,6 +82,7 @@ class SolvePipeline(private val context: Context) {
 
         // 题干空但选项全的题目，先判断题型：判断题跳过选项救援，直接标记"不确定"
         val optionsRescued = mutableMapOf<Int, String>()
+        val rescuedOptions = mutableMapOf<Int, String>()  // options text for rescued questions
         val rescuedFromEmpty = mutableSetOf<Int>()
         val skippedTypeRescue = mutableSetOf<Int>()
         if (emptyStemQ.isNotEmpty() && KnowledgeBaseManager.activeKB != null) {
@@ -120,6 +123,7 @@ class SolvePipeline(private val context: Context) {
                     val answer = normalizeTfAnswer(bestByOptions.answer, bestByOptions.source)
                     Log.d(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestByOptions.question.take(40)}'")
                     optionsRescued[qNum] = answer
+                    if (bestByOptions.options.isNotBlank()) rescuedOptions[qNum] = bestByOptions.options
                     rescuedFromEmpty.add(qNum)
                     continue  // 已救，跳过 search 匹配
                 }
@@ -132,6 +136,7 @@ class SolvePipeline(private val context: Context) {
                 val answer = normalizeTfAnswer(bestEntry.answer, bestEntry.source)
                 Log.d(TAG, "Q$qNum empty stem rescued by options match: score=${"%.2f".format(bestScore)} ans=$answer entry='${bestEntry.question.take(40)}'")
                 optionsRescued[qNum] = answer
+                if (bestEntry.options.isNotBlank()) rescuedOptions[qNum] = bestEntry.options
                 rescuedFromEmpty.add(qNum)
             }
             if (rescuedFromEmpty.isNotEmpty()) {
@@ -159,7 +164,8 @@ class SolvePipeline(private val context: Context) {
                 emptyStemQ.associate { it to "📋 题库匹配" } +
                 rescuedFromEmpty.associate { it to "📋 题库匹配(选项匹配)" }
             ExtractedTextBus.updateSidebarState(
-                SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(), questionSources)
+                SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(), questionSources,
+                    kbAnswerOptions = l1OptionsMap + rescuedOptions)
             )
             return
         }
@@ -182,6 +188,7 @@ class SolvePipeline(private val context: Context) {
             text = text,
             maxTokens = maxTokens,
             l1Answers = (l1Answers ?: emptyMap()) + emptyDirectAnswers + optionsRescued,
+            l1OptionsMap = l1OptionsMap + rescuedOptions,
             unmatchedQ = meaningfulUnmatched,
             enhancement = enhancement
         )
@@ -195,7 +202,12 @@ class SolvePipeline(private val context: Context) {
 
     // ── L1: Excel 题库精准匹配 ───────────────────────────
 
-    private suspend fun tryExcelMatchAll(text: String): Map<Int, String>? {
+    private data class L1Result(
+        val answers: Map<Int, String>,
+        val kbAnswerOptions: Map<Int, String>  // qNum -> KBEntry.options text
+    )
+
+    private suspend fun tryExcelMatchAll(text: String): L1Result? {
         val examOptions = extractAllOptions(text)
         Log.d(TAG, "tryExcelMatchAll: calling search() — text len=${text.length}, options len=${examOptions.length}")
         val t0 = System.currentTimeMillis()
@@ -223,7 +235,7 @@ class SolvePipeline(private val context: Context) {
                     Log.d(TAG_DEBUG, "TYPE MISMATCH: Q$qNum entry type='${entry.questionType}' vs exam type='$examQType' — keeping anyway: '${entry.question.take(30)}'")
                 }
             }
-            qNum to normalizeTfAnswer(entry.answer, entry.source)
+            Triple(qNum, normalizeTfAnswer(entry.answer, entry.source), entry.options)
         }
 
         // ── 进度反馈：报告当前匹配数量 ──
@@ -234,7 +246,7 @@ class SolvePipeline(private val context: Context) {
         // Detect conflicts: same question number with different answers
         val conflictQ = mutableSetOf<Int>()
         val answerByQ = mutableMapOf<Int, MutableSet<String>>()
-        for ((q, ans) in numberedPairs) {
+        for ((q, ans, _) in numberedPairs) {
             val answers = answerByQ.getOrPut(q) { mutableSetOf() }
             answers.add(ans)
             if (answers.size > 1) conflictQ.add(q)
@@ -242,9 +254,13 @@ class SolvePipeline(private val context: Context) {
         
         // Build result: non-conflicted questions first
         val numbered = mutableMapOf<Int, String>()
-        for ((q, ans) in numberedPairs) {
+        val optionsMap = mutableMapOf<Int, String>()
+        for ((q, ans, opts) in numberedPairs) {
             if (q in conflictQ) continue
-            if (q !in numbered) numbered[q] = ans
+            if (q !in numbered) {
+                numbered[q] = ans
+                if (opts.isNotBlank()) optionsMap[q] = opts
+            }
         }
 
         // Resolve conflicts: use options text matching, fall back to score-based
@@ -296,6 +312,10 @@ class SolvePipeline(private val context: Context) {
                             if (matchingAnswers.size == 1) {
                                 conflictQ.remove(qNum)
                                 numbered[qNum] = matchingAnswers.first()
+                                // Capture options from any matching entry for option-text resolution
+                                withOptions.firstOrNull()?.let { (entry, _) ->
+                                    if (entry.options.isNotBlank()) optionsMap[qNum] = entry.options
+                                }
                                 continue
                             }
                         }
@@ -323,6 +343,7 @@ class SolvePipeline(private val context: Context) {
                         val bestAns = normalizeTfAnswer(bestE.answer, bestE.source)
                         conflictQ.remove(qNum)
                         numbered[qNum] = bestAns
+                        if (bestE.options.isNotBlank()) optionsMap[qNum] = bestE.options
                         Log.d(TAG_DEBUG, "score-resolve(fallback): Q$qNum score=${"%.4f".format(bestScore)} type=${bestE.questionType}(exam=$examQType) ans=$bestAns from '${bestE.question.take(30)}'")
                     }
                     continue
@@ -332,12 +353,13 @@ class SolvePipeline(private val context: Context) {
                 val ranked = typeFiltered.sortedByDescending { (entry, score) ->
                     score * 1000f + entry.question.length
                 }
-                val bestEntryByScore = ranked.firstOrNull()
-                if (bestEntryByScore != null) {
-                    val (bestE, bestScore) = bestEntryByScore
+                val bestEntryByScore2 = ranked.firstOrNull()
+                if (bestEntryByScore2 != null) {
+                    val (bestE, bestScore) = bestEntryByScore2
                     val bestAns = normalizeTfAnswer(bestE.answer, bestE.source)
                     conflictQ.remove(qNum)
                     numbered[qNum] = bestAns
+                    if (bestE.options.isNotBlank()) optionsMap[qNum] = bestE.options
                     Log.d(TAG_DEBUG, "score-resolve: Q$qNum score=${"%.4f".format(bestScore)} type=${bestE.questionType}(exam=$examQType) ans=$bestAns from '${bestE.question.take(30)}'")
                 }
             }
@@ -349,7 +371,7 @@ class SolvePipeline(private val context: Context) {
         }
         
         Log.d(TAG, "L1 matched ${numbered.size} questions: ${numbered.keys.sorted()}")
-        return if (numbered.isEmpty()) null else numbered
+        return if (numbered.isEmpty()) null else L1Result(numbered, optionsMap)
     }
 
     // ── L2: Wiki 知识库检索 ─────────────────────────────
@@ -720,6 +742,7 @@ class SolvePipeline(private val context: Context) {
         text: String,
         maxTokens: Int,
         l1Answers: Map<Int, String>,
+        l1OptionsMap: Map<Int, String>,
         unmatchedQ: List<Int>,
         enhancement: SearchEnhancement
     ) {
@@ -793,7 +816,8 @@ class SolvePipeline(private val context: Context) {
             val source = if (l4Parsed.isEmpty()) AnswerSource.EXCEL_MATCH else AnswerSource.LLM_DIRECT
 
             ExtractedTextBus.updateSidebarState(
-                SidebarState.Done(text, finalAnswer, source, enhancement.references, questionSources)
+                SidebarState.Done(text, finalAnswer, source, enhancement.references, questionSources,
+                    kbAnswerOptions = l1OptionsMap)
             )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e

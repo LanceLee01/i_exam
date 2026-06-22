@@ -52,7 +52,7 @@ fun SidebarStateRenderer(
     state: SidebarState,
     onRework: (text: String) -> Unit,
     onSaveToKB: (text: String, answer: String) -> Unit,
-    onDoneState: (answer: String, text: String) -> Unit
+    onDoneState: (answer: String, text: String, kbAnswerOptions: Map<Int, String>) -> Unit
 ) {
     val colors = LocalExamHelperColors.current
 
@@ -149,7 +149,7 @@ fun SidebarStateRenderer(
 
             is SidebarState.Done -> Column {
                 Log.d("SidebarPanel", "Done state rendered, answer length=${s.answer.length}")
-                onDoneState(s.answer, s.text)
+                onDoneState(s.answer, s.text, s.kbAnswerOptions)
 
                 Spacer(Modifier.height(12.dp))
                 SectionHeader("答案")

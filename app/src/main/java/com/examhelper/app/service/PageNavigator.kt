@@ -64,8 +64,8 @@ class PageNavigator {
     }
 
     /** Click answer options on the current page, wait for fill to complete */
-    suspend fun clickAnswer(answer: String, sourceText: String) {
-        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText))
+    suspend fun clickAnswer(answer: String, sourceText: String, kbAnswerOptions: Map<Int, String> = emptyMap()) {
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText, kbAnswerOptions))
         val answerCount = answer.lines().size.coerceAtLeast(1)
         delay(1500L * answerCount + 2000L)
     }

@@ -42,7 +42,7 @@ class ExamAccessibilityService : AccessibilityService() {
                         extractAndSendText()
                     }
                     is ExtractedTextBus.Event.ClickAnswer -> {
-                        performAutoClick(event.answer, event.sourceText)
+                        performAutoClick(event.answer, event.sourceText, event.kbAnswerOptions)
                     }
                     is ExtractedTextBus.Event.ClickPage -> {
                         performPageClick(event.target)
@@ -305,7 +305,7 @@ class ExamAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun performAutoClick(answer: String, sourceText: String) {
+    private fun performAutoClick(answer: String, sourceText: String, kbAnswerOptions: Map<Int, String> = emptyMap()) {
         scope.launch(Dispatchers.Main) {
             val root = rootInActiveWindow ?: return@launch
 
@@ -511,11 +511,33 @@ class ExamAccessibilityService : AccessibilityService() {
 
                 Log.d(TAG, "Q$qNum options=${qOptionNodes.map { it.second.take(15) }}")
 
+                // ── 选项文字匹配解析（题库匹配题目选项乱序问题） ──
+                // Resolve KB answer letters to on-screen letters via option text matching.
+                // Only for multi-choice questions with available KB options text.
+                val effectiveSelections = if (kbAnswerOptions.containsKey(qNum) &&
+                    selections.all { it in "A".."F" }) {
+                    val kbOpts = kbAnswerOptions[qNum]!!
+                    // Build on-screen letter→text map from qOptionNodes
+                    val onScreenMap = qOptionNodes.mapNotNull { (_, nodeText) ->
+                        val letter = nodeText.firstOrNull()?.uppercaseChar()?.toString() ?: return@mapNotNull null
+                        // Extract option text: strip the leading letter and separator
+                        val text = nodeText.drop(1).trimStart('.', '、', '．', '：', ':', '，', ' ', '）', ')').trim()
+                        if (letter in "A".."F") letter to text else null
+                    }
+                    val resolved = com.examhelper.app.util.resolveOnScreenLetters(kbOpts, selections, onScreenMap)
+                    if (resolved != selections) {
+                        Log.d(TAG, "Q$qNum option text resolution: KB[$selections] with options='${kbOpts.take(60)}' -> screen[$resolved] based on onscreen=${onScreenMap.map { "${it.first}.${it.second.take(15)}" }}")
+                    }
+                    resolved
+                } else {
+                    selections  // T/F, L4-only, or no KB options available — keep original
+                }
+
                 // Cross-check: if source text says this is 多选 but LLM only gave 1 answer
                 // Fallback: click ALL options + confirm to advance the exam
                 val qType = questionTypes[qNum] ?: ""
-                if (qType == "多选" && selections.size == 1 && selections[0] in "A".."F") {
-                    Log.w(TAG, "Q$qNum FALLBACK: source says '多选' but answer is single letter '${selections[0]}' — clicking ALL options")
+                if (qType == "多选" && effectiveSelections.size == 1 && effectiveSelections[0] in "A".."F") {
+                    Log.w(TAG, "Q$qNum FALLBACK: source says '多选' but answer is single letter '${effectiveSelections[0]}' — clicking ALL options")
                     for ((node, text) in qOptionNodes) {
                         Log.d(TAG, "Q$qNum fallback clicking: ${text.take(20)}")
                         delay(Random.nextLong(80, 200))
@@ -546,7 +568,7 @@ class ExamAccessibilityService : AccessibilityService() {
                 }
 
                 // Click matching selections
-                for (sel in selections) {
+                for (sel in effectiveSelections) {
                     val matchIdx = qOptionNodes.indexOfFirst { (_, text) -> matchesSelection(text, sel) }
                     if (matchIdx >= 0) {
                         val (matchNode, matchText) = qOptionNodes[matchIdx]
@@ -570,7 +592,7 @@ class ExamAccessibilityService : AccessibilityService() {
                 }
 
                 // 多选确认按钮 — 只要不是单选/判断题都点提交
-                val isSingle = selections.size <= 1 && questionTypes[qNum] !in listOf("多选", "多选题")
+                val isSingle = effectiveSelections.size <= 1 && questionTypes[qNum] !in listOf("多选", "多选题")
                 if (!isSingle) {
                     delay(Random.nextLong(200, 500))
                     val freshRoot = rootInActiveWindow ?: root
