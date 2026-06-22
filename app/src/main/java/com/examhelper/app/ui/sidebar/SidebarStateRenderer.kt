@@ -316,6 +316,23 @@ fun SidebarStateRenderer(
                 Spacer(Modifier.height(24.dp))
                 StatusHint(s.message, isError = true)
             }
+
+            is SidebarState.MultiRound -> Column {
+                // Placeholder — will be fully rendered in Task 5
+                Spacer(Modifier.height(12.dp))
+                SectionHeader("🔄 多轮答题")
+                Text(
+                    when (s.phase) {
+                        SidebarState.MultiPhase.SCANNING -> "扫描中... 第 ${s.currentPage} 页"
+                        SidebarState.MultiPhase.SOLVING -> "解答中..."
+                        SidebarState.MultiPhase.FILLING -> "填入中... ${s.answeredCount}/${s.totalPages}"
+                        SidebarState.MultiPhase.DONE -> "完成! 共 ${s.totalPages} 题"
+                        SidebarState.MultiPhase.ERROR -> s.errorMessage.ifBlank { "未知错误" }
+                    },
+                    color = colors.OnSurface,
+                    fontSize = 14.sp
+                )
+            }
         }
     }
 }

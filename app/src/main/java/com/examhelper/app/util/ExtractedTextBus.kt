@@ -31,6 +31,19 @@ object ExtractedTextBus {
         data class Answering(val text: String) : SidebarState()
         data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList(), val questionSources: Map<Int, String> = emptyMap()) : SidebarState()
         data class Error(val message: String) : SidebarState()
+
+        // ── 多轮自动答题状态 ──
+        enum class MultiPhase { SCANNING, SOLVING, FILLING, DONE, ERROR }
+
+        data class MultiRound(
+            val phase: MultiPhase,
+            val currentPage: Int = 0,
+            val totalPages: Int = 0,
+            val progress: Float = 0f,
+            val answeredCount: Int = 0,
+            val message: String = "",
+            val errorMessage: String = ""
+        ) : SidebarState()
     }
 
     enum class AnswerSource(val label: String) {

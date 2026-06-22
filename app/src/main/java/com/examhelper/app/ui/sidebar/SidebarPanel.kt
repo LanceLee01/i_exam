@@ -195,6 +195,13 @@ fun SidebarPanel(onHide: () -> Unit) {
                     is SidebarState.Streaming -> "● 作答中..."
                     is SidebarState.Answering -> "● 解答中..."
                     is SidebarState.Error -> "● 异常"
+                    is SidebarState.MultiRound -> when ((state as SidebarState.MultiRound).phase) {
+                        SidebarState.MultiPhase.SCANNING -> "● 扫描中"
+                        SidebarState.MultiPhase.SOLVING -> "● 解答中"
+                        SidebarState.MultiPhase.FILLING -> "● 填入中"
+                        SidebarState.MultiPhase.DONE -> "● 多轮完成"
+                        SidebarState.MultiPhase.ERROR -> "● 多轮异常"
+                    }
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondary,

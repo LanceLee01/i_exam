@@ -1,5 +1,6 @@
 package com.examhelper.app.ui.screen
 
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,6 +34,12 @@ import com.examhelper.app.ui.theme.LocalAppColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,18 +69,105 @@ fun QuestionBankTab(
     val kb = remember(refreshKey) { KnowledgeBaseManager.activeKB }
     val allEntries = remember(kb, refreshKey) { kb?.entries?.toList() ?: emptyList() }
 
+    // Crash log helper — must be a val lambda, not a named fun (K2 compiler restriction in @Composable)
+    val logCrash: (String, Throwable?) -> Unit = remember { { msg, ex ->
+        try {
+            val tag = "QuestionBankCrash"
+            Log.e(tag, msg, ex)
+            val logDir = File(ExamApplication.instance.filesDir, "crash_logs")
+            logDir.mkdirs()
+            val file = File(logDir, "crash_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.txt")
+            PrintWriter(file).use { pw ->
+                pw.println("=== 题库搜索崩溃 ===")
+                pw.println("时间: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())}")
+                pw.println("搜索关键字: $searchQuery")
+                pw.println("筛选类型: $selectedType")
+                pw.println("活跃KB: ${KnowledgeBaseManager.activeKBName}")
+                pw.println("总条目数: ${allEntries.size}")
+                pw.println()
+                pw.println("=== 异常信息 ===")
+                pw.println(msg)
+                if (ex != null) {
+                    val sw = StringWriter()
+                    ex.printStackTrace(PrintWriter(sw))
+                    pw.println()
+                    pw.println("=== 堆栈跟踪 ===")
+                    pw.print(sw.toString())
+                }
+                pw.println()
+                pw.println("=== 搜索结果概要 ===")
+                try {
+                    val matched = allEntries.count {
+                        try {
+                            it.question.lowercase().contains(searchQuery.lowercase()) ||
+                            it.answer.lowercase().contains(searchQuery.lowercase()) ||
+                            it.options.lowercase().contains(searchQuery.lowercase())
+                        } catch (_: Exception) { false }
+                    }
+                    pw.println("匹配条目数: $matched")
+                    pw.println()
+                    pw.println("=== 匹配条目详情 ===")
+                    allEntries.forEachIndexed { i, e ->
+                        try {
+                            if (e.question.lowercase().contains(searchQuery.lowercase()) ||
+                                e.answer.lowercase().contains(searchQuery.lowercase()) ||
+                                e.options.lowercase().contains(searchQuery.lowercase())) {
+                                pw.println("[${i}] 题目(${e.question.length}字): ${e.question.take(100)}")
+                                pw.println("    答案: ${e.answer}")
+                                pw.println("    选项(${e.options.length}字): ${e.options.take(200)}")
+                                pw.println("    题型: ${e.questionType ?: "null"}")
+                                pw.println()
+                            }
+                        } catch (err: Exception) {
+                            pw.println("[${i}] ERROR dumping: ${err.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    pw.println("搜索概要提取失败: ${e.message}")
+                }
+            }
+            Log.i(tag, "Crash log saved to: ${file.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("QuestionBankCrash", "Failed to write crash log", e)
+        }
+    } }
+
     // Filter
     val filtered = remember(allEntries, searchQuery, selectedType) {
-        var r = allEntries
-        if (searchQuery.length >= 2) {
-            val q = searchQuery.lowercase()
-            r = r.filter {
-                it.question.lowercase().contains(q) || it.answer.lowercase().contains(q) ||
-                it.options.lowercase().contains(q)
+        try {
+            var r = allEntries
+            if (searchQuery.length >= 2) {
+                val q = searchQuery.lowercase()
+                // 日志: 开始过滤
+                Log.d("QuestionBankFilter", "Start filter: query='$q', entries=${allEntries.size}")
+                var filterCrashed = false
+                var crashIndex = -1
+                r = r.filterIndexed { i, entry ->
+                    if (filterCrashed) return@filterIndexed false
+                    try {
+                        entry.question.lowercase().contains(q) || entry.answer.lowercase().contains(q) ||
+                        entry.options.lowercase().contains(q)
+                    } catch (ex: Exception) {
+                        filterCrashed = true
+                        crashIndex = i
+                        logCrash("filter 崩溃: 第 $i 条条目过滤异常, question='${entry.question.take(80)}', answer='${entry.answer.take(80)}', options='${entry.options.take(80)}'", ex)
+                        false
+                    }
+                }
             }
+            if (selectedType != null) {
+                try {
+                    r = r.filter { it.questionType == selectedType }
+                } catch (ex: Exception) {
+                    logCrash("题型过滤异常", ex)
+                }
+            }
+            Log.d("QuestionBankFilter", "Filter done: result=${r.size}")
+            r
+        } catch (e: Exception) {
+            logCrash("filter 整体异常", e)
+            emptyList()
         }
-        if (selectedType != null) r = r.filter { it.questionType == selectedType }
-        r
     }
 
     // Excel/ZIP import launcher
@@ -226,12 +320,12 @@ fun QuestionBankTab(
             EmptyState(if (allEntries.isEmpty()) "暂无题目，点击上方导入" else "无匹配结果", colors.onSurfaceSecondary)
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(filtered, key = { _, e -> e.hashCode() }) { _, entry ->
+                itemsIndexed(filtered, key = { idx, e -> "${idx}_${e.hashCode()}" }) { index, entry ->
                     val idx = allEntries.indexOf(entry)
                     QuestionItem(
-                        index = idx, entry = entry, colors = colors,
-                        onEdit = { editingEntry = idx to entry },
-                        onDelete = { showDeleteConfirm = idx },
+                        index = if (idx >= 0) idx else index, entry = entry, colors = colors,
+                        onEdit = { editingEntry = if (idx >= 0) idx to entry else index to entry },
+                        onDelete = { showDeleteConfirm = if (idx >= 0) idx else index },
                     )
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
@@ -322,7 +416,12 @@ private fun QuestionItem(
             // Options
             if (entry.options.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                val opts = entry.options.split(Regex("""\s{2,}|\n|(?=[A-F]\s*[.、:：)）])""")).filter { it.isNotBlank() }
+                val opts = try {
+                    entry.options.split(Regex("""\s{2,}|\n|(?=[A-F]\s*[.、:：)）])""")).filter { it.isNotBlank() }
+                } catch (e: Exception) {
+                    Log.e("QuestionItem", "options split crash: entry=${entry.question.take(40)}, options=${entry.options.take(200)}", e)
+                    listOf(entry.options.take(120))
+                }
                 if (opts.size >= 2) {
                     val correctLetters = entry.answer.uppercase().filter { it in 'A'..'F' }.toSet()
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
