@@ -84,3 +84,22 @@ internal fun matchesSelection(nodeText: String, selection: String): Boolean {
     if (selection in tf) return tf.any { nodeText.contains(it) }
     return nodeText.contains(selection, ignoreCase = true)
 }
+
+/** Extract the text block for a specific question number from the source text. */
+internal fun extractQuestionBlock(sourceText: String, qNum: Int): String {
+    val lines = sourceText.lines()
+    val startMarker = "$qNum、"
+    var startIdx = lines.indexOfFirst { it.trimStart().startsWith(startMarker) }
+    if (startIdx < 0) {
+        // Try "N." format
+        val altMarker = "$qNum."
+        startIdx = lines.indexOfFirst { it.trimStart().startsWith(altMarker) }
+    }
+    if (startIdx < 0) return ""
+
+    val nextQRegex = Regex("""^\s*\d+\s*[、.]""")
+    val endIdx = lines.subList(startIdx + 1, lines.size)
+        .indexOfFirst { nextQRegex.containsMatchIn(it.trim()) }
+    val blockEnd = if (endIdx < 0) lines.size else startIdx + 1 + endIdx
+    return lines.subList(startIdx, blockEnd).joinToString("\n")
+}

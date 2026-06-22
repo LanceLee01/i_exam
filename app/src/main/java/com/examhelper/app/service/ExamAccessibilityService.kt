@@ -10,6 +10,7 @@ import com.examhelper.app.util.ExamConstants
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ANSWER_UNCERTAIN
 import com.examhelper.app.util.countOptionsPerQuestion
+import com.examhelper.app.util.extractQuestionBlock
 import com.examhelper.app.util.extractQuestionTypes
 import com.examhelper.app.util.matchesSelection
 import com.examhelper.app.util.parseAnswerPairs
@@ -331,6 +332,7 @@ class ExamAccessibilityService : AccessibilityService() {
 
             var optionIdx = 0
             var toggleSkipped = 0
+            var confirmSkipped = 0
             val uncertainQuestions = mutableListOf<Int>()
             for ((qNum, selections) in answerPairs) {
                 // Handle uncertain answers: default to clicking option A
@@ -357,10 +359,22 @@ class ExamAccessibilityService : AccessibilityService() {
                         if (qOpts.size >= 3) {
                             delay(Random.nextLong(200, 500))
                             val freshRoot = rootInActiveWindow ?: root
-                            val confirmNode = findConfirmButton(freshRoot)
-                            if (confirmNode != null) {
-                                confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                                Log.d(TAG, "Q$qNum uncertain: confirm clicked after default A")
+                            val allConfirms = mutableListOf<AccessibilityNodeInfo>()
+                            searchMatches(freshRoot, allConfirms, listOf("确认", "确定", "提交答案"))
+                            val confirmCandidates = allConfirms.mapNotNull { node ->
+                                var current: AccessibilityNodeInfo? = node
+                                while (current != null) {
+                                    if (current.isClickable) return@mapNotNull current
+                                    current = current.parent
+                                }
+                                null
+                            }.distinct().sortedBy {
+                                val r = android.graphics.Rect(); it.getBoundsInScreen(r); r.top
+                            }
+                            if (confirmSkipped < confirmCandidates.size) {
+                                confirmCandidates[confirmSkipped].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                Log.d(TAG, "Q$qNum uncertain: confirm clicked after default A (${confirmSkipped + 1}/${confirmCandidates.size})")
+                                confirmSkipped++
                             }
                         }
                     } else {
@@ -395,6 +409,40 @@ class ExamAccessibilityService : AccessibilityService() {
                     }
                     delay(1500)
                     continue
+                }
+
+                // Fallback 判断题检测：题型未知 + 单字母答案 + sourceText 中无字母选项行
+                // 说明可能是一道没有"判断题"标签的判断题，应走 toggle 路径
+                if (questionTypes[qNum].isNullOrBlank()
+                    && selections.size == 1 && selections[0] in "A".."F") {
+                    val qBlock = extractQuestionBlock(sourceText, qNum)
+                    val hasLetterOptions = qBlock.isNotBlank()
+                        && Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE)
+                            .containsMatchIn(qBlock)
+                    // Also check: if block is blank, try broader heuristic — look for "正确"/"错误" nodes
+                    // in the next few allOptionNodes
+                    val likelyToggle = !hasLetterOptions && (
+                        qBlock.isNotBlank() ||
+                        (optionIdx < allOptionNodes.size &&
+                         allOptionNodes[optionIdx].second.second in listOf("正确", "错误"))
+                    )
+                    if (likelyToggle) {
+                        Log.w(TAG, "Q$qNum inferred as 判断题 (no letter options in sourceText, type unknown), using toggle path")
+                        val freshRoot = rootInActiveWindow ?: root
+                        for (sel in selections) {
+                            val toggleText = if (sel == "A" || sel == "C") "正确" else "错误"
+                            val clicked = clickToggleOption(freshRoot, toggleText, toggleSkipped)
+                            if (clicked) {
+                                toggleSkipped++
+                                Log.d(TAG, "Q$qNum inferred-toggle: sel=$sel → $toggleText (skip=$toggleSkipped)")
+                            } else {
+                                Log.w(TAG, "Q$qNum inferred-toggle $sel→$toggleText NOT FOUND")
+                            }
+                            delay(Random.nextLong(80, 200))
+                        }
+                        delay(1500)
+                        continue
+                    }
                 }
 
                 // If no more option nodes, fall back to toggle clicking
@@ -475,11 +523,23 @@ class ExamAccessibilityService : AccessibilityService() {
                     }
                     delay(Random.nextLong(200, 500))
                     val freshRoot = rootInActiveWindow ?: root
-                    val confirmNode = findConfirmButton(freshRoot)
-                    if (confirmNode != null) {
+                    val allConfirms = mutableListOf<AccessibilityNodeInfo>()
+                    searchMatches(freshRoot, allConfirms, listOf("确认", "确定", "提交答案"))
+                    val confirmCandidates = allConfirms.mapNotNull { node ->
+                        var current: AccessibilityNodeInfo? = node
+                        while (current != null) {
+                            if (current.isClickable) return@mapNotNull current
+                            current = current.parent
+                        }
+                        null
+                    }.distinct().sortedBy {
+                        val r = android.graphics.Rect(); it.getBoundsInScreen(r); r.top
+                    }
+                    if (confirmSkipped < confirmCandidates.size) {
                         delay(Random.nextLong(200, 500))
-                        Log.d(TAG, "Q$qNum fallback confirm")
-                        confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        Log.d(TAG, "Q$qNum fallback confirm (${confirmSkipped + 1}/${confirmCandidates.size})")
+                        confirmCandidates[confirmSkipped].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        confirmSkipped++
                     }
                     delay(1500)
                     continue
@@ -514,13 +574,25 @@ class ExamAccessibilityService : AccessibilityService() {
                 if (!isSingle) {
                     delay(Random.nextLong(200, 500))
                     val freshRoot = rootInActiveWindow ?: root
-                    val confirmNode = findConfirmButton(freshRoot)
-                    if (confirmNode != null) {
+                    val allConfirms = mutableListOf<AccessibilityNodeInfo>()
+                    searchMatches(freshRoot, allConfirms, listOf("确认", "确定", "提交答案"))
+                    val confirmCandidates = allConfirms.mapNotNull { node ->
+                        var current: AccessibilityNodeInfo? = node
+                        while (current != null) {
+                            if (current.isClickable) return@mapNotNull current
+                            current = current.parent
+                        }
+                        null
+                    }.distinct().sortedBy {
+                        val r = android.graphics.Rect(); it.getBoundsInScreen(r); r.top
+                    }
+                    if (confirmSkipped < confirmCandidates.size) {
                         delay(Random.nextLong(200, 500))
-                        Log.d(TAG, "Q$qNum clicking confirm button")
-                        confirmNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        Log.d(TAG, "Q$qNum clicking confirm button (${confirmSkipped + 1}/${confirmCandidates.size})")
+                        confirmCandidates[confirmSkipped].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        confirmSkipped++
                     } else {
-                        Log.w(TAG, "Q$qNum confirm button NOT FOUND")
+                        Log.w(TAG, "Q$qNum confirm button NOT FOUND (skipped=$confirmSkipped, total=${confirmCandidates.size})")
                     }
                 }
 
@@ -580,20 +652,6 @@ class ExamAccessibilityService : AccessibilityService() {
             }
         }
         return false
-    }
-
-    private fun findConfirmButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val candidates = mutableListOf<AccessibilityNodeInfo>()
-        searchMatches(root, candidates, listOf("确认", "确定", "提交答案"))
-        for (node in candidates) {
-            var current = node
-            while (true) {
-                if (current.isClickable) return current
-                val parent = current.parent ?: break
-                current = parent
-            }
-        }
-        return null
     }
 
     private fun searchMatches(

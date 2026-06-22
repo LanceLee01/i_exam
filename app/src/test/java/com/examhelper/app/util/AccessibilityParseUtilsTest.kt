@@ -215,4 +215,79 @@ class AccessibilityParseUtilsTest {
     fun `matchesSelection matches 错`() {
         assertTrue(matchesSelection("错", "错"))
     }
+
+    // ── extractQuestionBlock ──
+
+    @Test
+    fun `extractQuestionBlock returns correct block for single question with options`() {
+        val text = """
+            15、\n保命题...办理电力通信工作票延期手续...由（ ）提出申请...
+            A.工作负责人向工作票签发人
+            B.工作许可人向运维负责人
+            C.工作负责人向工作许可人
+            D.工作许可人向工作票签发人
+            16、\n保命题...拆接负载电缆前...
+        """.trimIndent()
+        val block = extractQuestionBlock(text, 15)
+        assertTrue(block.contains("A.工作负责人向工作票签发人"))
+        assertTrue(block.contains("D.工作许可人向工作票签发人"))
+        assertFalse(block.contains("16、"))
+    }
+
+    @Test
+    fun `extractQuestionBlock returns correct block for 判断题 without letter options`() {
+        val text = """
+            12、\n判断题\n保命题...可临时移开或越过遮栏，事后应立即恢复。（ ）
+            正确
+            错误
+            13、\n保命题...装设接地线应由两人进行...（ ）
+            14、\n保命题...怀疑可能存在有害气体时...（ ）
+            15、\n保命题...由（ ）提出申请...
+            A.工作负责人向工作票签发人
+        """.trimIndent()
+        val block13 = extractQuestionBlock(text, 13)
+        assertTrue(block13.contains("装设接地线"))
+        assertFalse(block13.contains("14、"))
+        assertFalse(block13.contains("A."))
+    }
+
+    @Test
+    fun `extractQuestionBlock returns empty for non-existent question`() {
+        val text = """
+            1、\nQuestion 1
+            A. Option A
+            2、\nQuestion 2
+            B. Option B
+        """.trimIndent()
+        val block = extractQuestionBlock(text, 99)
+        assertEquals("", block)
+    }
+
+    @Test
+    fun `hasLetterOptions detects A-dot format`() {
+        val block = "保命题...\nA.选项一\nB.选项二\nC.选项三\nD.选项四"
+        val regex = Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE)
+        assertTrue(regex.containsMatchIn(block))
+    }
+
+    @Test
+    fun `hasLetterOptions returns false for 判断题 without letter options`() {
+        val block = "保命题...装设接地线应由两人进行...（ ）"
+        val regex = Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE)
+        assertFalse(regex.containsMatchIn(block))
+    }
+
+    @Test
+    fun `hasLetterOptions returns false for 正确-错误 only block`() {
+        val block = "判断题\n保命题...（ ）\n正确\n错误"
+        val regex = Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE)
+        assertFalse(regex.containsMatchIn(block))
+    }
+
+    @Test
+    fun `hasLetterOptions returns true for Chinese bracket separator`() {
+        val block = "保命题...\nA：选项一\nB：选项二"
+        val regex = Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE)
+        assertTrue(regex.containsMatchIn(block))
+    }
 }
