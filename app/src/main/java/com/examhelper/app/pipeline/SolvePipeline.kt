@@ -13,6 +13,8 @@ import com.examhelper.app.network.Reference
 import com.examhelper.app.network.TavilyClient
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.AnswerSource
+import com.examhelper.app.util.parseOptionMapInline
+import com.examhelper.app.util.resolveOnScreenLetters
 import kotlinx.coroutines.delay
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 
@@ -48,13 +50,21 @@ class SolvePipeline(private val context: Context) {
 
         // If all matched, return directly
         if (unmatchedQ.isEmpty()) {
-            val combined = l1Answers!!.entries.sortedBy { it.key }
+            // Resolve KB answer letters to on-screen letters for display
+            val resolvedL1 = l1Answers!!.mapValues { (q, a) ->
+                resolveAnswerForDisplay(q, a, l1OptionsMap[q] ?: "", text)
+            }
+            val combined = resolvedL1.entries.sortedBy { it.key }
                 .joinToString("\n") { (q, a) -> "[$q] $a" }
             val questionSources = l1Answers.entries.associate { it.key to "📋 题库匹配" }
             val source = AnswerSource.EXCEL_MATCH
+            // kbAnswerOptions中排除已在pipeline中解析的题目，防止ExamAccessibilityService二次解析
+            val resolvedQ = l1Answers.keys.filter { resolvedL1[it] != l1Answers[it] }.toSet()
+            val filteredOptions = if (resolvedQ.isEmpty()) l1OptionsMap
+                else l1OptionsMap.filterKeys { it !in resolvedQ }
             Log.d(TAG, "All ${allQ.size} matched by L1, returning")
             ExtractedTextBus.updateSidebarState(
-                SidebarState.Done(text, combined, source, emptyList(), questionSources, kbAnswerOptions = l1OptionsMap)
+                SidebarState.Done(text, combined, source, emptyList(), questionSources, kbAnswerOptions = filteredOptions)
             )
             return
         }
@@ -159,13 +169,23 @@ class SolvePipeline(private val context: Context) {
         // If all unmatched questions are empty-stem, skip LLM entirely
         if (meaningfulQ.isEmpty()) {
             Log.d(TAG, "All unmatched questions have empty stems, skipping LLM")
-            val combined = formatCombinedAnswer(emptyDirectAnswers, (l1Answers ?: emptyMap()) + optionsRescued)
+            val allL1 = (l1Answers ?: emptyMap()) + optionsRescued
+            val resolvedAll = allL1.mapValues { (q, a) ->
+                val opts = (l1OptionsMap + rescuedOptions)[q] ?: ""
+                resolveAnswerForDisplay(q, a, opts, text)
+            }
+            val combined = formatCombinedAnswer(emptyDirectAnswers, resolvedAll)
             val questionSources = (l1Answers ?: emptyMap()).keys.associate { it to "📋 题库匹配" } +
                 emptyStemQ.associate { it to "📋 题库匹配" } +
                 rescuedFromEmpty.associate { it to "📋 题库匹配(选项匹配)" }
+            // kbAnswerOptions中排除已在pipeline中解析的题目
+            val allOptions = l1OptionsMap + rescuedOptions
+            val resolvedQ2 = allL1.keys.filter { resolvedAll[it] != allL1[it] }.toSet()
+            val filteredOptions2 = if (resolvedQ2.isEmpty()) allOptions
+                else allOptions.filterKeys { it !in resolvedQ2 }
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(), questionSources,
-                    kbAnswerOptions = l1OptionsMap + rescuedOptions)
+                    kbAnswerOptions = filteredOptions2)
             )
             return
         }
@@ -799,7 +819,10 @@ class SolvePipeline(private val context: Context) {
                 val speed = roughTokenEstimate.toFloat() / elapsed
                 if (speed > 0) ExtractedTextBus.lastTokensPerSec = speed
                 // Show streaming with L1 answers prepended
-                val l1Text = l1Answers.entries.sortedBy { it.key }
+                val resolvedL1Stream = l1Answers.mapValues { (q, a) ->
+                    resolveAnswerForDisplay(q, a, l1OptionsMap[q] ?: "", text)
+                }
+                val l1Text = resolvedL1Stream.entries.sortedBy { it.key }
                     .joinToString("\n") { (q, a) -> "[$q] $a" }
                 val streamingDisplay = if (l1Text.isNotEmpty()) {
                     "$l1Text\n\n— LLM 答题中 —\n$displayText"
@@ -818,8 +841,13 @@ class SolvePipeline(private val context: Context) {
             val l4Parsed = parseL4Answer(l4Answer, unmatchedQ)
             Log.d(TAG, "L4 parsed: ${l4Parsed.size} questions: ${l4Parsed.keys.sorted()}")
 
+            // Resolve L1 KB answer letters to on-screen letters for display
+            val resolvedL1 = l1Answers.mapValues { (q, a) ->
+                resolveAnswerForDisplay(q, a, l1OptionsMap[q] ?: "", text)
+            }
+
             // Combine L1 + L4 using formatCombinedAnswer (L1 priority on collision)
-            val combined = formatCombinedAnswer(l4Parsed, l1Answers)
+            val combined = formatCombinedAnswer(l4Parsed, resolvedL1)
             // Find Q38 in combined answer
             val q38Line = combined.lines().find { it.trim().startsWith("[38]") || it.trim().startsWith("38") } ?: "Q38_NOT_FOUND"
             Log.d(TAG, "Combined answer Q38 line: >>>$q38Line<<<")
@@ -834,9 +862,14 @@ class SolvePipeline(private val context: Context) {
             l4Parsed.forEach { (q, _) -> questionSources[q] = l4SourceLabel }
             val source = if (l4Parsed.isEmpty()) AnswerSource.EXCEL_MATCH else AnswerSource.LLM_DIRECT
 
+            // kbAnswerOptions中排除已在pipeline中解析的题目，防止ExamAccessibilityService二次解析
+            val resolvedQ = l1Answers.keys.filter { resolvedL1[it] != l1Answers[it] }.toSet()
+            val filteredOptions = if (resolvedQ.isEmpty()) l1OptionsMap
+                else l1OptionsMap.filterKeys { it !in resolvedQ }
+
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, finalAnswer, source, enhancement.references, questionSources,
-                    kbAnswerOptions = l1OptionsMap)
+                    kbAnswerOptions = filteredOptions)
             )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -948,6 +981,71 @@ class SolvePipeline(private val context: Context) {
             return text.lines()
                 .filter { Regex("""^[A-Z]\s*[.、:：)）]""").containsMatchIn(it) }
                 .joinToString(" ")
+        }
+
+        /**
+         * Resolve KB answer letters to on-screen letters for a single question.
+         * This ensures the displayed answer matches what will actually be clicked.
+         */
+        fun resolveAnswerForDisplay(
+            qNum: Int,
+            kbAnswer: String,
+            kbOptionsText: String,
+            examText: String
+        ): String {
+            if (kbOptionsText.isBlank()) return kbAnswer // 判断题或没有选项文字
+
+            // 判断题答案（正确/错误）不经过字母匹配
+            if (kbAnswer in listOf("正确", "错误", "对", "错", "不确定")) return kbAnswer
+
+            // Extract on-screen option nodes from exam text for this question
+            val qText = extractSingleQuestionTextStatic(examText, qNum)
+            // Parse options: handle both separate lines (A.xxx\nB.yyy) and inline (A.xxx B.yyy) format
+            val onScreenMap = mutableListOf<Pair<String, String>>()
+            val optRegex = Regex("""([A-F])\s*[.、:：)）]\s*([^\n]*?)(?=\s*[A-F]\s*[.、:：)）]|\s*$)""", RegexOption.DOT_MATCHES_ALL)
+            optRegex.findAll(qText).forEach { match ->
+                val letter = match.groupValues[1]
+                val text = match.groupValues[2].trim()
+                if (letter in "A".."F" && text.isNotBlank()) {
+                    onScreenMap.add(letter to text)
+                }
+            }
+            if (onScreenMap.isEmpty()) {
+                Log.d(TAG, "resolveAnswer Q$qNum: no on-screen options found from text='${qText.take(80)}', keeping original")
+                return kbAnswer
+            }
+
+            // Parse KB answer into individual letters (handles both "A B C" and "ABCD" formats)
+            val answerLetters = kbAnswer.uppercase().filter { it in 'A'..'F' }.map { it.toString() }
+            if (answerLetters.isEmpty()) {
+                Log.d(TAG, "resolveAnswer Q$qNum: no letter answers in '$kbAnswer', keeping original")
+                return kbAnswer
+            }
+
+            val resolved = resolveOnScreenLetters(kbOptionsText, answerLetters, onScreenMap)
+            Log.d(TAG, "resolveAnswer Q$qNum: KB='$kbAnswer' letters=$answerLetters resolved=$resolved onScreen=$onScreenMap")
+            // Sanity check: if resolved has duplicates or unexpected values, skip (text probably truncated)
+            if (resolved.toSet().size != resolved.size || resolved.any { it !in "A".."F" }) {
+                Log.d(TAG, "resolveAnswer Q$qNum: resolved=$resolved looks invalid (duplicates/out-of-range), keeping original")
+                return kbAnswer
+            }
+            // If all letters resolved unchanged, return original
+            if (resolved == answerLetters) return kbAnswer
+
+            // Reconstruct answer string: join resolved letters with space
+            return resolved.joinToString(" ")
+        }
+
+        private fun extractSingleQuestionTextStatic(text: String, qNum: Int): String {
+            val MAX_QUESTION_NUMBER = 200
+            if (qNum > MAX_QUESTION_NUMBER) return text.take(200)
+            val questionPattern = Regex("""(\d+)[、.]""")
+            val matches = questionPattern.findAll(text).toList()
+            val matchIdx = matches.indexOfFirst { it.groupValues[1].toIntOrNull() == qNum }
+            if (matchIdx < 0) return text.take(200)
+            val start = matches[matchIdx].range.first
+            val end = if (matchIdx + 1 < matches.size) matches[matchIdx + 1].range.first else text.length
+            return text.substring(start, end).trim().take(800)  // 800 to capture all options including D
         }
 
         /**

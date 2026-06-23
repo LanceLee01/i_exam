@@ -42,11 +42,13 @@ internal fun appendOptionText(line: String, optionMap: Map<String, String>): Str
 internal fun parseOptionMapInline(text: String): Map<String, String> {
     val map = mutableMapOf<String, String>()
     val letters = ExamConstants.OPTION_LETTERS
+    // Normalize: replace option separators (|) with spaces for easier parsing
+    val normalized = text.replace(Regex("[|]+"), " ")
     // Match each option label+text, stopping at next option label or end of string
     val regex = Regex(
         """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(\S{1,60}?)(?=\s*[${letters.first}-${letters.last}][.、．:：)）\-]|$)"""
     )
-    regex.findAll(text).forEach { match ->
+    regex.findAll(normalized).forEach { match ->
         val optionText = match.groupValues[2].trim()
         if (optionText.isNotBlank()) {
             map[match.groupValues[1]] = optionText
