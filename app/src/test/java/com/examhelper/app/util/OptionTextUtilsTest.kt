@@ -42,6 +42,15 @@ class OptionTextUtilsTest {
     }
 
     @Test
+    fun `parseOptionMapInline parses hyphen separator`() {
+        val result = parseOptionMapInline("A-每半年 B-每年 C-每两年 D-每三年")
+        assertEquals("每半年", result["A"])
+        assertEquals("每年", result["B"])
+        assertEquals("每两年", result["C"])
+        assertEquals("每三年", result["D"])
+    }
+
+    @Test
     fun `parseOptionMapInline returns empty for empty input`() {
         val result = parseOptionMapInline("")
         assertTrue(result.isEmpty())
@@ -263,6 +272,49 @@ class OptionTextUtilsTest {
 
     // ── 完整端到端模拟 ──
 
+    /**
+     * 场景11: 真实日志中的乱序 — 题库用 - 分隔符，屏幕乱序
+     * KB: A-每半年 B-每年 C-每两年 D-每三年
+     * 屏幕: A.每年 B.每两年 C.每半年 D.每三年
+     * KB答案: A（每半年）→ 应解析为 C
+     * KB答案: B（每年）→ 应解析为 A
+     */
+    @Test
+    fun `resolve real scenario Q8 hyphen separator shuffled`() {
+        val kbOptionsText = "A-每半年 B-每年 C-每两年 D-每三年"
+        val answerLetters = listOf("A", "B")
+        val onScreenOptions = listOf(
+            "A" to "每年",
+            "B" to "每两年",
+            "C" to "每半年",
+            "D" to "每三年"
+        )
+
+        val resolved = resolveOnScreenLetters(kbOptionsText, answerLetters, onScreenOptions)
+        assertEquals(listOf("C", "A"), resolved,
+            "KB answer A(每半年)→C, B(每年)→A on screen")
+    }
+
+    /**
+     * 场景12: 真实日志中的 Q10 — 题库用 - 分隔符，屏幕完全乱序
+     * KB: A-先扣分再降级 B-先降级再扣分 C-先考核再降级 D-先降级再考核
+     * 屏幕: A.先考核再降级 B.先降级再扣分 C.先降级再考核 D.先扣分再降级
+     */
+    @Test
+    fun `resolve real scenario Q10 hyphen separator shuffled`() {
+        val kbOptionsText = "A-先扣分再降级 B-先降级再扣分 C-先考核再降级 D-先降级再考核"
+        val answerLetters = listOf("C")
+        val onScreenOptions = listOf(
+            "A" to "先考核再降级",
+            "B" to "先降级再扣分",
+            "C" to "先降级再考核",
+            "D" to "先扣分再降级"
+        )
+
+        val resolved = resolveOnScreenLetters(kbOptionsText, answerLetters, onScreenOptions)
+        assertEquals(listOf("A"), resolved,
+            "KB answer C(先考核再降级)→A on screen")
+    }
     /**
      * 场景10: 模拟完整的performAutoClick中的选项文字解析流程。
      *

@@ -44,7 +44,7 @@ internal fun parseOptionMapInline(text: String): Map<String, String> {
     val letters = ExamConstants.OPTION_LETTERS
     // Match each option label+text, stopping at next option label or end of string
     val regex = Regex(
-        """([${letters.first}-${letters.last}])[.、．:：)）]\s*(\S{1,60}?)(?=\s*[${letters.first}-${letters.last}][.、．:：)）]|$)"""
+        """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(\S{1,60}?)(?=\s*[${letters.first}-${letters.last}][.、．:：)）\-]|$)"""
     )
     regex.findAll(text).forEach { match ->
         val optionText = match.groupValues[2].trim()
