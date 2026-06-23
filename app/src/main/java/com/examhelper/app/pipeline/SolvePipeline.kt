@@ -228,11 +228,13 @@ class SolvePipeline(private val context: Context) {
                 // END TEMP DEBUG
                 return@mapNotNull null
             }
-            // Type mismatch: log a warning but keep the match (KB may have correct answer with wrong type label)
+            // Type mismatch: skip entries with conflicting question types
+            // (e.g. a "单选题" entry matching a "判断题" exam question)
             if (!entry.questionType.isNullOrBlank()) {
                 val examQType = detectQuestionTypeForQuestion(text, qNum)
                 if (examQType.isNotBlank() && entry.questionType != examQType) {
-                    Log.d(TAG_DEBUG, "TYPE MISMATCH: Q$qNum entry type='${entry.questionType}' vs exam type='$examQType' — keeping anyway: '${entry.question.take(30)}'")
+                    Log.d(TAG_DEBUG, "TYPE MISMATCH: Q$qNum entry type='${entry.questionType}' vs exam type='$examQType' — skipping: '${entry.question.take(30)}'")
+                    return@mapNotNull null
                 }
             }
             Triple(qNum, normalizeTfAnswer(entry.answer, entry.source), entry.options)
@@ -284,14 +286,31 @@ class SolvePipeline(private val context: Context) {
             for (qNum in conflictQ.toMutableSet()) {
                 val block = blocks.firstOrNull { it.startsWith("$qNum、") } ?: continue
                 val capturedOptions = extractCapturedOptions(block)
-                
+
                 // Get original hits for this question
                 val entriesForQ = hits.mapNotNull { (entry, score) ->
                     val q = findQuestionNumber(text, entry.question) ?: return@mapNotNull null
                     if (q != qNum) return@mapNotNull null
                     entry to score
                 }
-                
+
+                // ── Fast path: if all scores differ, pick the highest-score entry ──
+                val distinctScores = entriesForQ.map { it.second }.distinct()
+                if (distinctScores.size == entriesForQ.size) {
+                    val bestEntry = entriesForQ.maxByOrNull { it.second }
+                    if (bestEntry != null) {
+                        val (bestE, bestScore) = bestEntry
+                        val bestAns = normalizeTfAnswer(bestE.answer, bestE.source)
+                        conflictQ.remove(qNum)
+                        numbered[qNum] = bestAns
+                        if (bestE.options.isNotBlank()) optionsMap[qNum] = bestE.options
+                        Log.d(TAG_DEBUG, "score-resolve(max-score): Q$qNum score=${"%.4f".format(bestScore)} ans=$bestAns from '${bestE.question.take(30)}'")
+                        continue
+                    }
+                }
+
+                // ── Same-score conflicts: use options text matching, fall back to score-based ──
+
                 // Try options-based resolution first
                 if (capturedOptions.isNotBlank() && entriesForQ.any { it.first.options.isNotBlank() }) {
                     val withOptions = entriesForQ.filter { it.first.options.isNotBlank() }
@@ -321,7 +340,7 @@ class SolvePipeline(private val context: Context) {
                         }
                     }
                 }
-                
+
                 // Filter out type-mismatched entries before scoring
                 val examQType = detectQuestionTypeForBlock(block, text)
                 val typeFiltered = if (examQType.isNotBlank()) {
