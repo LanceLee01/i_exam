@@ -42,7 +42,7 @@ class ExamAccessibilityService : AccessibilityService() {
                         extractAndSendText()
                     }
                     is ExtractedTextBus.Event.ClickAnswer -> {
-                        performAutoClick(event.answer, event.sourceText, event.kbAnswerOptions)
+                        performAutoClick(event.answer, event.sourceText, event.kbAnswerOptions, event.skipKbResolution)
                     }
                     is ExtractedTextBus.Event.ClickPage -> {
                         performPageClick(event.target)
@@ -305,7 +305,7 @@ class ExamAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun performAutoClick(answer: String, sourceText: String, kbAnswerOptions: Map<Int, String> = emptyMap()) {
+    private fun performAutoClick(answer: String, sourceText: String, kbAnswerOptions: Map<Int, String> = emptyMap(), skipKbResolution: Set<Int> = emptySet()) {
         scope.launch(Dispatchers.Main) {
             val root = rootInActiveWindow ?: return@launch
 
@@ -479,7 +479,7 @@ class ExamAccessibilityService : AccessibilityService() {
                                 val optionText = text.drop(1).trimStart('.', '、', '．', '：', ':', '，', ' ', '）', ')').trim()
                                 letter to optionText
                             }
-                            val resolvedSelections = if (kbAnswerOptions.containsKey(qNum)) {
+                            val resolvedSelections = if (kbAnswerOptions.containsKey(qNum) && qNum !in skipKbResolution) {
                                 val kbOpts = kbAnswerOptions[qNum]!!
                                 com.examhelper.app.util.resolveOnScreenLetters(
                                     kbOpts, selections, onScreenMap
@@ -580,8 +580,10 @@ class ExamAccessibilityService : AccessibilityService() {
                 // ── 选项文字匹配解析（题库匹配题目选项乱序问题） ──
                 // Resolve KB answer letters to on-screen letters via option text matching.
                 // Only for multi-choice questions with available KB options text.
+                // Skip questions already resolved by the pipeline (skipKbResolution).
                 val effectiveSelections = if (kbAnswerOptions.containsKey(qNum) &&
-                    selections.all { it in "A".."F" }) {
+                    selections.all { it in "A".."F" } &&
+                    qNum !in skipKbResolution) {
                     val kbOpts = kbAnswerOptions[qNum]!!
                     // Build on-screen letter→text map from qOptionNodes
                     val onScreenMap = qOptionNodes.mapNotNull { (_, nodeText) ->

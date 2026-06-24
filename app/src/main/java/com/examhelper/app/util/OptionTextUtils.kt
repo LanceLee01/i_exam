@@ -36,34 +36,21 @@ internal fun appendOptionText(line: String, optionMap: Map<String, String>): Str
 
 /**
  * Parse option labels from inline/single-line text like "A. text1 B. text2 C. text3".
- * Unlike [parseOptionMap] which uses MULTILINE mode expecting one option per line,
- * this handles KB option fields that are a single line with multiple options.
+ * Supports pipe-delimited segments ("A. text1 | B. text2") and space-separated options.
  */
 internal fun parseOptionMapInline(text: String): Map<String, String> {
     val map = mutableMapOf<String, String>()
     val letters = ExamConstants.OPTION_LETTERS
-    // Split by | delimiter first, then parse each segment as "letter.separator text"
-    val segments = text.split(Regex("[|]+")).filter { it.isNotBlank() }
+    // Non-greedy match + lookahead to avoid capturing subsequent options
     val regex = Regex(
-        """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(.+)"""
+        """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(.*?)(?=\s*[${letters.first}-${letters.last}][.、．:：)）\-]|$)"""
     )
+    // Split by | first so pipe-delimited blocks don't pollute each other
+    val segments = text.split(Regex("[|]+")).filter { it.isNotBlank() }
     for (segment in segments) {
-        val match = regex.find(segment.trim())
-        if (match != null) {
+        regex.findAll(segment.trim()).forEach { match ->
             val optionText = match.groupValues[2].trim()
             if (optionText.length in 1..60) {
-                map[match.groupValues[1]] = optionText
-            }
-        }
-    }
-    // Fallback: if | splitting didn't work, try inline matching on the whole string
-    if (map.isEmpty()) {
-        val inlineRegex = Regex(
-            """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(\S{1,60}?)(?=\s*[${letters.first}-${letters.last}][.、．:：)）\-]|$)"""
-        )
-        inlineRegex.findAll(text).forEach { match ->
-            val optionText = match.groupValues[2].trim()
-            if (optionText.isNotBlank()) {
                 map[match.groupValues[1]] = optionText
             }
         }
@@ -130,7 +117,9 @@ internal fun resolveOnScreenLetters(
 }
 
 /**
- * Simple text similarity: character-set Jaccard after whitespace normalization.
+ * Text similarity combining character-set Jaccard and bigram Jaccard.
+ * Bigrams preserve character ordering info to distinguish
+ * "先降级再扣分" from "先扣分再降级" (same char set, different order).
  * Returns 0.0–1.0.
  */
 internal fun computeTextSimilarity(a: String, b: String): Float {
@@ -140,10 +129,26 @@ internal fun computeTextSimilarity(a: String, b: String): Float {
     if (normalizedA.isEmpty() || normalizedB.isEmpty()) return 0.0f
     // Exact substring match (one contains the other) → high similarity
     if (normalizedA in normalizedB || normalizedB in normalizedA) return 0.85f
-    // Character overlap Jaccard
+
+    // 1) Character-set Jaccard (order-insensitive)
     val setA = normalizedA.toSet()
     val setB = normalizedB.toSet()
-    val intersection = (setA intersect setB).size
-    val union = (setA union setB).size
-    return if (union > 0) intersection.toFloat() / union.toFloat() else 0.0f
+    val charIntersect = (setA intersect setB).size
+    val charUnion = (setA union setB).size
+    val charScore = if (charUnion > 0) charIntersect.toFloat() / charUnion.toFloat() else 0f
+
+    // 2) Bigram Jaccard (order-sensitive)
+    val bigramsA = normalizedA.windowed(2).toSet()
+    val bigramsB = normalizedB.windowed(2).toSet()
+    val bigramIntersect = (bigramsA intersect bigramsB).size
+    val bigramUnion = (bigramsA union bigramsB).size
+    val bigramScore = if (bigramUnion > 0) bigramIntersect.toFloat() / bigramUnion.toFloat() else 0f
+
+    // Blend: weight bigrams more (they reveal order differences)
+    // For short text (<6 chars), weight bigrams even more
+    val avgLen = (normalizedA.length + normalizedB.length) / 2
+    val bigramWeight = if (avgLen <= 6) 0.70f else 0.55f
+    val charWeight = 1.0f - bigramWeight
+
+    return charScore * charWeight + bigramScore * bigramWeight
 }

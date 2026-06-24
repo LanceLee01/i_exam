@@ -67,6 +67,7 @@ fun SidebarPanel(onHide: () -> Unit) {
     var lastAnswer: String by remember { mutableStateOf("") }
     var lastExamText: String by remember { mutableStateOf("") }
     var lastKbAnswerOptions: Map<Int, String> by remember { mutableStateOf(emptyMap()) }
+    var lastResolvedQuestions: Set<Int> by remember { mutableStateOf(emptySet()) }
 
     Column(
         modifier = Modifier
@@ -150,7 +151,8 @@ fun SidebarPanel(onHide: () -> Unit) {
                 AutoFillButton(
                     lastAnswer = lastAnswer,
                     lastExamText = lastExamText,
-                    lastKbAnswerOptions = lastKbAnswerOptions
+                    lastKbAnswerOptions = lastKbAnswerOptions,
+                    lastResolvedQuestions = lastResolvedQuestions
                 )
             }
 
@@ -197,10 +199,11 @@ fun SidebarPanel(onHide: () -> Unit) {
                         }
                     }
                 },
-                onDoneState = { answer, text, kbOptions ->
+                onDoneState = { answer, text, kbOptions, resolvedQuestions ->
                     lastAnswer = answer
                     lastExamText = text
                     lastKbAnswerOptions = kbOptions
+                    lastResolvedQuestions = resolvedQuestions
                 }
             )
         }

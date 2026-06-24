@@ -23,6 +23,8 @@ class MultiRoundRunner(
     private var job: Job? = null
     private var cancelled = false
     private var cachedKbAnswerOptions: Map<Int, String> = emptyMap()
+    private var cachedKbQuestionTexts: Map<Int, String> = emptyMap()
+    private var cachedResolvedQuestions: Set<Int> = emptySet()
 
     sealed class MultiRoundState {
         data object Idle : MultiRoundState()
@@ -35,6 +37,8 @@ class MultiRoundRunner(
     fun start(scope: CoroutineScope) {
         Log.e(TAG, "=== MultiRoundRunner.start() called (L1 ONLY mode) ===")
         cachedKbAnswerOptions = emptyMap()
+        cachedKbQuestionTexts = emptyMap()
+        cachedResolvedQuestions = emptySet()
         cancelled = false
         job = scope.launch(Dispatchers.Default) {
             Log.e(TAG, "=== MultiRound coroutine STARTED ===")
@@ -87,7 +91,7 @@ class MultiRoundRunner(
 
                     // 3. Fill answers on current page
                     answeredCount++
-                    val qSummary = buildQuestionSummary(filtered, answer)
+                    val qSummary = buildQuestionSummary(filtered, answer, cachedKbQuestionTexts)
                     Log.e(TAG, "qSummary=[$qSummary]")
                     Log.e(TAG, "Round $round: filling page $current/$total")
                     _state.value = MultiRoundState.Filling(current, total, answeredCount)
@@ -145,6 +149,8 @@ class MultiRoundRunner(
             when (state) {
                 is SidebarState.Done -> {
                     cachedKbAnswerOptions = state.kbAnswerOptions
+                    cachedKbQuestionTexts = state.kbQuestionTexts
+                    cachedResolvedQuestions = state.resolvedQuestions
                     return state.answer
                 }
                 is SidebarState.Error -> {
@@ -184,7 +190,7 @@ class MultiRoundRunner(
     }
 
     private suspend fun clickAnswer(answer: String, sourceText: String, kbAnswerOptions: Map<Int, String>) {
-        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText, kbAnswerOptions))
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText, kbAnswerOptions, cachedResolvedQuestions))
         // Wait for auto-click to finish
         val answerCount = answer.lines().size.coerceAtLeast(1)
         delay(1500L * answerCount + 2000L)
@@ -192,8 +198,30 @@ class MultiRoundRunner(
 
     // ── Helpers ──
 
-    /** Build a short summary of the current question + answer for UI display */
-    private fun buildQuestionSummary(filtered: String, answer: String): String {
+    /** Build a short summary of the current question + answer for UI display.
+     *  Uses KB original data (question text + options) when available. */
+    private fun buildQuestionSummary(filtered: String, answer: String, kbQuestionTexts: Map<Int, String>): String {
+        // Parse first question number from filtered text
+        val qPattern = Regex("""(\d+)[、.]""")
+        val firstQMatch = qPattern.find(filtered)
+        val firstQNum = firstQMatch?.groupValues?.get(1)?.toIntOrNull()
+
+        // Check for KB original data
+        if (firstQNum != null && firstQNum in kbQuestionTexts) {
+            val kbQuestion = kbQuestionTexts[firstQNum] ?: ""
+            val kbOptions = cachedKbAnswerOptions[firstQNum] ?: ""
+            // Parse answer line for this question
+            val ansLine = answer.lines().firstOrNull {
+                it.contains("[${firstQNum}]") || it.contains("$firstQNum]") || it.contains("[$firstQNum")
+            }?.trim()?.take(60) ?: ""
+            return buildString {
+                append("📝 $kbQuestion")
+                if (kbOptions.isNotBlank()) append("\n📋 $kbOptions")
+                if (ansLine.isNotBlank()) append("\n✅ $ansLine")
+            }
+        }
+
+        // Fallback: extract from filtered exam text
         val lines = filtered.lines().map { it.trim() }.filter { it.isNotBlank() }
         val stopWords = setOf("上一页", "下一页", "开始考试", "提交答案")
         val optionPattern = Regex("""^[A-F]\s*[.、:：)）]""")
@@ -209,13 +237,11 @@ class MultiRoundRunner(
         val optionLines = lines
             .filter { Regex("""^[A-F]\s*[.、:：)）]""").containsMatchIn(it) || it == "正确" || it == "错误" }
         val ansLine = answer.lines().firstOrNull { Regex("""[\[【]?\d+[\]】]?""").containsMatchIn(it) }?.trim()?.take(30) ?: ""
-        val result = buildString {
+        return buildString {
             append("📝 $stem")
             if (optionLines.isNotEmpty()) append("\n📋 ${optionLines.joinToString("  ").take(80)}")
             if (ansLine.isNotBlank()) append("\n✅ $ansLine")
         }
-        Log.e(TAG, "buildQuestionSummary result: [$result]")
-        return result
     }
 
     private fun updateSidebarMulti(

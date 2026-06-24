@@ -21,7 +21,7 @@ object ExtractedTextBus {
     sealed class Event {
         data class TextExtracted(val text: String) : Event()
         data object RequestExtract : Event()
-        data class ClickAnswer(val answer: String, val sourceText: String, val kbAnswerOptions: Map<Int, String> = emptyMap()) : Event()
+        data class ClickAnswer(val answer: String, val sourceText: String, val kbAnswerOptions: Map<Int, String> = emptyMap(), val skipKbResolution: Set<Int> = emptySet()) : Event()
         data class ClickPage(val target: String) : Event()  // "下一页" or "上一页"
         data object AccessibilityConnected : Event()
         data object AccessibilityDisconnected : Event()
@@ -33,7 +33,7 @@ object ExtractedTextBus {
         data class Preview(val text: String) : SidebarState()
         data class Streaming(val text: String, val partialAnswer: String, val progress: Float, val startTimeMs: Long, val maxTokens: Int = 2048) : SidebarState()
         data class Answering(val text: String) : SidebarState()
-        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList(), val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap(), val toggleFailedQuestions: List<Int> = emptyList()) : SidebarState()
+        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList(), val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap(), val kbQuestionTexts: Map<Int, String> = emptyMap(), val toggleFailedQuestions: List<Int> = emptyList(), val resolvedQuestions: Set<Int> = emptySet()) : SidebarState()
         data class Error(val message: String) : SidebarState()
 
         // ── 多轮自动答题状态 ──

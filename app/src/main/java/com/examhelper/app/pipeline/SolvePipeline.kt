@@ -41,6 +41,7 @@ class SolvePipeline(private val context: Context) {
         val l1Answers = l1Result?.answers
         val l1Keys = l1Answers?.keys?.toSet() ?: emptySet()
         val l1OptionsMap = l1Result?.kbAnswerOptions ?: emptyMap()
+        val l1QuestionTexts = l1Result?.kbQuestionTexts ?: emptyMap()
 
         // Determine all question numbers
         val allQ = extractQuestionNumbers(text).map { it.first }.toSet()
@@ -51,20 +52,36 @@ class SolvePipeline(private val context: Context) {
         // If all matched, return directly
         if (unmatchedQ.isEmpty()) {
             // Resolve KB answer letters to on-screen letters for display
-            val resolvedL1 = l1Answers!!.mapValues { (q, a) ->
-                resolveAnswerForDisplay(q, a, l1OptionsMap[q] ?: "", text)
+            val resolvedL1 = mutableMapOf<Int, String>()
+            val resolutionErrors = mutableListOf<String>()
+            for ((qNum, kbAns) in l1Answers!!) {
+                val kbOpts = l1OptionsMap[qNum] ?: ""
+                val resolved = resolveAnswerForDisplay(qNum, kbAns, kbOpts, text)
+                if (resolved != kbAns && kbOpts.isNotBlank()) {
+                    val failed = validateResolution(qNum, kbAns, resolved, kbOpts, text)
+                    if (failed != null) resolutionErrors.add(failed)
+                }
+                resolvedL1[qNum] = resolved
+            }
+            if (resolutionErrors.isNotEmpty()) {
+                val errMsg = buildString {
+                    append("⚠️ 题库答案验证失败\n")
+                    resolutionErrors.forEach { append("  $it\n") }
+                    append("请检查题库后重试")
+                }
+                Log.e(TAG, "solve: all matched but validation FAILED: $resolutionErrors")
+                ExtractedTextBus.updateSidebarState(SidebarState.Error(errMsg))
+                return
             }
             val combined = resolvedL1.entries.sortedBy { it.key }
                 .joinToString("\n") { (q, a) -> "[$q] $a" }
             val questionSources = l1Answers.entries.associate { it.key to "📋 题库匹配" }
             val source = AnswerSource.EXCEL_MATCH
-            // kbAnswerOptions中排除已在pipeline中解析的题目，防止ExamAccessibilityService二次解析
+            // 在pipeline解析过的题，标记resolvedQuestions，让ExamAccessibilityService跳过二次解析
             val resolvedQ = l1Answers.keys.filter { resolvedL1[it] != l1Answers[it] }.toSet()
-            val filteredOptions = if (resolvedQ.isEmpty()) l1OptionsMap
-                else l1OptionsMap.filterKeys { it !in resolvedQ }
-            Log.d(TAG, "All ${allQ.size} matched by L1, returning")
+            Log.d(TAG, "All ${allQ.size} matched by L1, returning, resolvedQ=$resolvedQ")
             ExtractedTextBus.updateSidebarState(
-                SidebarState.Done(text, combined, source, emptyList(), questionSources, kbAnswerOptions = filteredOptions)
+                SidebarState.Done(text, combined, source, emptyList(), questionSources, kbAnswerOptions = l1OptionsMap, kbQuestionTexts = l1QuestionTexts, resolvedQuestions = resolvedQ)
             )
             return
         }
@@ -170,22 +187,37 @@ class SolvePipeline(private val context: Context) {
         if (meaningfulQ.isEmpty()) {
             Log.d(TAG, "All unmatched questions have empty stems, skipping LLM")
             val allL1 = (l1Answers ?: emptyMap()) + optionsRescued
-            val resolvedAll = allL1.mapValues { (q, a) ->
-                val opts = (l1OptionsMap + rescuedOptions)[q] ?: ""
-                resolveAnswerForDisplay(q, a, opts, text)
+            val resolvedAll = mutableMapOf<Int, String>()
+            val resolutionErrors = mutableListOf<String>()
+            for ((qNum, ans) in allL1) {
+                val opts = (l1OptionsMap + rescuedOptions)[qNum] ?: ""
+                val resolved = resolveAnswerForDisplay(qNum, ans, opts, text)
+                if (resolved != ans && opts.isNotBlank()) {
+                    val failed = validateResolution(qNum, ans, resolved, opts, text)
+                    if (failed != null) resolutionErrors.add(failed)
+                }
+                resolvedAll[qNum] = resolved
+            }
+            if (resolutionErrors.isNotEmpty()) {
+                val errMsg = buildString {
+                    append("⚠️ 题库答案验证失败\n")
+                    resolutionErrors.forEach { append("  $it\n") }
+                    append("请检查题库后重试")
+                }
+                Log.e(TAG, "solve: empty-stem L1 validation FAILED: $resolutionErrors")
+                ExtractedTextBus.updateSidebarState(SidebarState.Error(errMsg))
+                return
             }
             val combined = formatCombinedAnswer(emptyDirectAnswers, resolvedAll)
             val questionSources = (l1Answers ?: emptyMap()).keys.associate { it to "📋 题库匹配" } +
                 emptyStemQ.associate { it to "📋 题库匹配" } +
                 rescuedFromEmpty.associate { it to "📋 题库匹配(选项匹配)" }
-            // kbAnswerOptions中排除已在pipeline中解析的题目
+            // 传给面板完整选项文字
             val allOptions = l1OptionsMap + rescuedOptions
             val resolvedQ2 = allL1.keys.filter { resolvedAll[it] != allL1[it] }.toSet()
-            val filteredOptions2 = if (resolvedQ2.isEmpty()) allOptions
-                else allOptions.filterKeys { it !in resolvedQ2 }
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(), questionSources,
-                    kbAnswerOptions = filteredOptions2)
+                    kbAnswerOptions = allOptions, resolvedQuestions = resolvedQ2)
             )
             return
         }
@@ -209,6 +241,7 @@ class SolvePipeline(private val context: Context) {
             maxTokens = maxTokens,
             l1Answers = (l1Answers ?: emptyMap()) + emptyDirectAnswers + optionsRescued,
             l1OptionsMap = l1OptionsMap + rescuedOptions,
+            l1QuestionTexts = l1QuestionTexts,
             unmatchedQ = meaningfulUnmatched,
             enhancement = enhancement
         )
@@ -230,6 +263,7 @@ class SolvePipeline(private val context: Context) {
             val startMs = System.currentTimeMillis()
 
             val l1Result = tryExcelMatchAll(text)
+            val allQuestionTexts = l1Result?.kbQuestionTexts ?: emptyMap()
             val l1Answers = l1Result?.answers ?: emptyMap()
             val l1OptionsMap = l1Result?.kbAnswerOptions ?: emptyMap()
 
@@ -256,18 +290,44 @@ class SolvePipeline(private val context: Context) {
                 return
             }
 
-            // All matched — use raw L1 answers directly (no text-similarity resolution,
-            // which incorrectly remaps correct KB letters to wrong screen ones).
-            // kbAnswerOptions is intentionally empty so ExamAccessibilityService also
-            // skips the broken text-resolution path and clicks by letter position directly.
-            val combined = l1Answers.entries.sortedBy { it.key }
+            // Resolve KB answer letters to on-screen letters for display
+            // 同时做反向验证：解析后的屏幕文字必须与KB选项文字高度相似
+            val resolvedL1 = mutableMapOf<Int, String>()
+            val resolutionErrors = mutableListOf<String>()
+            for ((qNum, kbAns) in l1Answers) {
+                val kbOpts = l1OptionsMap[qNum] ?: ""
+                val resolved = resolveAnswerForDisplay(qNum, kbAns, kbOpts, text)
+                // 如果答案字母变了，做反向验证
+                if (resolved != kbAns && kbOpts.isNotBlank()) {
+                    val failed = validateResolution(qNum, kbAns, resolved, kbOpts, text)
+                    if (failed != null) {
+                        resolutionErrors.add(failed)
+                    }
+                }
+                resolvedL1[qNum] = resolved
+            }
+
+            if (resolutionErrors.isNotEmpty()) {
+                val errMsg = buildString {
+                    append("⚠️ 题库匹配答案验证失败\n")
+                    resolutionErrors.forEach { append("  $it\n") }
+                    append("\n可能是题库选项与考试选项不一致，请检查后重试")
+                }
+                Log.e(TAG, "solveL1Only: resolution validation FAILED: $resolutionErrors")
+                ExtractedTextBus.updateSidebarState(SidebarState.Error(errMsg))
+                return
+            }
+            val combined = resolvedL1.entries.sortedBy { it.key }
                 .joinToString("\n") { (q, a) -> "[$q] $a" }
             val questionSources = l1Answers.entries.associate { it.key to "📋 题库匹配" }
 
-            Log.d(TAG, "solveL1Only: ${allQ.size} questions ALL matched in ${System.currentTimeMillis()-startMs}ms")
+            // kbAnswerOptions传完整map，通过resolvedQuestions标记已解析题防止二次解析
+            val resolvedQ = l1Answers.keys.filter { resolvedL1[it] != l1Answers[it] }.toSet()
+
+            Log.d(TAG, "solveL1Only: ${allQ.size} questions ALL matched with text-resolution in ${System.currentTimeMillis()-startMs}ms, resolvedQ=$resolvedQ")
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(),
-                    questionSources, kbAnswerOptions = emptyMap())
+                    questionSources, kbAnswerOptions = l1OptionsMap, kbQuestionTexts = allQuestionTexts, resolvedQuestions = resolvedQ)
             )
         } catch (e: Exception) {
             Log.e(TAG, "solveL1Only() crashed", e)
@@ -281,7 +341,16 @@ class SolvePipeline(private val context: Context) {
 
     private data class L1Result(
         val answers: Map<Int, String>,
-        val kbAnswerOptions: Map<Int, String>  // qNum -> KBEntry.options text
+        val kbAnswerOptions: Map<Int, String>,  // qNum -> KBEntry.options text
+        val kbQuestionTexts: Map<Int, String> = emptyMap()  // qNum -> KBEntry.question text
+    )
+
+    /** Internal helper carrying qNum, answer, options, question text. */
+    private data class NumberedEntry(
+        val qNum: Int,
+        val answer: String,
+        val options: String,
+        val question: String
     )
 
     private suspend fun tryExcelMatchAll(text: String): L1Result? {
@@ -314,31 +383,34 @@ class SolvePipeline(private val context: Context) {
                     return@mapNotNull null
                 }
             }
-            Triple(qNum, normalizeTfAnswer(entry.answer, entry.source), entry.options)
+            // (qNum, answer, options, questionText)
+            NumberedEntry(qNum, normalizeTfAnswer(entry.answer, entry.source), entry.options, entry.question)
         }
 
         // ── 进度反馈：报告当前匹配数量 ──
         ExtractedTextBus.updateSidebarState(
             SidebarState.Loading("题库匹配中... 已找到 ${numberedPairs.size} 道匹配")
         )
-        
+
         // Detect conflicts: same question number with different answers
         val conflictQ = mutableSetOf<Int>()
         val answerByQ = mutableMapOf<Int, MutableSet<String>>()
-        for ((q, ans, _) in numberedPairs) {
-            val answers = answerByQ.getOrPut(q) { mutableSetOf() }
-            answers.add(ans)
-            if (answers.size > 1) conflictQ.add(q)
+        for (ne in numberedPairs) {
+            val answers = answerByQ.getOrPut(ne.qNum) { mutableSetOf() }
+            answers.add(ne.answer)
+            if (answers.size > 1) conflictQ.add(ne.qNum)
         }
-        
+
         // Build result: non-conflicted questions first
         val numbered = mutableMapOf<Int, String>()
         val optionsMap = mutableMapOf<Int, String>()
-        for ((q, ans, opts) in numberedPairs) {
-            if (q in conflictQ) continue
-            if (q !in numbered) {
-                numbered[q] = ans
-                if (opts.isNotBlank()) optionsMap[q] = opts
+        val questionTexts = mutableMapOf<Int, String>()
+        for (ne in numberedPairs) {
+            if (ne.qNum in conflictQ) continue
+            if (ne.qNum !in numbered) {
+                numbered[ne.qNum] = ne.answer
+                if (ne.options.isNotBlank()) optionsMap[ne.qNum] = ne.options
+                questionTexts[ne.qNum] = ne.question
             }
         }
 
@@ -381,6 +453,7 @@ class SolvePipeline(private val context: Context) {
                         conflictQ.remove(qNum)
                         numbered[qNum] = bestAns
                         if (bestE.options.isNotBlank()) optionsMap[qNum] = bestE.options
+                        questionTexts[qNum] = bestE.question
                         Log.d(TAG_DEBUG, "score-resolve(max-score): Q$qNum score=${"%.4f".format(bestScore)} ans=$bestAns from '${bestE.question.take(30)}'")
                         continue
                     }
@@ -411,6 +484,7 @@ class SolvePipeline(private val context: Context) {
                                 // Capture options from any matching entry for option-text resolution
                                 withOptions.firstOrNull()?.let { (entry, _) ->
                                     if (entry.options.isNotBlank()) optionsMap[qNum] = entry.options
+                                    questionTexts[qNum] = entry.question
                                 }
                                 continue
                             }
@@ -467,7 +541,7 @@ class SolvePipeline(private val context: Context) {
         }
         
         Log.d(TAG, "L1 matched ${numbered.size} questions: ${numbered.keys.sorted()}")
-        return if (numbered.isEmpty()) null else L1Result(numbered, optionsMap)
+        return if (numbered.isEmpty()) null else L1Result(numbered, optionsMap, questionTexts)
     }
 
     // ── L2: Wiki 知识库检索 ─────────────────────────────
@@ -544,8 +618,8 @@ class SolvePipeline(private val context: Context) {
         // Exam question numbers are typically 1–200. Skip 0 (false positives from e.g. "0.4千伏").
         val MAX_QUESTION_NUMBER = 200
         val MIN_QUESTION_NUMBER = 1
-        // Use word-boundary lookbehind to avoid matching decimal parts (e.g. "0.4" or "01" in "B线#01杆")
-        val pattern = Regex("""(?<!\d)(\d+)[、.]""")
+        // Must be at line start (option markers like "A.1.75" won't match)
+        val pattern = Regex("""^(\d+)[、.]""", RegexOption.MULTILINE)
         return pattern.findAll(text).mapNotNull { match ->
             val num = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
             if (num !in MIN_QUESTION_NUMBER..MAX_QUESTION_NUMBER) return@mapNotNull null
@@ -841,6 +915,7 @@ class SolvePipeline(private val context: Context) {
         maxTokens: Int,
         l1Answers: Map<Int, String>,
         l1OptionsMap: Map<Int, String>,
+        l1QuestionTexts: Map<Int, String>,
         unmatchedQ: List<Int>,
         enhancement: SearchEnhancement
     ) {
@@ -854,6 +929,12 @@ class SolvePipeline(private val context: Context) {
             ExtractedTextBus.lastPromptTokens = estTokens
             val accumulated = StringBuilder()
             val estimatedTotalTokens = maxTokens.coerceAtLeast(1)
+
+            // 预解析L1答案（用于流式显示）
+            val streamingResolvedL1 = l1Answers.mapValues { (q, a) ->
+                resolveAnswerForDisplay(q, a, l1OptionsMap[q] ?: "", text)
+            }
+
             var firstChunk = true
             var streamStartMs = 0L
             client.chatStream(
@@ -878,10 +959,7 @@ class SolvePipeline(private val context: Context) {
                 val speed = roughTokenEstimate.toFloat() / elapsed
                 if (speed > 0) ExtractedTextBus.lastTokensPerSec = speed
                 // Show streaming with L1 answers prepended
-                val resolvedL1Stream = l1Answers.mapValues { (q, a) ->
-                    resolveAnswerForDisplay(q, a, l1OptionsMap[q] ?: "", text)
-                }
-                val l1Text = resolvedL1Stream.entries.sortedBy { it.key }
+                val l1Text = streamingResolvedL1.entries.sortedBy { it.key }
                     .joinToString("\n") { (q, a) -> "[$q] $a" }
                 val streamingDisplay = if (l1Text.isNotEmpty()) {
                     "$l1Text\n\n— LLM 答题中 —\n$displayText"
@@ -901,8 +979,38 @@ class SolvePipeline(private val context: Context) {
             Log.d(TAG, "L4 parsed: ${l4Parsed.size} questions: ${l4Parsed.keys.sorted()}")
 
             // Resolve L1 KB answer letters to on-screen letters for display
-            val resolvedL1 = l1Answers.mapValues { (q, a) ->
-                resolveAnswerForDisplay(q, a, l1OptionsMap[q] ?: "", text)
+            val resolvedL1 = mutableMapOf<Int, String>()
+            val resolutionErrors = mutableListOf<String>()
+            for ((qNum, kbAns) in l1Answers) {
+                val kbOpts = l1OptionsMap[qNum] ?: ""
+                val resolved = resolveAnswerForDisplay(qNum, kbAns, kbOpts, text)
+                if (resolved != kbAns && kbOpts.isNotBlank()) {
+                    val failed = validateResolution(qNum, kbAns, resolved, kbOpts, text)
+                    if (failed != null) resolutionErrors.add(failed)
+                }
+                resolvedL1[qNum] = resolved
+            }
+
+            // L1验证失败时，放弃L1答案，纯使用LLM结果
+            if (resolutionErrors.isNotEmpty()) {
+                Log.e(TAG, "callLLMAndCombine: L1 validation FAILED, falling back to L4 only: $resolutionErrors")
+                // 仅用L4答案
+                val fallbackCombined = l4Parsed.entries.sortedBy { it.key }
+                    .joinToString("\n") { (q, a) -> "[$q] $a" }
+                if (fallbackCombined.isNotBlank()) {
+                    ExtractedTextBus.updateSidebarState(
+                        SidebarState.Done(text, fallbackCombined, AnswerSource.LLM_DIRECT, enhancement.references,
+                            l4Parsed.keys.associate { it to "🤖 AI模型" })
+                    )
+                    return
+                }
+                // L4也没有答案 → 报错
+                val errMsg = buildString {
+                    append("⚠️ 题库答案验证失败，LLM也未产出有效答案\n")
+                    resolutionErrors.forEach { append("  $it\n") }
+                }
+                ExtractedTextBus.updateSidebarState(SidebarState.Error(errMsg))
+                return
             }
 
             // Combine L1 + L4 using formatCombinedAnswer (L1 priority on collision)
@@ -921,14 +1029,12 @@ class SolvePipeline(private val context: Context) {
             l4Parsed.forEach { (q, _) -> questionSources[q] = l4SourceLabel }
             val source = if (l4Parsed.isEmpty()) AnswerSource.EXCEL_MATCH else AnswerSource.LLM_DIRECT
 
-            // kbAnswerOptions中排除已在pipeline中解析的题目，防止ExamAccessibilityService二次解析
+            // kbAnswerOptions传完整map，通过resolvedQuestions标记已解析题防止二次解析
             val resolvedQ = l1Answers.keys.filter { resolvedL1[it] != l1Answers[it] }.toSet()
-            val filteredOptions = if (resolvedQ.isEmpty()) l1OptionsMap
-                else l1OptionsMap.filterKeys { it !in resolvedQ }
 
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, finalAnswer, source, enhancement.references, questionSources,
-                    kbAnswerOptions = filteredOptions)
+                    kbAnswerOptions = l1OptionsMap, kbQuestionTexts = l1QuestionTexts, resolvedQuestions = resolvedQ)
             )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -1105,6 +1211,85 @@ class SolvePipeline(private val context: Context) {
 
             // Reconstruct answer string: join resolved letters with space
             return resolved.joinToString(" ")
+        }
+
+        /**
+         * Verify that a resolution is correct by checking that the on-screen text
+         * corresponding to the new letter actually matches the KB option text.
+         * Returns an error message if validation fails, or null if OK.
+         */
+        fun validateResolution(
+            qNum: Int,
+            originalAnswer: String,
+            resolvedAnswer: String,
+            kbOptionsText: String,
+            examText: String
+        ): String? {
+            // Parse KB option text to get letter→text map
+            val kbMap = parseOptionMapInline(kbOptionsText)
+            if (kbMap.isEmpty()) return null // can't validate without KB options
+
+            // For each letter in the original KB answer, verify the resolved screen letter
+            // actually has matching text
+            val origLetters = originalAnswer.uppercase().filter { it in 'A'..'F' }
+                .map { it.toString() }
+            val resolvedLetters = resolvedAnswer.uppercase().filter { it in 'A'..'F' }
+                .map { it.toString() }
+
+            // Extract on-screen option text from exam text
+            val qText = extractSingleQuestionTextStatic(examText, qNum)
+            val onScreenMap = mutableListOf<Pair<String, String>>()
+            // Parse on-screen options from exam text
+            val lineRegex = Regex("""^([A-F])\s*[.、:：)）]\s*(.+)""", RegexOption.MULTILINE)
+            lineRegex.findAll(qText).forEach { match ->
+                val letter = match.groupValues[1]
+                val text = match.groupValues[2].trim()
+                if (letter in "A".."F" && text.isNotBlank()) {
+                    onScreenMap.add(letter to text)
+                }
+            }
+            if (onScreenMap.isEmpty()) return null // can't validate without on-screen options
+
+            for (i in origLetters.indices) {
+                val origL = origLetters.getOrNull(i) ?: break
+                val resolvedL = resolvedLetters.getOrNull(i) ?: break
+
+                // If letter unchanged, no need to check
+                if (origL == resolvedL) continue
+
+                val kbText = kbMap[origL] ?: continue
+                val screenText = onScreenMap.firstOrNull { it.first == resolvedL }?.second
+                if (screenText == null) continue
+
+                // Check: the resolved screen text should match the KB option text well
+                val similarity = com.examhelper.app.util.computeTextSimilarity(kbText, screenText)
+                if (similarity < 0.4f) {
+                    return buildString {
+                        append("Q$qNum: 答案解析验证失败")
+                        append("（KB[$origL]=${kbText.take(20)}")
+                        append(" → 屏幕[$resolvedL]=${screenText.take(20)}")
+                        append("，相似度=${"%.2f".format(similarity)}）")
+                    }
+                }
+
+                // Also check: the resolved letter's on-screen text should NOT
+                // be a better match to a DIFFERENT KB option (would suggest wrong mapping)
+                for ((otherKbLetter, otherKbText) in kbMap) {
+                    if (otherKbLetter == origL) continue
+                    val otherSim = com.examhelper.app.util.computeTextSimilarity(otherKbText, screenText)
+                    // If the resolved screen text matches a different KB option better,
+                    // the mapping is probably wrong
+                    if (otherSim > similarity * 1.2f && otherSim > 0.4f) {
+                        return buildString {
+                            append("Q$qNum: 答案解析可能错误")
+                            append("（KB[$origL]=${kbText.take(10)}→屏幕[$resolvedL]=${screenText.take(10)}")
+                            append("，相似度=${"%.2f".format(similarity)}")
+                            append("，但KB[$otherKbLetter]=${otherKbText.take(10)}匹配度更高=${"%.2f".format(otherSim)}）")
+                        }
+                    }
+                }
+            }
+            return null // all good
         }
 
         private fun extractSingleQuestionTextStatic(text: String, qNum: Int): String {

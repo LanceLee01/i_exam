@@ -95,7 +95,8 @@ fun ReadScreenButton(
 fun AutoFillButton(
     lastAnswer: String,
     lastExamText: String,
-    lastKbAnswerOptions: Map<Int, String> = emptyMap()
+    lastKbAnswerOptions: Map<Int, String> = emptyMap(),
+    lastResolvedQuestions: Set<Int> = emptySet()
 ) {
     val colors = LocalExamHelperColors.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -105,7 +106,7 @@ fun AutoFillButton(
     Spacer(Modifier.height(8.dp))
     Button(
         onClick = {
-            ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(lastAnswer, lastExamText, lastKbAnswerOptions))
+            ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(lastAnswer, lastExamText, lastKbAnswerOptions, lastResolvedQuestions))
         },
         modifier = Modifier
             .fillMaxWidth()
