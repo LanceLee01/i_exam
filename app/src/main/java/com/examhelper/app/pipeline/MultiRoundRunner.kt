@@ -1,7 +1,6 @@
 package com.examhelper.app.pipeline
 
 import android.util.Log
-import com.examhelper.app.service.PageNavigator
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
 import kotlinx.coroutines.*
@@ -10,12 +9,12 @@ import kotlinx.coroutines.flow.*
 class MultiRoundRunner(
     private val pipeline: SolvePipeline
 ) {
-    private val pageNavigator = PageNavigator()
     companion object {
         private const val TAG = "MultiRoundRunner"
         private const val MAX_PAGES = 100
-        private const val PAGE_WAIT_MS = 600L
-        private const val SOLVE_TIMEOUT_MS = 300_000L
+        private const val PAGE_WAIT_MS = 800L
+        private const val SOLVE_TIMEOUT_MS = 60_000L
+        private const val FILL_WAIT_MS = 1000L
     }
 
     private val _state = MutableStateFlow<MultiRoundState>(MultiRoundState.Idle)
@@ -34,7 +33,8 @@ class MultiRoundRunner(
     }
 
     fun start(scope: CoroutineScope) {
-        Log.e(TAG, "=== MultiRoundRunner.start() called ===")
+        Log.e(TAG, "=== MultiRoundRunner.start() called (L1 ONLY mode) ===")
+        cachedKbAnswerOptions = emptyMap()
         cancelled = false
         job = scope.launch(Dispatchers.Default) {
             Log.e(TAG, "=== MultiRound coroutine STARTED ===")
@@ -47,14 +47,14 @@ class MultiRoundRunner(
 
                     // 1. Read current page
                     Log.e(TAG, "--- Round $round: reading page ---")
-                    val text = pageNavigator.readCurrentPage()
+                    val text = readCurrentPage()
                     val filtered = ScanPageFilter.filter(text)
                     val progress = ScanPageFilter.extractProgress(text)
                     val current = progress?.first ?: round
                     val total = progress?.second ?: -1
                     Log.e(TAG, "Round $round: page=$current/$total, filtered len=${filtered.length}")
 
-                    // Stop conditions
+                    // Stop condition: page is stuck
                     if (current == lastPage) { Log.w(TAG, "Page stuck at $current, stopping"); break }
                     lastPage = current
 
@@ -62,29 +62,31 @@ class MultiRoundRunner(
                     if (filtered.isBlank()) {
                         Log.w(TAG, "Round $round: empty page $current, skipping")
                         if (current > 0 && total > 0 && current >= total) break
-                        val clicked = pageNavigator.clickNextPage()
+                        val clicked = clickNextPage()
                         if (!clicked) { Log.w(TAG, "No '下一页' at empty page $current, stopping"); break }
                         delay(PAGE_WAIT_MS)
                         continue
                     }
 
-                    // 2. Solve current page
-                    Log.e(TAG, "Round $round: solving page $current/$total")
+                    // 2. Solve current page — L1 only (no LLM)
+                    Log.e(TAG, "Round $round: L1 matching page $current/$total")
                     _state.value = MultiRoundState.Solving(current, total)
                     updateSidebarMulti(SidebarState.MultiPhase.SOLVING, currentPage = current, totalPages = total)
 
-                    val answer = solveCurrentPage(filtered)
+                    val answer = solveL1CurrentPage(filtered)
                     if (cancelled) return@launch
+
                     if (answer.isEmpty()) {
-                        Log.w(TAG, "Round $round: solve returned empty for page $current")
-                        updateSidebarMulti(SidebarState.MultiPhase.ERROR, errorMessage = "解答失败")
+                        val errMsg = "⚠️ 第 $current 页答题失败\nL1题库匹配未命中，请检查题库后重试"
+                        Log.w(TAG, errMsg)
+                        updateSidebarMulti(SidebarState.MultiPhase.ERROR, errorMessage = errMsg)
+                        _state.value = MultiRoundState.Error(errMsg)
                         return@launch
                     }
-                    Log.e(TAG, "Round $round: solve done, answer length=${answer.length}")
+                    Log.e(TAG, "Round $round: L1 match done, answer length=${answer.length}")
 
                     // 3. Fill answers on current page
                     answeredCount++
-                    // 生成题目摘要：过滤后的题目文本（截断） + 答案
                     val qSummary = buildQuestionSummary(filtered, answer)
                     Log.e(TAG, "qSummary=[$qSummary]")
                     Log.e(TAG, "Round $round: filling page $current/$total")
@@ -93,47 +95,10 @@ class MultiRoundRunner(
                         currentPage = current, totalPages = total, answeredCount = answeredCount,
                         currentQuestionSummary = qSummary)
 
-                    pageNavigator.clickAnswer(answer, filtered, cachedKbAnswerOptions)
+                    // 点击填入 — 传递 kbAnswerOptions 用于选项文字匹配
+                    clickAnswer(answer, filtered, cachedKbAnswerOptions)
+                    delay(FILL_WAIT_MS)
                     Log.e(TAG, "Round $round: filled page $current, total answered=$answeredCount")
-
-                    // 3.5 检查是否有自动填入失败的题目
-                    val toggleFailed = ExtractedTextBus.lastToggleFailedQuestions.toList()
-                    if (toggleFailed.isNotEmpty()) {
-                        ExtractedTextBus.lastToggleFailedQuestions = emptyList()  // 清零
-                        val kbDetails = buildString {
-                            append("❌ 自动填入失败：\n")
-                            for (failedReason in toggleFailed) {
-                                // failedReason 格式: "题号: 失败原因"
-                                val parts = failedReason.split(": ", limit = 2)
-                                val qNum = parts[0].toIntOrNull()
-                                val reason = parts.getOrElse(1) { failedReason }
-                                append("  $failedReason\n")
-                                // 如果知道题号，去题库查原题信息
-                                if (qNum != null) {
-                                    val qText = pipeline.extractSingleQuestionText(filtered, qNum).take(50)
-                                    val kbMatch = if (qText.length > 5) {
-                                        com.examhelper.app.knowledge.KnowledgeBaseManager.activeKB
-                                            ?.search(qText, options = "", topN = 5)
-                                            ?.filter { (_, score) -> score >= 0.90f }
-                                            ?.firstOrNull()
-                                    } else null
-                                    if (kbMatch != null) {
-                                        val (entry, score) = kbMatch
-                                        append("    KB原题: ${entry.question.take(50)} → ${entry.answer}")
-                                        if (entry.options.isNotBlank()) append(" | 选项: ${entry.options.take(60)}")
-                                        append("\n")
-                                    }
-                                }
-                            }
-                        }
-                        val errMsg = "⚠️ 答题暂停\n${kbDetails}请手动检查后继续"
-                        Log.w(TAG, "Round $round: toggle failed for $toggleFailed, pausing")
-                        updateSidebarMulti(SidebarState.MultiPhase.ERROR,
-                            currentPage = current, totalPages = total, answeredCount = answeredCount,
-                            errorMessage = errMsg)
-                        _state.value = MultiRoundState.Error(errMsg)
-                        return@launch
-                    }
 
                     // 4. Check if done
                     if (current > 0 && total > 0 && current >= total) {
@@ -142,7 +107,7 @@ class MultiRoundRunner(
                     }
 
                     // 5. Next page
-                    val clicked = pageNavigator.clickNextPage()
+                    val clicked = clickNextPage()
                     if (!clicked) { Log.w(TAG, "No '下一页' at page $current, stopping"); break }
                     delay(PAGE_WAIT_MS)
                 }
@@ -155,7 +120,9 @@ class MultiRoundRunner(
                 Log.d(TAG, "Cancelled")
             } catch (e: Exception) {
                 Log.e(TAG, "MultiRound failed", e)
-                updateSidebarMulti(SidebarState.MultiPhase.ERROR, errorMessage = e.message ?: "未知错误")
+                val errMsg = "多轮答题异常: ${e.message ?: "未知错误"}"
+                updateSidebarMulti(SidebarState.MultiPhase.ERROR, errorMessage = errMsg)
+                _state.value = MultiRoundState.Error(errMsg)
             }
         }
     }
@@ -165,43 +132,69 @@ class MultiRoundRunner(
         job?.cancel()
     }
 
-    // ── Solve single page ──
+    // ── L1-only solve for current page ──
 
-    private suspend fun solveCurrentPage(text: String): String {
-        // Check if already in Done state (fast path for L1-only solves)
-        var current = ExtractedTextBus.sidebarState.value
-        if (current is SidebarState.Done) {
-            cachedKbAnswerOptions = current.kbAnswerOptions
-            return current.answer
-        }
+    private suspend fun solveL1CurrentPage(text: String): String {
+        pipeline.solveL1Only(text)
 
-        pipeline.solve(text)
-
-        var answer = ""
-        var done = false
-        val collectionJob = CoroutineScope(Dispatchers.Default).launch {
-            ExtractedTextBus.sidebarState.collect { s ->
-                if (s is SidebarState.Done && !done) {
-                    answer = s.answer
-                    cachedKbAnswerOptions = s.kbAnswerOptions
-                    done = true
+        // Wait for Done or Error state
+        val deadline = System.currentTimeMillis() + SOLVE_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline && !cancelled) {
+            delay(100)
+            val state = ExtractedTextBus.sidebarState.value
+            when (state) {
+                is SidebarState.Done -> {
+                    cachedKbAnswerOptions = state.kbAnswerOptions
+                    return state.answer
                 }
+                is SidebarState.Error -> {
+                    Log.w(TAG, "solveL1CurrentPage: error from solveL1Only: ${state.message}")
+                    return ""
+                }
+                else -> { /* still waiting */ }
             }
         }
-        val deadline = System.currentTimeMillis() + SOLVE_TIMEOUT_MS
-        while (!done && !cancelled && System.currentTimeMillis() < deadline) {
-            delay(200)
+        Log.w(TAG, "solveL1CurrentPage timed out")
+        return ""
+    }
+
+    // ── Page navigation via ExtractedTextBus ──
+
+    private suspend fun readCurrentPage(): String = withContext(Dispatchers.Default) {
+        var result = ""
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.RequestExtract)
+
+        val deadline = System.currentTimeMillis() + 10_000
+        while (result.isEmpty() && System.currentTimeMillis() < deadline) {
+            delay(100)
+            val state = ExtractedTextBus.sidebarState.value
+            if (state is ExtractedTextBus.SidebarState.Preview) {
+                result = state.text
+            }
         }
-        collectionJob.cancel()
-        return answer
+        if (result.isEmpty()) Log.w(TAG, "readCurrentPage timed out")
+        result
+    }
+
+    private suspend fun clickNextPage(): Boolean = withContext(Dispatchers.Main) {
+        Log.d(TAG, "clickNextPage: sending ClickPage event")
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("下一页"))
+        delay(600)
+        true
+    }
+
+    private suspend fun clickAnswer(answer: String, sourceText: String, kbAnswerOptions: Map<Int, String>) {
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText, kbAnswerOptions))
+        // Wait for auto-click to finish
+        val answerCount = answer.lines().size.coerceAtLeast(1)
+        delay(1500L * answerCount + 2000L)
     }
 
     // ── Helpers ──
 
-    /** 从过滤后的题目文本和答案构造摘要，在 FILLING 阶段显示：题干 + 选项 + 答案 */
+    /** Build a short summary of the current question + answer for UI display */
     private fun buildQuestionSummary(filtered: String, answer: String): String {
         val lines = filtered.lines().map { it.trim() }.filter { it.isNotBlank() }
-        // 题干：跳过标题行、题型标签、题号行，停在选项/判断题答案/翻页文字之前，排除"正确""错误"等选项文字混入
         val stopWords = setOf("上一页", "下一页", "开始考试", "提交答案")
         val optionPattern = Regex("""^[A-F]\s*[.、:：)）]""")
         val stemLines = lines
@@ -213,12 +206,9 @@ class MultiRoundRunner(
             .takeWhile { !optionPattern.containsMatchIn(it) && it !in stopWords && it != "正确" && it != "错误" }
         val stem = stemLines.joinToString(" ").take(100)
             .ifBlank { filtered.lines().firstOrNull()?.take(60) ?: filtered.take(40) }
-        // 选项：A. B. C. D. + 判断题正确/错误
         val optionLines = lines
             .filter { Regex("""^[A-F]\s*[.、:：)）]""").containsMatchIn(it) || it == "正确" || it == "错误" }
-        // 答案：解析格式 "[N] A B" 提取字母或判断结果
         val ansLine = answer.lines().firstOrNull { Regex("""[\[【]?\d+[\]】]?""").containsMatchIn(it) }?.trim()?.take(30) ?: ""
-        // 排版
         val result = buildString {
             append("📝 $stem")
             if (optionLines.isNotEmpty()) append("\n📋 ${optionLines.joinToString("  ").take(80)}")

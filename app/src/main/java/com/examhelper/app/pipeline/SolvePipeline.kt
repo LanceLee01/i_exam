@@ -220,6 +220,63 @@ class SolvePipeline(private val context: Context) {
         }
     }
 
+    /**
+     * L1-only solving: Excel KB matching only. No LLM, no Wiki, no search.
+     * Pushes SidebarState.Done if ALL questions matched, or SidebarState.Error otherwise.
+     */
+    suspend fun solveL1Only(text: String) {
+        try {
+            Log.d(TAG, "solveL1Only() ENTER — text length=${text.length}")
+            val startMs = System.currentTimeMillis()
+
+            val l1Result = tryExcelMatchAll(text)
+            val l1Answers = l1Result?.answers ?: emptyMap()
+            val l1OptionsMap = l1Result?.kbAnswerOptions ?: emptyMap()
+
+            val allQ = extractQuestionNumbers(text).map { it.first }.toSet()
+            val unmatchedQ = (allQ - l1Answers.keys).sorted()
+
+            if (allQ.isEmpty()) {
+                Log.w(TAG, "solveL1Only: no question numbers found")
+                ExtractedTextBus.updateSidebarState(
+                    SidebarState.Error("未识别到题号，请确认已正确读取考试页面")
+                )
+                return
+            }
+
+            if (unmatchedQ.isNotEmpty()) {
+                val errorMsg = buildString {
+                    append("⚠️ 题库匹配失败\n")
+                    append("共 ${allQ.size} 题，未匹配 ${unmatchedQ.size} 题")
+                    if (unmatchedQ.isNotEmpty()) append(": ${formatRanges(unmatchedQ)}")
+                    append("\n请检查题库后重试")
+                }
+                Log.e(TAG, "solveL1Only: unmatched questions: $unmatchedQ")
+                ExtractedTextBus.updateSidebarState(SidebarState.Error(errorMsg))
+                return
+            }
+
+            // All matched — use raw L1 answers directly (no text-similarity resolution,
+            // which incorrectly remaps correct KB letters to wrong screen ones).
+            // kbAnswerOptions is intentionally empty so ExamAccessibilityService also
+            // skips the broken text-resolution path and clicks by letter position directly.
+            val combined = l1Answers.entries.sortedBy { it.key }
+                .joinToString("\n") { (q, a) -> "[$q] $a" }
+            val questionSources = l1Answers.entries.associate { it.key to "📋 题库匹配" }
+
+            Log.d(TAG, "solveL1Only: ${allQ.size} questions ALL matched in ${System.currentTimeMillis()-startMs}ms")
+            ExtractedTextBus.updateSidebarState(
+                SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(),
+                    questionSources, kbAnswerOptions = emptyMap())
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "solveL1Only() crashed", e)
+            ExtractedTextBus.updateSidebarState(
+                SidebarState.Error("题库匹配异常: ${e.message}")
+            )
+        }
+    }
+
     // ── L1: Excel 题库精准匹配 ───────────────────────────
 
     private data class L1Result(
@@ -484,12 +541,14 @@ class SolvePipeline(private val context: Context) {
 
     private fun extractQuestionNumbers(text: String): List<Pair<Int, IntRange>> {
         // Numbers >200 are likely data values (e.g. "20430.25万元"), not question numbers.
-        // Exam question numbers are typically 1–200.
+        // Exam question numbers are typically 1–200. Skip 0 (false positives from e.g. "0.4千伏").
         val MAX_QUESTION_NUMBER = 200
-        val pattern = Regex("""(\d+)[、.]""")
+        val MIN_QUESTION_NUMBER = 1
+        // Use word-boundary lookbehind to avoid matching decimal parts (e.g. "0.4" or "01" in "B线#01杆")
+        val pattern = Regex("""(?<!\d)(\d+)[、.]""")
         return pattern.findAll(text).mapNotNull { match ->
             val num = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-            if (num > MAX_QUESTION_NUMBER) return@mapNotNull null
+            if (num !in MIN_QUESTION_NUMBER..MAX_QUESTION_NUMBER) return@mapNotNull null
             val start = match.range.first
             num to (start..start)
         }.toList()
@@ -1002,12 +1061,24 @@ class SolvePipeline(private val context: Context) {
             val qText = extractSingleQuestionTextStatic(examText, qNum)
             // Parse options: handle both separate lines (A.xxx\nB.yyy) and inline (A.xxx B.yyy) format
             val onScreenMap = mutableListOf<Pair<String, String>>()
-            val optRegex = Regex("""([A-F])\s*[.、:：)）]\s*([^\n]*?)(?=\s*[A-F]\s*[.、:：)）]|\s*$)""", RegexOption.DOT_MATCHES_ALL)
-            optRegex.findAll(qText).forEach { match ->
+            // Line-by-line: each option on its own line (most common in exam extraction)
+            val lineRegex = Regex("""^([A-F])\s*[.、:：)）]\s*(.+)""", RegexOption.MULTILINE)
+            lineRegex.findAll(qText).forEach { match ->
                 val letter = match.groupValues[1]
                 val text = match.groupValues[2].trim()
                 if (letter in "A".."F" && text.isNotBlank()) {
                     onScreenMap.add(letter to text)
+                }
+            }
+            // Fallback: inline format (A.xxx B.yyy C.zzz) if line-by-line found nothing
+            if (onScreenMap.isEmpty()) {
+                val optRegex = Regex("""([A-F])\s*[.、:：)）]\s*([^\n]*?)(?=\s*[A-F]\s*[.、:：)）]|\s*$)""", RegexOption.DOT_MATCHES_ALL)
+                optRegex.findAll(qText).forEach { match ->
+                    val letter = match.groupValues[1]
+                    val text = match.groupValues[2].trim()
+                    if (letter in "A".."F" && text.isNotBlank()) {
+                        onScreenMap.add(letter to text)
+                    }
                 }
             }
             if (onScreenMap.isEmpty()) {
@@ -1046,6 +1117,27 @@ class SolvePipeline(private val context: Context) {
             val start = matches[matchIdx].range.first
             val end = if (matchIdx + 1 < matches.size) matches[matchIdx + 1].range.first else text.length
             return text.substring(start, end).trim().take(800)  // 800 to capture all options including D
+        }
+
+        /** Format sorted question numbers into ranges: [1,2,3,5,6,10] → "1-3, 5-6, 10" */
+        fun formatRanges(nums: List<Int>): String {
+            if (nums.isEmpty()) return ""
+            val result = StringBuilder()
+            var start = nums[0]
+            var prev = nums[0]
+            for (i in 1 until nums.size) {
+                if (nums[i] == prev + 1) {
+                    prev = nums[i]
+                } else {
+                    if (result.isNotEmpty()) result.append(", ")
+                    result.append(if (start == prev) "$start" else "$start-$prev")
+                    start = nums[i]
+                    prev = nums[i]
+                }
+            }
+            if (result.isNotEmpty()) result.append(", ")
+            result.append(if (start == prev) "$start" else "$start-$prev")
+            return result.toString()
         }
 
         /**
