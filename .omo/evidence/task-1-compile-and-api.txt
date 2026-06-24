@@ -1,0 +1,4 @@
+﻿T1 Evidence: ReferenceFormatter.kt created successfully
+- compileDebugKotlin: BUILD SUCCESSFUL
+- android.* imports: 0 matches (PASS)
+- API contract: formatSingleReference + stripHtml + truncateToSentenceEnd all present (3/3 PASS)

@@ -76,19 +76,23 @@ internal fun resolveOnScreenLetters(
     if (kbOptionMap.isEmpty()) return answerLetters // fallback: use original letters
 
     val resolved = mutableListOf<String>()
+    val usedScreenLetters = mutableSetOf<String>()
     for (ansLetter in answerLetters) {
         val kbText = kbOptionMap[ansLetter]
         if (kbText == null) {
             resolved.add(ansLetter) // fallback: keep original letter
             continue
         }
-        // Find best matching on-screen option by text similarity
-        val bestMatch = onScreenOptions.maxByOrNull { (_, screenText) ->
-            computeTextSimilarity(kbText, screenText)
-        }
+        // Find best matching on-screen option by text similarity, excluding already-matched ones
+        val bestMatch = onScreenOptions
+            .filter { (letter, _) -> letter !in usedScreenLetters }
+            .maxByOrNull { (_, screenText) ->
+                computeTextSimilarity(kbText, screenText)
+            }
         if (bestMatch != null) {
             val similarity = computeTextSimilarity(kbText, bestMatch.second)
             if (similarity >= 0.4f) {
+                usedScreenLetters.add(bestMatch.first)
                 resolved.add(bestMatch.first)
                 continue
             }

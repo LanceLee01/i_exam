@@ -1,0 +1,154 @@
+﻿=== compileDebugKotlin ===
+
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+
+BUILD SUCCESSFUL in 1s
+15 actionable tasks: 15 up-to-date
+
+
+=== assembleDebug ===
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:compileDebugJavaWithJavac UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:dexBuilderDebug UP-TO-DATE
+> Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :app:processDebugJavaRes UP-TO-DATE
+> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeProjectDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:packageDebug UP-TO-DATE
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleDebug UP-TO-DATE
+
+BUILD SUCCESSFUL in 1s
+37 actionable tasks: 37 up-to-date
+
+
+=== Verify: ReferenceFormatter import ===
+
+
+app\src\main\java\com\examhelper\app\ui\sidebar\SidebarStateRenderer.kt:38:import com.examhelper.app.util.ReferenceForm
+atter
+
+
+
+
+=== Verify: formatSingleReference call ===
+
+
+app\src\main\java\com\examhelper\app\ui\sidebar\SidebarStateRenderer.kt:166:            ReferenceFormatter.formatSingle
+Reference(s.references, llmQuestionNumbers)?.let { refText ->
+
+
+
+
+=== Verify: no clickable ===
+
+
+
+=== Verify: no pointerInput ===
+
+
+
+=== Final file (lines 34-42, 145-180) ===
+
+import com.examhelper.app.network.Reference
+import com.examhelper.app.ui.theme.TextSecondary
+import com.examhelper.app.util.ExtractedTextBus
+import com.examhelper.app.util.ExtractedTextBus.SidebarState
+import com.examhelper.app.util.ReferenceFormatter
+import kotlinx.coroutines.delay
+
+@Composable
+fun SidebarStateRenderer(
+
+
+...
+
+            }
+
+            val lines = s.answer.lines()
+            lines.forEach { line ->
+                val isAnswerLine = line.contains("鉁?) ||
+                    Regex("""^\s*[\[銆怾?\d+[\]銆慮?\s*[A-Da-d]\b""").containsMatchIn(line)
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    fontWeight = if (isAnswerLine) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                    lineHeight = 22.sp
+                )
+            }
+            // === Tavily 鍗曟潯鍙傝€冩憳褰曪紙100~150 瀛楋紝鍙ユ湯鎴柇锛岃嚜鍔ㄦ爣娉?AI 绛旈棰樺彿锛?===
+            val llmQuestionNumbers = s.questionSources
+                .filter { (_, source) -> source != "棰樺簱鍖归厤" }
+                .keys
+                .sorted()
+                .toList()
+            ReferenceFormatter.formatSingleReference(s.references, llmQuestionNumbers)?.let { refText ->
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = refText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                    lineHeight = 18.sp
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            ReworkButton(onClick = { onRework(s.text) })
+            Spacer(Modifier.height(8.dp))
+            SaveToKBButton(onClick = { onSaveToKB(s.text, s.answer) })
+        }
+

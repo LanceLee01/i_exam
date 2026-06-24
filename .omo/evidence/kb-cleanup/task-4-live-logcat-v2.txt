@@ -1,0 +1,487 @@
+--------- beginning of system
+06-17 17:07:51.982 I/ActivityManager( 4244): updateOomAdj start time is before than pendingPid added, don't delete it
+06-17 17:07:52.329 I/ActivityManager( 4244): Process PhantomProcessRecord {6180162 19709:2827:getprop/u0a363} died
+06-17 17:07:52.342 I/ActivityManager( 4244): Process PhantomProcessRecord {e28c2dc 19687:2827:cmd/u0a363} died
+06-17 17:07:52.343 I/ActivityManager( 4244): Process PhantomProcessRecord {4e22fe5 19677:2827:sh/u0a363} died
+06-17 17:07:52.362 I/ActivityManager( 4244): Process PhantomProcessRecord {f045aba 19632:2827:getprop/u0a363} died
+06-17 17:07:52.597 W/ActivityManager( 4244): Background start not allowed: service Intent { act=android.net.conn.CONNECTIVITY_CHANGE xflg=0x4 cmp=com.dragon.read/com.ss.android.socialbase.downloader.notification.DownloadNotificationService mCallingUid=10363 } to com.dragon.read/com.ss.android.socialbase.downloader.notification.DownloadNotificationService from pid=2827 uid=10363 pkg=com.dragon.read startFg?=false
+06-17 17:07:53.261 I/ActivityManager( 4244): Process PhantomProcessRecord {14e3845 19884:15441:sh/u0a406} died
+06-17 17:07:55.599 I/ActivityManager( 4244): updateOomAdj start time is before than pendingPid added, don't delete it
+06-17 17:08:31.556 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:08:31.557 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:08:31.557 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:08:31.557 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:08:31.557 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:08:31.557 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:08:45.798 I/ActivityManager( 4244): Start proc 20579:com.oplus.safecenter/1000 for content provider {com.oplus.safecenter/com.oplus.safecenter.common.provider.SafeProvider}
+06-17 17:08:45.799 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:08:45.884 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@d12627a already registered for pid 10537, callerPackage is com.android.incallui
+06-17 17:08:45.933 I/ActivityManager( 4244): Start proc 20649:com.aiunit.aon/u0a210 for service {com.aiunit.aon/com.aiunit.aon.AONService}
+06-17 17:08:45.938 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:08:45.955 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@5270dd9 already registered for pid 10537, callerPackage is com.android.incallui
+06-17 17:08:45.957 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@cc14e4c already registered for pid 10537, callerPackage is com.android.incallui
+06-17 17:08:45.974 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 1000. pid: 20579
+06-17 17:08:46.032 I/ActivityManager( 4244): Start proc 20739:com.oplus.pantanal.ums:aiflow/u0a140 for content provider {com.oplus.pantanal.ums/com.pantanal.aiflow.provider.AiBriefContentProvider}
+06-17 17:08:46.032 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:08:46.050 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10210. pid: 20649
+06-17 17:08:46.210 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10140. pid: 20739
+06-17 17:08:46.235 I/ActivityManager( 4244): Start proc 20940:com.coloros.shortcuts:ainews/u0a349 for content provider {com.coloros.shortcuts/com.oplus.shortcuts.lab.provider.ShortcutLabProvider}
+06-17 17:08:46.235 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:08:46.373 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10349. pid: 20940
+06-17 17:08:47.107 E/ActivityManager( 4244): FGS logic changed: [WIU changed] Orig WIU:BACKGROUND_ACTIVITY_PERMISSION New WIU:DENIED Orig BFSL:BACKGROUND_ACTIVITY_PERMISSION New BFSL:PROC_STATE_FGS cmp: {com.oplus.ovoicemanager.wakeup/com.oplus.ovoicemanager.wakeup.train.OVoiceTrainService} sdk: 33
+06-17 17:08:47.108 I/ActivityManager( 4244): Background started FGS: Allowed [callingPackage: com.oplus.ovoicemanager.wakeup; callingUid: 10087; uidState: FGS ; uidBFSL: [BFSL]; intent: Intent { act=com.oplus.intent.action.OVoiceTrainService pkg=com.oplus.ovoicemanager.wakeup mCallingUid=10111 }; code:PROC_STATE_FGS; tempAllowListReason:<null>; allowWiu:-1; targetSdkVersion:33; callerTargetSdkVersion:33; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+06-17 17:08:47.110 W/ActivityManager( 4244): Starting FGS with type microphone code=4 callerApp=ProcessRecord{a7cfe79 27795:com.oplus.ovoicemanager.wakeup/u0a87} targetSDK=33 requiredPermissions=all of the permissions allOf=true [android.permission.FOREGROUND_SERVICE_MICROPHONE] any of the permissions allOf=false [android.permission.CAPTURE_AUDIO_HOTWORD, android.permission.CAPTURE_AUDIO_OUTPUT, android.permission.CAPTURE_MEDIA_OUTPUT, android.permission.CAPTURE_TUNER_AUDIO_INPUT, android.permission.CAPTURE_VOICE_COMMUNICATION_OUTPUT, android.permission.RECORD_AUDIO]  and the app must be in the eligible state/exemptions to access the foreground only permission
+06-17 17:09:15.398 I/ActivityManager( 4244): Start proc 21602:com.android.calllogbackup/u0a70 for broadcast {com.android.calllogbackup/com.android.calllogbackup.CallLogChangeReceiver}
+06-17 17:09:15.398 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:09:15.458 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10070. pid: 21602
+06-17 17:09:36.280 I/ActivityManager( 4244): Death received, pid = 20739, processName = com.oplus.pantanal.ums:aiflow for thread android.os.BinderProxy@5db454d
+06-17 17:09:36.280 I/ActivityManager( 4244): Process com.oplus.pantanal.ums:aiflow (pid 20739) has died: cch+5 CEM 
+06-17 17:10:02.463 I/ActivityManager( 4244): Death received, pid = 18890, processName = com.heytap.speechassist for thread android.os.BinderProxy@b00de6e
+06-17 17:10:02.464 I/ActivityManager( 4244): Process com.heytap.speechassist (pid 18890) has died: vis IMPF
+06-17 17:10:02.493 I/ActivityManager( 4244): Start proc 21925:com.heytap.speechassist/u0a111 for service {com.heytap.speechassist/com.heytap.speechassist.agent.KeepLiveService}
+06-17 17:10:02.493 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:10:02.629 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10111. pid: 21925
+06-17 17:10:18.476 I/ActivityManager( 4244): Death received, pid = 21602, processName = com.android.calllogbackup for thread android.os.BinderProxy@9cf1916
+06-17 17:10:18.476 I/ActivityManager( 4244): Process com.android.calllogbackup (pid 21602) has died: cch+5 CEM 
+06-17 17:11:10.477 W/ActivityManager( 4244): pid 4244 system sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:11:10.495 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:11:10.495 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:11:10.496 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:11:10.496 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:11:10.496 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:11:46.123 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:11:46.124 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:11:46.124 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:11:46.124 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:11:46.124 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:11:46.124 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:11:46.124 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:11:56.655 W/ActivityManager( 4244): Permission Denial: getTopApplicationInfo from pid=15441, uid=10406 requires oplus.permission.OPLUS_COMPONENT_SAFE
+06-17 17:12:14.164 W/ActivityManager( 4244): Permission Denial: getTopApplicationInfo from pid=15441, uid=10406 requires oplus.permission.OPLUS_COMPONENT_SAFE
+06-17 17:13:46.713 W/ActivityManager( 4244): pid 4244 system sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 16443 received async transactions while frozen
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:13:46.714 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:13:47.021 I/ActivityManager( 4244): Death received, pid = 20940, processName = com.coloros.shortcuts:ainews for thread android.os.BinderProxy@150580a
+06-17 17:13:47.022 I/ActivityManager( 4244): Process com.coloros.shortcuts:ainews (pid 20940) has died: cch+45 CEM 
+06-17 17:13:47.356 W/ActivityManager( 4244): pid 4244 system sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:13:47.469 I/ActivityManager( 4244): Start proc 23135:com.heytap.pictorial:ui/u0a264 for service {com.heytap.pictorial/com.heytap.pictorial.service.ui.AwakeUIService}
+06-17 17:13:47.469 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:13:47.838 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10264. pid: 23135
+06-17 17:13:49.635 I/ActivityManager( 4244): updateOomAdj start time is before than pendingPid added, don't delete it
+--------- beginning of main
+06-17 17:13:51.528 D/KBCleanup(13592): Backup created: kb_data.json.bak.20260617-171351
+06-17 17:13:52.301 D/KnowledgeBase(13592): [JJC] Built trigram cache for 13892 entries
+06-17 17:13:52.301 D/KBCleanup(13592): Removed=0 entries (from=13892 to=13892). Sample: 
+06-17 17:13:53.367 I/ActivityManager( 4244): Death received, pid = 23135, processName = com.heytap.pictorial:ui for thread android.os.BinderProxy@9f5749d
+06-17 17:13:53.367 I/ActivityManager( 4244): Process com.heytap.pictorial:ui (pid 23135) has died: cch+25 CEM 
+06-17 17:14:00.851 I/ActivityManager( 4244): updateOomAdj start time is before than pendingPid added, don't delete it
+06-17 17:14:05.813 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《总书记关于安全生产的重要论述合集》，2024年5月2日习近平对广东梅州市梅 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2016年10月11日，习近平总书记在中央全面深化改革领导小组第二十八次会议上发 ans=D
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2024年1月6日习近平对云南昭通市镇雄县山体滑坡作出重要指示，各地区和有关部门 ans=ABC
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=习近平总书记2025年7月30日就华东、华北、东北等地持续遭遇强降雨，引发洪涝和 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，新上岗检修、试验人员（含技术人员）应经过检修、 ans=B
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，省公司级单位至少（    ），地市公司级单位、 ans=B
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，公司各级单位应建立和完善（    ），构建事前 ans=ACD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，公司各级单位应全面实施安全风险管理，对各类安全 ans=ABCD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2022年4月9日，国网墨脱县供电公司组织8名作业人员在确认209#塔分段开关（ ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2023年5月18日，由山东送变电工程有限公司施工的济南西南部220千伏电网加强 ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2024年9月29日，国网西藏电力阿里供电公司110千伏加木变电站基建工程施工现 ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2023年8月14日，国网蒙东电力所属内蒙古超特高压公司500千伏别力古台变电站 ans=ABCD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2024年10月24日，江西1000千伏赣江站在黄江Ⅰ、Ⅱ线送电调试准备期间，施 ans=ABCEF
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2025年12月11日，国网重庆超高压公司陈家桥变电站在500千伏岳陈Ⅰ线505 ans=ACDEF
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2025年11月7日，国网湖北直流公司±420kV宜昌换流站在开展强度判别装置定 ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2025年4月8日21时许，河北省承德市隆化县国恩老年公寓发生火灾，事后调查发现 ans=AD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=以下哪项不是国家能源局发布的《重大电力安全隐患判定标准（试行）》（国能综通安全〔 ans=D
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《重大电力安全隐患判定标准（试行）》（国能综通安全〔2022〕123号），以 ans=ABD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=根据国网《安全隐患排查治理管理办法》，隐患排查治理标准编制应围绕影响公司安全生产 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《安全设施标准》，低压配电屏（箱）、二次设备屏等有触电危险或易造成短路的作业 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《总书记关于安全生产的重要论述合集》，2024年5月2日习近平对广东梅州市梅 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2016年10月11日，习近平总书记在中央全面深化改革领导小组第二十八次会议上发 ans=D
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2024年1月6日习近平对云南昭通市镇雄县山体滑坡作出重要指示，各地区和有关部门 ans=ABC
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=习近平总书记2025年7月30日就华东、华北、东北等地持续遭遇强降雨，引发洪涝和 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《电力安全事故应急处置和调查处理条例》，恢复电网运行和电力供应，应当优先保证 ans=ABC
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，新上岗检修、试验人员（含技术人员）应经过检修、 ans=B
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，省公司级单位至少（    ），地市公司级单位、 ans=B
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，公司各级单位应建立和完善（    ），构建事前 ans=ACD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=《国家电网公司安全工作规定》规定，公司各级单位应全面实施安全风险管理，对各类安全 ans=ABCD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2022年4月9日，国网墨脱县供电公司组织8名作业人员在确认209#塔分段开关（ ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2023年5月18日，由山东送变电工程有限公司施工的济南西南部220千伏电网加强 ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2024年9月29日，国网西藏电力阿里供电公司110千伏加木变电站基建工程施工现 ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2023年8月14日，国网蒙东电力所属内蒙古超特高压公司500千伏别力古台变电站 ans=ABCD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2024年10月24日，江西1000千伏赣江站在黄江Ⅰ、Ⅱ线送电调试准备期间，施 ans=ABCEF
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2025年12月11日，国网重庆超高压公司陈家桥变电站在500千伏岳陈Ⅰ线505 ans=ACDEF
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2025年11月7日，国网湖北直流公司±420kV宜昌换流站在开展强度判别装置定 ans=ABCDE
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2025年4月8日21时许，河北省承德市隆化县国恩老年公寓发生火灾，事后调查发现 ans=AD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=以下哪项不是国家能源局发布的《重大电力安全隐患判定标准（试行）》（国能综通安全〔 ans=D
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《重大电力安全隐患判定标准（试行）》（国能综通安全〔2022〕123号），以 ans=ABD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=根据国网《安全隐患排查治理管理办法》，隐患排查治理标准编制应围绕影响公司安全生产 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《安全设施标准》，低压配电屏（箱）、二次设备屏等有触电危险或易造成短路的作业 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《电力安全工作规程（变电部分）》工作票的填写签发规定，总、分工作票原则上由（ ans=B
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《电力安全工作规程（变电部分）》工作票的填写签发规定，关于总、分工作票下列说 ans=ABC
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《电力安全工作规程（变电部分）》填用事故紧急抢修单的工作规定，事故紧急抢修应 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《电力安全工作规程（变电部分）》工作票的填写签发规定，总工作票应在分工作票许 ans=B
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《国网安监部关于优化调整严重违章查治工作的通知》（安监二〔2024〕24号） ans=ABCD
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《国网安监部关于优化调整严重违章查治工作的通知》（安监二〔2024〕24号） ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=依据《总书记关于安全生产的重要论述合集》，2024年5月2日习近平对广东梅州市梅 ans=A
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2016年10月11日，习近平总书记在中央全面深化改革领导小组第二十八次会议上发 ans=D
+06-17 17:14:05.814 D/ExamHelperL1(13592): KB raw hit: score=1.0000 q=2024年1月6日习近平对云南昭通市镇雄县山体滑坡作出重要指示，各地区和有关部门 ans=ABC
+06-17 17:14:05.837 D/SolvePipeline(13592): L1 matched 27 questions: [1, 2, 5, 6, 8, 20, 21, 22, 23, 24, 27, 28, 29, 30, 31, 32, 33, 34, 35, 48, 49, 51, 53, 65, 66, 67, 68]
+06-17 17:14:05.838 D/SolvePipeline(13592): solve: L1=27 allQ=70 unmatchedQ=[3, 4, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 50, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 69, 70] l1Keys=[1, 2, 21, 51, 5, 6, 23, 24, 27, 28, 29, 30, 31, 32, 33, 34, 8, 35, 53, 65, 22, 20, 48, 66, 67, 49, 68]
+06-17 17:14:18.088 I/ActivityManager( 4244): Death received, pid = 16991, processName = com.android.rkpdapp for thread android.os.BinderProxy@a66c2b7
+06-17 17:14:18.089 I/ActivityManager( 4244): Process com.android.rkpdapp (pid 16991) has died: cch+75 CEM 
+06-17 17:14:18.115 I/ActivityManager( 4244): Death received, pid = 20545, processName = com.coloros.weather2 for thread android.os.BinderProxy@d9eda24
+06-17 17:14:18.115 I/ActivityManager( 4244): Process com.coloros.weather2 (pid 20545) has died: cch+75 SVC 
+06-17 17:14:18.116 I/ActivityManager( 4244): Death received, pid = 20340, processName = com.nearme.instant.platform:provider for thread android.os.BinderProxy@ef2098d
+06-17 17:14:18.120 I/ActivityManager( 4244): Process com.nearme.instant.platform:provider (pid 20340) has died: cch+75 CEM 
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 16443 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 20649 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:14:50.400 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:14:54.122 I/ActivityManager( 4244): Death received, pid = 21316, processName = com.android.cellbroadcastreceiver.module for thread android.os.BinderProxy@5082702
+06-17 17:14:54.123 I/ActivityManager( 4244): Process com.android.cellbroadcastreceiver.module (pid 21316) has died: cch+65 CEM 
+06-17 17:14:54.134 I/ActivityManager( 4244): Death received, pid = 18772, processName = com.oplus.pantanal.ums:analyzer for thread android.os.BinderProxy@9ef9b3c
+06-17 17:14:54.134 I/ActivityManager( 4244): Process com.oplus.pantanal.ums:analyzer (pid 18772) has died: cch+75 CEM 
+06-17 17:15:17.217 D/SolvePipeline(13592): L4 answer raw length: 241, first 200 chars: 3 A
+06-17 17:15:17.217 D/SolvePipeline(13592): 4 A
+06-17 17:15:17.217 D/SolvePipeline(13592): 7 B
+06-17 17:15:17.217 D/SolvePipeline(13592): 9 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 10 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 11 A
+06-17 17:15:17.217 D/SolvePipeline(13592): 12 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 13 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 14 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 15 D
+06-17 17:15:17.217 D/SolvePipeline(13592): 16 A
+06-17 17:15:17.217 D/SolvePipeline(13592): 17 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 18 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 19 B
+06-17 17:15:17.217 D/SolvePipeline(13592): 25 ABCD
+06-17 17:15:17.217 D/SolvePipeline(13592): 26 C
+06-17 17:15:17.217 D/SolvePipeline(13592): 36 CD
+06-17 17:15:17.217 D/SolvePipeline(13592): 37 AC
+06-17 17:15:17.217 D/SolvePipeline(13592): 38 不确定
+06-17 17:15:17.217 D/SolvePipeline(13592): 39 A
+06-17 17:15:17.217 D/SolvePipeline(13592): 40 AB
+06-17 17:15:17.217 D/SolvePipeline(13592): 41 AC
+06-17 17:15:17.217 D/SolvePipeline(13592): 42 BD
+06-17 17:15:17.217 D/SolvePipeline(13592): 43 B
+06-17 17:15:17.217 D/SolvePipeline(13592): 44 AB
+06-17 17:15:17.217 D/SolvePipeline(13592): 45 A
+06-17 17:15:17.217 D/SolvePipeline(13592): 46 ABD
+06-17 17:15:17.217 D/SolvePipeline(13592): 47 BC
+06-17 17:15:17.217 D/SolvePipeline(13592): 50 ABCD
+06-17 17:15:17.217 D/SolvePipeline(13592): 52 正确
+06-17 17:15:17.217 D/SolvePipeline(13592): 54 正确
+06-17 17:15:17.217 D/SolvePipeline(13592): 55 错误
+06-17 17:15:17.217 D/SolvePipeline(13592): 56 正确
+06-17 17:15:17.217 D/SolvePipeline(13592): 57 错误
+06-17 17:15:17.217 D/SolvePipeline(13592): 58 正确
+06-17 17:15:17.217 D/SolvePipeline(13592): 59 正确
+06-17 17:15:17.230 D/SolvePipeline(13592): L4 parsed: 43 questions: [3, 4, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 50, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 69, 70]
+06-17 17:15:17.231 D/SolvePipeline(13592): Combined answer length: 570, first 100: [1] A
+06-17 17:15:17.231 D/SolvePipeline(13592): [2] D
+06-17 17:15:17.231 D/SolvePipeline(13592): [3] A
+06-17 17:15:17.231 D/SolvePipeline(13592): [4] A
+06-17 17:15:17.231 D/SolvePipeline(13592): [5] B
+06-17 17:15:17.231 D/SolvePipeline(13592): [6] B
+06-17 17:15:17.231 D/SolvePipeline(13592): [7] B
+06-17 17:15:17.231 D/SolvePipeline(13592): [8] D
+06-17 17:15:17.231 D/SolvePipeline(13592): [9] C
+06-17 17:15:17.231 D/SolvePipeline(13592): [10] C
+06-17 17:15:17.231 D/SolvePipeline(13592): [11] A
+06-17 17:15:17.231 D/SolvePipeline(13592): [12] C
+06-17 17:15:17.231 D/SolvePipeline(13592): [13] C
+06-17 17:15:17.231 D/SolvePipeline(13592): [14] C
+06-17 17:15:17.231 D/SolvePipeline(13592): [15] D
+06-17 17:15:17.231 D/SolvePipeline(13592): [16]
+06-17 17:16:05.488 W/ActivityManager( 4244): pid 4244 system sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:16:05.490 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:16:05.496 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:16:05.496 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:16:05.496 W/ActivityManager( 4244): pid 16443 received async transactions while frozen
+06-17 17:16:05.496 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:16:05.496 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:16:05.496 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:16:05.496 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:16:18.967 W/ActivityManager( 4244): Permission Denial: getTopApplicationInfo from pid=5339, uid=10390 requires oplus.permission.OPLUS_COMPONENT_SAFE
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 16443 received async transactions while frozen
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:17:49.645 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:18:25.757 I/ActivityManager( 4244): Start proc 24332:com.coloros.weather2/u0a348 for content provider {com.coloros.weather2/com.oplus.weather.service.provider.WeatherProvider}
+06-17 17:18:25.757 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:18:25.896 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@f5910d1 already registered for pid 24332, callerPackage is com.coloros.weather2
+06-17 17:18:25.945 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10348. pid: 24332
+06-17 17:20:29.495 I/ActivityManager( 4244): Start proc 24543:com.tencent.mm:support/u0a390 for service {com.tencent.mm/com.tencent.mm.service.ProcessService$SupportProcessService}
+06-17 17:20:29.495 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:20:30.029 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10390. pid: 24543
+06-17 17:20:30.350 I/ActivityManager( 4244): Death received, pid = 17306, processName = com.android.contacts.child_process for thread android.os.BinderProxy@43596ea
+06-17 17:20:30.351 I/ActivityManager( 4244): Death received, pid = 20579, processName = com.oplus.safecenter for thread android.os.BinderProxy@1c8bddb
+06-17 17:20:30.354 I/ActivityManager( 4244): Process com.android.contacts.child_process (pid 17306) has died: cch+45 CEM 
+06-17 17:20:30.356 I/ActivityManager( 4244): Death received, pid = 17208, processName = com.oplus.blacklistapp for thread android.os.BinderProxy@eb3c078
+06-17 17:20:30.357 I/ActivityManager( 4244): Death received, pid = 17785, processName = com.android.providers.calendar for thread android.os.BinderProxy@bfdb351
+06-17 17:20:30.360 I/ActivityManager( 4244): Death received, pid = 16443, processName = com.oplus.romupdate for thread android.os.BinderProxy@94e37b6
+06-17 17:20:30.360 I/ActivityManager( 4244): Death received, pid = 17249, processName = com.oplus.phonenoareainquire for thread android.os.BinderProxy@80b5cb7
+06-17 17:20:30.363 I/ActivityManager( 4244): Process com.oplus.safecenter (pid 20579) has died: cch+65 CEM 
+06-17 17:20:30.363 I/ActivityManager( 4244): Process com.android.providers.calendar (pid 17785) has died: cch+55 CEM 
+06-17 17:20:30.364 I/ActivityManager( 4244): Process com.oplus.romupdate (pid 16443) has died: cch+55 CEM 
+06-17 17:20:30.364 I/ActivityManager( 4244): Process com.oplus.phonenoareainquire (pid 17249) has died: cch+45 CEM 
+06-17 17:20:30.364 W/ActivityManager( 4244): pid 4244 system sent binder code 39 with flags 1 to frozen apps and got error -32
+06-17 17:20:30.369 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:20:30.369 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:20:30.369 W/ActivityManager( 4244): pid 10917 received async transactions while frozen
+06-17 17:20:30.369 I/ActivityManager( 4244): Process com.oplus.blacklistapp (pid 17208) has died: cch+45 CEM 
+06-17 17:20:30.372 W/ActivityManager( 4244): Unable to query binder frozen stats for pid 17208
+06-17 17:20:30.372 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:20:30.372 W/ActivityManager( 4244): pid 21928 received async transactions while frozen
+06-17 17:20:30.372 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:20:30.372 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:20:38.563 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:21:01.075 I/ActivityManager( 4244): Start proc 24740:com.oplus.romupdate/u0a257 for content provider {com.oplus.romupdate/com.oplusos.romupdate.provider.RomUpdateProvider}
+06-17 17:21:01.075 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:21:01.167 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10257. pid: 24740
+06-17 17:22:41.718 I/ActivityManager( 4244): Death received, pid = 24543, processName = com.tencent.mm:support for thread android.os.BinderProxy@36504ca
+06-17 17:22:41.718 I/ActivityManager( 4244): Process com.tencent.mm:support (pid 24543) has died: svc SVC 
+06-17 17:23:27.557 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:23:27.557 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:23:27.557 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:23:27.557 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:23:27.557 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:23:27.557 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:23:48.243 I/ActivityManager( 4244): Death received, pid = 13451, processName = com.oplus.sau for thread android.os.BinderProxy@b82121e
+06-17 17:23:48.244 I/ActivityManager( 4244): Process com.oplus.sau (pid 13451) has died: svcb SVC 
+06-17 17:23:48.514 W/ActivityManager( 4244): pid 4244 system sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:23:48.516 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:23:48.516 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:23:48.516 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:23:48.516 W/ActivityManager( 4244): pid 22732 received async transactions while frozen
+06-17 17:23:48.516 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:23:48.765 I/ActivityManager( 4244): Start proc 25026:com.heytap.pictorial:ui/u0a264 for service {com.heytap.pictorial/com.heytap.pictorial.service.ui.AwakeUIService}
+06-17 17:23:48.765 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:48.799 W/ActivityManager( 4244): pid 11379 com.heytap.pictorial sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:23:49.235 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10264. pid: 25026
+06-17 17:23:49.264 I/ActivityManager( 4244): Process PhantomProcessRecord {cafc923 25245:15441:sh/u0a406} died
+06-17 17:23:50.090 I/ActivityManager( 4244): updateOomAdj start time is before than pendingPid added, don't delete it
+06-17 17:23:53.011 I/ActivityManager( 4244): Start proc 25523:com.nearme.instant.platform:provider/u0a244 for content provider {com.nearme.instant.platform/com.nearme.instant.card.SharedDataProvider}
+06-17 17:23:53.011 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:53.155 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10244. pid: 25523
+06-17 17:23:53.157 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@4a3bf63 already registered for pid 25523, callerPackage is com.nearme.instant.platform
+06-17 17:23:53.729 I/ActivityManager( 4244): Start proc 4594:cn.wps.moffice_eng/u0a401 for top-activity {cn.wps.moffice_eng/cn.wps.moffice.documentmanager.ab.proxy.main}
+06-17 17:23:53.729 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:53.963 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10401. pid: 4594
+06-17 17:23:53.999 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@f6da0ef already registered for pid 4594, callerPackage is cn.wps.moffice_eng
+06-17 17:23:54.073 I/ActivityManager( 4244): Start proc 25949:cn.wps.moffice_eng:spreadsheet1/u0a401 for service {cn.wps.moffice_eng/cn.wps.moffice.spreadsheet.PCS$SS1}
+06-17 17:23:54.073 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:54.278 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10401. pid: 25949
+06-17 17:23:54.567 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@aca4a20 already registered for pid 25949, callerPackage is cn.wps.moffice_eng
+06-17 17:23:54.580 I/ActivityManager( 4244): Start proc 26376:cn.wps.moffice_eng:mofficeservice/u0a401 for content provider {cn.wps.moffice_eng/cn.wps.moffice.ipcob.IPCBusinessController}
+06-17 17:23:54.581 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:54.595 I/ActivityManager( 4244): Death received, pid = 25026, processName = com.heytap.pictorial:ui for thread android.os.BinderProxy@d93b002
+06-17 17:23:54.595 I/ActivityManager( 4244): Process com.heytap.pictorial:ui (pid 25026) has died: cch+25 CEM 
+06-17 17:23:54.604 I/ActivityManager( 4244): Start proc 26407:cn.wps.moffice_eng:pushservice/u0a401 for service {cn.wps.moffice_eng/cn.wps.devicesoftcenter.service.DeviceSoftCenterService}
+06-17 17:23:54.604 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:54.818 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10401. pid: 26376
+06-17 17:23:54.839 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10401. pid: 26407
+06-17 17:23:54.874 I/ActivityManager( 4244): Start proc 26752:com.coloros.ocs.opencapabilityservice:ocs/u0a248 for service {com.coloros.ocs.opencapabilityservice/com.coloros.ocs.opencapabilityservice.service.ColorOcsService}
+06-17 17:23:54.874 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:54.933 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10248. pid: 26752
+06-17 17:23:55.546 I/ActivityManager( 4244): Start proc 26899:cn.wps.moffice_eng:scan/u0a401 for service {cn.wps.moffice_eng/cn.wps.moffice.aicvsdk.v2.service.ResourceService}
+06-17 17:23:55.546 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:55.609 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@1757d31 already registered for pid 4594, callerPackage is cn.wps.moffice_eng
+06-17 17:23:55.629 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@ab7744d
+06-17 17:23:55.637 I/ActivityManager( 4244): Start proc 26979:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0i495 for  {cn.wps.moffice_eng/org.chromium.content.app.SandboxedProcessService0:0}
+06-17 17:23:55.637 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:23:55.660 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 99495. pid: 26979
+06-17 17:23:55.672 W/ActivityManager( 4244): Unable to start service Intent { act=com.google.android.gms.safebrowsing.SafeBrowsingService.START xflg=0x4 pkg=com.google.android.gms mCallingUid=10401 } U=0: not found
+06-17 17:23:55.672 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@e075f29
+06-17 17:23:55.676 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@f391812
+06-17 17:23:55.676 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10401. pid: 26899
+06-17 17:23:55.749 I/ActivityManager( 4244): Death received, pid = 20649, processName = com.aiunit.aon for thread android.os.BinderProxy@eda0dd1
+06-17 17:23:55.750 I/ActivityManager( 4244): Process com.aiunit.aon (pid 20649) has died: cch+35 CEM 
+06-17 17:23:55.755 I/ActivityManager( 4244): Death received, pid = 28403, processName = com.oplus.account for thread android.os.BinderProxy@7dd7b37
+06-17 17:23:55.755 I/ActivityManager( 4244): Process com.oplus.account (pid 28403) has died: cch+75 SVC 
+06-17 17:23:55.759 I/ActivityManager( 4244): Death received, pid = 28942, processName = com.heytap.cloud for thread android.os.BinderProxy@d97832f
+06-17 17:23:55.760 I/ActivityManager( 4244): Process com.heytap.cloud (pid 28942) has died: cch+85 SVC 
+06-17 17:23:55.763 I/ActivityManager( 4244): Death received, pid = 13091, processName = com.coloros.phonemanager for thread android.os.BinderProxy@7458a08
+06-17 17:23:55.763 I/ActivityManager( 4244): Process com.coloros.phonemanager (pid 13091) has died: cch+45 CEM 
+06-17 17:23:57.031 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@eb7793a
+06-17 17:23:57.068 W/ActivityManager( 4244): Unable to start service Intent { act=com.google.android.gms.safebrowsing.SafeBrowsingService.START xflg=0x4 pkg=com.google.android.gms mCallingUid=10401 } U=0: not found
+06-17 17:23:57.069 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@4e87e78
+06-17 17:23:57.074 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@b3c25b6
+06-17 17:24:00.656 W/ActivityManager( 4244): Unable to start service Intent { act=com.google.android.gms.common.telemetry.service.START xflg=0x4 pkg=com.google.android.gms mCallingUid=10401 } U=0: not found
+06-17 17:24:00.657 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@de2731b
+06-17 17:24:01.697 I/ActivityManager( 4244): Start proc 32085:cn.wps.moffice_eng:spreadsheet2/u0a401 for next-top-activity {cn.wps.moffice_eng/cn.wps.moffice.spreadsheet.multiactivity.Spreadsheet2}
+06-17 17:24:01.699 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:24:01.718 I/ActivityManager( 4244): Start proc 27942:com.qualcomm.qti.workloadclassifier/u0a309 for broadcast {com.qualcomm.qti.workloadclassifier/com.qualcomm.qti.workloadclassifier.WLCReceiver}
+06-17 17:24:01.719 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:24:01.763 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10309. pid: 27942
+06-17 17:24:01.831 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10401. pid: 32085
+06-17 17:24:02.035 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@1d594f7 already registered for pid 32085, callerPackage is cn.wps.moffice_eng
+06-17 17:24:02.057 W/ActivityManager( 4244): Unable to start service Intent { act=com.google.android.gms.common.telemetry.service.START xflg=0x4 pkg=com.google.android.gms mCallingUid=10401 } U=0: not found
+06-17 17:24:02.057 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@95ddf64
+06-17 17:24:03.982 I/ActivityManager( 4244): Start proc 28385:com.oplus.dmp:main/u0a143 for content provider {com.oplus.dmp/com.oplus.oss.daemon.RemoteDaemonProxy}
+06-17 17:24:03.982 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:24:04.093 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@3478938 already registered for pid 28385, callerPackage is com.oplus.dmp
+06-17 17:24:04.119 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10143. pid: 28385
+06-17 17:24:16.770 I/ActivityManager( 4244): Waited long enough for: ServiceRecord{9c3f79a u0 com.qualcomm.qti.workloadclassifier/.WLCService c:com.qualcomm.qti.workloadclassifier}
+06-17 17:24:19.024 I/ActivityManager( 4244): Death received, pid = 26899, processName = cn.wps.moffice_eng:scan for thread android.os.BinderProxy@b9ae59f
+06-17 17:24:19.024 I/ActivityManager( 4244): Process cn.wps.moffice_eng:scan (pid 26899) has died: cch+25 CEM 
+06-17 17:24:20.885 I/ActivityManager( 4244): Start proc 29194:com.oplus.aiwriter/u0a220 for service {com.oplus.aiwriter/com.oplus.aiwriter.entrance.AIKitEntryService}
+06-17 17:24:20.885 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:24:20.974 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10220. pid: 29194
+06-17 17:24:20.980 W/ActivityManager( 4244): Foreground service started from background can not have location/camera/microphone access: service com.oplus.aiwriter/.entrance.AIKitEntryService
+06-17 17:24:20.981 E/ActivityManager( 4244): FGS logic changed: [WIU changed] [BFSL changed] Orig WIU:PROC_STATE_PERSISTENT New WIU:DENIED Orig BFSL:PROC_STATE_PERSISTENT New BFSL:DENIED cmp: {com.oplus.aiwriter/com.oplus.aiwriter.entrance.AIKitEntryService} sdk: 35
+06-17 17:24:20.984 W/ActivityManager( 4244): Background started FGS: Disallowed [callingPackage: com.oplus.aiwriter; callingUid: 10220; uidState: IMPF; uidBFSL: n/a; intent: Intent { act=oplus.exsystemservice.service.action.APP_SWITCH_NOTIFY pkg=com.oplus.aiwriter mCallingUid=1000 }; code:DENIED; tempAllowListReason:<null>; allowWiu:-1; targetSdkVersion:35; callerTargetSdkVersion:35; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+06-17 17:24:20.984 W/ActivityManager( 4244): Service.startForeground() not allowed due to mAllowStartForeground false: service com.oplus.aiwriter/.entrance.AIKitEntryService
+06-17 17:24:20.989 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@fce6fe6 already registered for pid 29194, callerPackage is com.oplus.aiwriter
+06-17 17:24:28.642 I/ActivityManager( 4244): Start proc 29351:com.oplus.aiunit:worker39/u0a93 for service {com.oplus.aiunit/com.oplus.aiunit.schedule.runtime.service.ServiceProcess39}
+06-17 17:24:28.642 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:24:28.725 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10093. pid: 29351
+06-17 17:24:49.018 I/ActivityManager( 4244): Death received, pid = 26979, processName = com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0 for thread android.os.BinderProxy@378e9a3
+06-17 17:24:49.018 I/ActivityManager( 4244): Process com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0 (pid 26979) has died: svcb  +1 SVC 
+06-17 17:24:49.065 I/ActivityManager( 4244): Death received, pid = 26376, processName = cn.wps.moffice_eng:mofficeservice for thread android.os.BinderProxy@a9e176f
+06-17 17:24:49.065 I/ActivityManager( 4244): Process cn.wps.moffice_eng:mofficeservice (pid 26376) has died: svcb SVC 
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m27s132ms cn.wps.moffice_eng/cn.wps.web.plugin.sdk.service.WebPluginSdkService
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m27s134ms cn.wps.moffice_eng/cn.wpsx.support.tinker.enhance.service.KTinkerCombService
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m27s305ms cn.wps.moffice_eng/cn.wps.moffice.main.pushunion.PushInitService
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m24s588ms cn.wps.moffice_eng/cn.wps.moffice.service.MOfficeInternalService
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m30s255ms cn.wps.moffice_eng/cn.wps.kdymicurl.sdklib.DymicServerEntryUpdateService
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m27s284ms cn.wps.moffice_eng/com.heytap.msp.push.service.DataMessageCallbackService
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m30s88ms cn.wps.moffice_eng/cn.wps.moffice.spreadsheet.PCS$SS1
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m25s22ms cn.wps.moffice_eng/cn.wps.moffice.service.MOfficeSyncService
+06-17 17:25:24.144 W/ActivityManager( 4244): Stopping service due to app idle: u0a401 -1m22s56ms cn.wps.moffice_eng/cn.wps.moffice.service.UsageStatService
+06-17 17:25:55.219 I/ActivityManager( 4244): Start proc 29701:com.android.cellbroadcastreceiver.module/u0a184 for broadcast {com.android.cellbroadcastreceiver.module/com.android.cellbroadcastreceiver.CellBroadcastReceiver}
+06-17 17:25:55.219 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:25:55.296 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10184. pid: 29701
+06-17 17:25:56.366 W/ActivityManager( 4244): Foreground service started from background can not have location/camera/microphone access: service com.oplus.aiwriter/.entrance.AIKitEntryService
+06-17 17:25:56.366 E/ActivityManager( 4244): FGS logic changed: [WIU changed] [BFSL changed] Orig WIU:PROC_STATE_PERSISTENT New WIU:DENIED Orig BFSL:PROC_STATE_PERSISTENT New BFSL:DENIED cmp: {com.oplus.aiwriter/com.oplus.aiwriter.entrance.AIKitEntryService} sdk: 35
+06-17 17:25:56.366 W/ActivityManager( 4244): Background started FGS: Disallowed [callingPackage: com.oplus.aiwriter; callingUid: 10220; uidState: IMPF; uidBFSL: n/a; intent: Intent { act=oplus.exsystemservice.service.action.APP_SWITCH_NOTIFY pkg=com.oplus.aiwriter mCallingUid=1000 }; code:DENIED; tempAllowListReason:<null>; allowWiu:-1; targetSdkVersion:35; callerTargetSdkVersion:35; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+06-17 17:25:56.366 W/ActivityManager( 4244): Service.startForeground() not allowed due to mAllowStartForeground false: service com.oplus.aiwriter/.entrance.AIKitEntryService
+06-17 17:26:01.897 I/ActivityManager( 4244): Death received, pid = 27942, processName = com.qualcomm.qti.workloadclassifier for thread android.os.BinderProxy@55cb445
+06-17 17:26:01.897 I/ActivityManager( 4244): Process com.qualcomm.qti.workloadclassifier (pid 27942) has died: cch+5 CEM 
+06-17 17:26:57.468 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:26:57.469 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:26:57.469 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:26:57.469 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:26:57.469 W/ActivityManager( 4244): pid 21411 received async transactions while frozen
+06-17 17:26:57.469 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:27:16.945 W/ActivityManager( 4244): Slow operation: 69ms so far, now at startProcess: returned from zygote!
+06-17 17:27:16.946 W/ActivityManager( 4244): Slow operation: 71ms so far, now at startProcess: done updating battery stats
+06-17 17:27:16.946 W/ActivityManager( 4244): Slow operation: 71ms so far, now at startProcess: building log message
+06-17 17:27:16.946 I/ActivityManager( 4244): Start proc 30689:com.xunmeng.pinduoduo/u0a372 for next-top-activity {com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.ui.activity.MainFrameActivity}
+06-17 17:27:16.946 W/ActivityManager( 4244): Slow operation: 71ms so far, now at startProcess: starting to update pids map
+06-17 17:27:16.946 W/ActivityManager( 4244): Slow operation: 71ms so far, now at startProcess: done updating pids map
+06-17 17:27:16.946 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:27:17.009 I/ActivityManager( 4244): Start proc 30706:com.qualcomm.qti.workloadclassifier/u0a309 for broadcast {com.qualcomm.qti.workloadclassifier/com.qualcomm.qti.workloadclassifier.WLCReceiver}
+06-17 17:27:17.021 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:27:17.045 W/ActivityManager( 4244): pid 28579 com.xunmeng.pinduoduo:titan sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:27:17.045 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:27:17.045 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:27:17.045 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:27:17.080 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10372. pid: 30689
+06-17 17:27:17.187 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10309. pid: 30706
+06-17 17:27:17.190 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@d5ea1db
+06-17 17:27:17.392 E/ActivityManager( 4244): registerReceiver failed.
+06-17 17:27:17.473 I/ActivityManager( 4244): Start proc 30979:com.xunmeng.pinduoduo:sandboxed_process0/u0a372 for service {com.xunmeng.pinduoduo/org.chromium.content.app.PrivilegedProcessService0}
+06-17 17:27:17.473 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:27:17.715 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10372. pid: 30979
+06-17 17:27:17.727 I/ActivityManager( 4244): Start proc 31109:com.xunmeng.pinduoduo:support/u0a372 for service {com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.almighty.ipc.ipcinvoker.service.SupportProcessIPCService}
+06-17 17:27:17.727 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:27:17.939 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10372. pid: 31109
+06-17 17:27:18.933 I/ActivityManager( 4244): Death received, pid = 26752, processName = com.coloros.ocs.opencapabilityservice:ocs for thread android.os.BinderProxy@f055023
+06-17 17:27:18.933 I/ActivityManager( 4244): Process com.coloros.ocs.opencapabilityservice:ocs (pid 26752) has died: cch+65 CEM 
+06-17 17:27:18.946 I/ActivityManager( 4244): Death received, pid = 24332, processName = com.coloros.weather2 for thread android.os.BinderProxy@1bff920
+06-17 17:27:18.946 I/ActivityManager( 4244): Process com.coloros.weather2 (pid 24332) has died: svcb SVC 
+06-17 17:27:18.948 I/ActivityManager( 4244): Death received, pid = 16629, processName = com.coloros.weather.service for thread android.os.BinderProxy@b6502d9
+06-17 17:27:18.949 I/ActivityManager( 4244): Process com.coloros.weather.service (pid 16629) has died: cch+35 CEM 
+06-17 17:27:18.958 I/ActivityManager( 4244): Death received, pid = 25523, processName = com.nearme.instant.platform:provider for thread android.os.BinderProxy@db6849e
+06-17 17:27:18.963 I/ActivityManager( 4244): Process com.nearme.instant.platform:provider (pid 25523) has died: cch+35 CEM 
+06-17 17:27:18.977 I/ActivityManager( 4244): Death received, pid = 28385, processName = com.oplus.dmp:main for thread android.os.BinderProxy@b024caa
+06-17 17:27:18.978 I/ActivityManager( 4244): Process com.oplus.dmp:main (pid 28385) has died: cch+45 CEM 
+06-17 17:27:18.978 I/ActivityManager( 4244): Death received, pid = 26407, processName = cn.wps.moffice_eng:pushservice for thread android.os.BinderProxy@71ebb8b
+06-17 17:27:18.982 I/ActivityManager( 4244): Process cn.wps.moffice_eng:pushservice (pid 26407) has died: svc SVC 
+06-17 17:27:19.004 W/ActivityManager( 4244): pid 29351 com.oplus.aiunit:worker39 sent binder code 5 with flags 1 to frozen apps and got error -32
+06-17 17:27:32.205 I/ActivityManager( 4244): Waited long enough for: ServiceRecord{1b86bb6 u0 com.qualcomm.qti.workloadclassifier/.WLCService c:com.qualcomm.qti.workloadclassifier}
+06-17 17:27:32.376 I/ActivityManager( 4244): Start proc 31650:com.android.rkpdapp/u0a175 for service {com.android.rkpdapp/com.android.rkpdapp.service.RemoteProvisioningService}
+06-17 17:27:32.376 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:27:32.435 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10175. pid: 31650
+06-17 17:27:33.114 W/ActivityManager( 4244): Unbind failed: could not find connection for android.os.BinderProxy@4c06469
+06-17 17:27:39.058 I/ActivityManager( 4244): Death received, pid = 29351, processName = com.oplus.aiunit:worker39 for thread android.os.BinderProxy@b175691
+06-17 17:27:39.059 I/ActivityManager( 4244): Process com.oplus.aiunit:worker39 (pid 29351) has died: cch+35 CEM 
+06-17 17:27:42.645 I/ActivityManager( 4244): Start proc 31919:com.coloros.codebook/u0a96 for service {com.coloros.codebook/com.coloros.codebook.book.CodeBookService}
+06-17 17:27:42.645 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:27:42.761 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10096. pid: 31919
+06-17 17:27:42.779 I/ActivityManager( 4244): Start proc 31998:com.oplus.account/u0a116 for content provider {com.oplus.account/com.platform.usercenter.newcommon.db.UserCenterContentProvider}
+06-17 17:27:42.779 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:27:42.914 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10116. pid: 31998
+06-17 17:27:57.738 W/ActivityManager( 4244): pid 4244 system sent binder code 1 with flags 1 to frozen apps and got error -32
+06-17 17:27:57.745 W/ActivityManager( 4244): pid 450 received async transactions while frozen
+06-17 17:27:57.745 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:27:57.745 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:27:57.747 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:27:58.056 I/ActivityManager( 4244): Death received, pid = 10064, processName = com.tencent.mm:appbrand0 for thread android.os.BinderProxy@28a6151
+06-17 17:27:58.056 I/ActivityManager( 4244): Process com.tencent.mm:appbrand0 (pid 10064) has died: svc SVC 
+06-17 17:27:58.083 I/ActivityManager( 4244): Death received, pid = 19003, processName = com.tencent.mm:appbrand1 for thread android.os.BinderProxy@12bf852
+06-17 17:27:58.083 I/ActivityManager( 4244): Process com.tencent.mm:appbrand1 (pid 19003) has died: svc SVC 
+06-17 17:28:07.609 W/ActivityManager( 4244): Stopping service due to app idle: u0a372 -50s333ms com.xunmeng.pinduoduo/com.xunmeng.basiccomponent.titan.service.ServiceNative
+06-17 17:28:13.965 I/ActivityManager( 4244): Start proc 32552:com.tencent.mm:appbrand0/u0a390 for service {com.tencent.mm/com.tencent.mm.plugin.appbrand.loading.AppBrandProcessTriggerService0}
+06-17 17:28:13.965 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:28:14.029 I/ActivityManager( 4244): Death received, pid = 32552, processName = com.tencent.mm:appbrand0 for thread android.os.BinderProxy@f6d82c7
+06-17 17:28:14.029 I/ActivityManager( 4244): Process com.tencent.mm:appbrand0 (pid 32552) has died: fg  SVC 
+06-17 17:28:14.059 W/ActivityManager( 4244): pid 5339 com.tencent.mm sent binder code 11 with flags 0 to frozen apps and got error -32
+06-17 17:28:14.060 W/ActivityManager( 4244): pid 450 received async transactions while frozen
+06-17 17:28:14.060 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:28:14.060 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:28:14.060 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:28:14.060 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:28:34.026 I/ActivityManager( 4244): Start proc 32601:com.tencent.mm:appbrand1/u0a390 for service {com.tencent.mm/com.tencent.mm.plugin.appbrand.loading.AppBrandProcessTriggerService1}
+06-17 17:28:34.026 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:28:34.614 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10390. pid: 32601
+06-17 17:28:53.234 I/ActivityManager( 4244): Start proc 311:com.heytap.market/u0a113 for content provider {com.heytap.market/com.oplus.statistics.basedata.BaseDataContentProvider}
+06-17 17:28:53.234 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:28:53.549 E/ActivityManager( 4244): registerReceiver failed.
+06-17 17:28:53.557 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10113. pid: 311
+06-17 17:28:53.593 I/ActivityManager( 4244): Start proc 528:com.nearme.instant.platform:provider/u0a244 for content provider {com.nearme.instant.platform/com.nearme.instant.card.SharedDataProvider}
+06-17 17:28:53.593 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:28:53.729 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10244. pid: 528
+06-17 17:28:53.731 W/ActivityManager( 4244): Receiver with filter android.content.IntentFilter@b235e8a already registered for pid 528, callerPackage is com.nearme.instant.platform
+06-17 17:28:54.053 I/ActivityManager( 4244): Start proc 780:com.tencent.mm:appbrand0/u0a390 for service {com.tencent.mm/com.tencent.mm.plugin.appbrand.loading.AppBrandProcessTriggerService0}
+06-17 17:28:54.053 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:28:54.718 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10390. pid: 780
+06-17 17:29:17.364 I/ActivityManager( 4244): Death received, pid = 30706, processName = com.qualcomm.qti.workloadclassifier for thread android.os.BinderProxy@fdd478
+06-17 17:29:17.365 I/ActivityManager( 4244): Process com.qualcomm.qti.workloadclassifier (pid 30706) has died: cch+5 CEM 
+06-17 17:30:22.251 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:30:22.252 W/ActivityManager( 4244): pid 450 received async transactions while frozen
+06-17 17:30:22.252 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:30:22.252 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:30:22.252 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:30:22.252 W/ActivityManager( 4244): pid 28479 received async transactions while frozen
+06-17 17:31:08.425 W/ActivityManager( 4244): Permission Denial: getTopApplicationInfo from pid=5339, uid=10390 requires oplus.permission.OPLUS_COMPONENT_SAFE
+06-17 17:32:10.489 I/ActivityManager( 4244): Start proc 1775:com.oplus.statistics.rom:cc/u0a101 for content provider {com.oplus.statistics.rom/com.oplus.dcc.cloudctl.CloudCtlContentProvider}
+06-17 17:32:10.489 I/ActivityManager( 4244): ProcessObserver broadcast disabled
+06-17 17:32:10.585 I/ActivityManager( 4244): Flag disabled. Ignoring finishAttachApplication from uid: 10101. pid: 1775
+06-17 17:32:41.680 I/ActivityManager( 4244): Death received, pid = 1775, processName = com.oplus.statistics.rom:cc for thread android.os.BinderProxy@e35a4f4
+06-17 17:32:41.681 I/ActivityManager( 4244): Process com.oplus.statistics.rom:cc (pid 1775) has died: fg  BFGS
+06-17 17:33:16.348 W/ActivityManager( 4244): pid 4244 system sent binder code 1013 with flags 0 to frozen apps and got error -2
+06-17 17:33:16.348 W/ActivityManager( 4244): pid 1766 received async transactions while frozen
+06-17 17:33:16.348 W/ActivityManager( 4244): pid 10537 received async transactions while frozen
+06-17 17:33:16.348 W/ActivityManager( 4244): pid 17373 received async transactions while frozen
+06-17 17:33:16.348 W/ActivityManager( 4244): pid 24740 received async transactions while frozen
+06-17 17:33:16.348 W/ActivityManager( 4244): pid 28479 received async transactions while frozen

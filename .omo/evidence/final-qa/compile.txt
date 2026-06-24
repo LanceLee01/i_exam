@@ -1,0 +1,5 @@
+﻿> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:compileDebugKotlin UP-TO-DATE
+
+BUILD SUCCESSFUL in 14s
+15 actionable tasks: 15 up-to-date

@@ -96,6 +96,45 @@ class MultiRoundRunner(
                     pageNavigator.clickAnswer(answer, filtered, cachedKbAnswerOptions)
                     Log.e(TAG, "Round $round: filled page $current, total answered=$answeredCount")
 
+                    // 3.5 检查是否有自动填入失败的题目
+                    val toggleFailed = ExtractedTextBus.lastToggleFailedQuestions.toList()
+                    if (toggleFailed.isNotEmpty()) {
+                        ExtractedTextBus.lastToggleFailedQuestions = emptyList()  // 清零
+                        val kbDetails = buildString {
+                            append("❌ 自动填入失败：\n")
+                            for (failedReason in toggleFailed) {
+                                // failedReason 格式: "题号: 失败原因"
+                                val parts = failedReason.split(": ", limit = 2)
+                                val qNum = parts[0].toIntOrNull()
+                                val reason = parts.getOrElse(1) { failedReason }
+                                append("  $failedReason\n")
+                                // 如果知道题号，去题库查原题信息
+                                if (qNum != null) {
+                                    val qText = pipeline.extractSingleQuestionText(filtered, qNum).take(50)
+                                    val kbMatch = if (qText.length > 5) {
+                                        com.examhelper.app.knowledge.KnowledgeBaseManager.activeKB
+                                            ?.search(qText, options = "", topN = 5)
+                                            ?.filter { (_, score) -> score >= 0.90f }
+                                            ?.firstOrNull()
+                                    } else null
+                                    if (kbMatch != null) {
+                                        val (entry, score) = kbMatch
+                                        append("    KB原题: ${entry.question.take(50)} → ${entry.answer}")
+                                        if (entry.options.isNotBlank()) append(" | 选项: ${entry.options.take(60)}")
+                                        append("\n")
+                                    }
+                                }
+                            }
+                        }
+                        val errMsg = "⚠️ 答题暂停\n${kbDetails}请手动检查后继续"
+                        Log.w(TAG, "Round $round: toggle failed for $toggleFailed, pausing")
+                        updateSidebarMulti(SidebarState.MultiPhase.ERROR,
+                            currentPage = current, totalPages = total, answeredCount = answeredCount,
+                            errorMessage = errMsg)
+                        _state.value = MultiRoundState.Error(errMsg)
+                        return@launch
+                    }
+
                     // 4. Check if done
                     if (current > 0 && total > 0 && current >= total) {
                         Log.e(TAG, "Last page reached: $current/$total")

@@ -14,6 +14,9 @@ object ExtractedTextBus {
     var lastPromptTokens: Int = 0
     @Volatile
     var lastTtftMs: Long = 0L
+    /** 最近一次自动填入中失败的题号和原因，例如 "81: toggle A→正确 NOT FOUND" */
+    @Volatile
+    var lastToggleFailedQuestions: List<String> = emptyList()
 
     sealed class Event {
         data class TextExtracted(val text: String) : Event()
@@ -30,7 +33,7 @@ object ExtractedTextBus {
         data class Preview(val text: String) : SidebarState()
         data class Streaming(val text: String, val partialAnswer: String, val progress: Float, val startTimeMs: Long, val maxTokens: Int = 2048) : SidebarState()
         data class Answering(val text: String) : SidebarState()
-        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList(), val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap()) : SidebarState()
+        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList(), val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap(), val toggleFailedQuestions: List<Int> = emptyList()) : SidebarState()
         data class Error(val message: String) : SidebarState()
 
         // ── 多轮自动答题状态 ──

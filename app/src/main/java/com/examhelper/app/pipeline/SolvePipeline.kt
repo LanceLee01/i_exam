@@ -238,7 +238,7 @@ class SolvePipeline(private val context: Context) {
             Log.d(TAG_DEBUG, "KB raw hit: score=${"%.4f".format(score)} q=${entry.question.take(40)} ans=${entry.answer}")
         }
         // END TEMP DEBUG
-        val hits = excelHits.filter { (_, score) -> score >= 0.50f }
+        val hits = excelHits.filter { (_, score) -> score >= 0.90f }
         if (hits.isEmpty()) return null
 
         val numberedPairs = hits.mapNotNull { (entry, _) ->
@@ -495,7 +495,7 @@ class SolvePipeline(private val context: Context) {
         }.toList()
     }
 
-    private fun extractSingleQuestionText(text: String, qNum: Int): String {
+    internal fun extractSingleQuestionText(text: String, qNum: Int): String {
         // Question numbers >200 are likely data values (e.g. "20430.25万元"), skip them
         val MAX_QUESTION_NUMBER = 200
         if (qNum > MAX_QUESTION_NUMBER) return text.take(200)

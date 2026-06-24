@@ -255,6 +255,26 @@ fun SidebarStateRenderer(
                     }
                 }
 
+                // Toggle failed warning banner
+                if (s.toggleFailedQuestions.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xB3FF5252).copy(alpha = 0.15f))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "⚠️ 以下题目自动填入失败，请手动检查：${s.toggleFailedQuestions.sorted().joinToString(", ")}",
+                            color = Color(0xFFFF5252),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            lineHeight = 20.sp
+                        )
+                    }
+                }
+
                 // Tavily reference
                 val llmQuestionNumbers = s.questionSources
                     .filter { (_, source) -> source != "题库匹配" }

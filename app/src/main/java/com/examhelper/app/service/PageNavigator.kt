@@ -39,7 +39,7 @@ class PageNavigator {
     suspend fun clickNextPage(): Boolean = withContext(Dispatchers.Main) {
         Log.d(TAG, "clickNextPage: sending ClickPage event")
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("下一页"))
-        delay(800)  // wait for page transition
+        delay(2800)  // wait for page transition
         true  // assume success; ExamAccessibilityService logs actual result
     }
 

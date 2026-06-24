@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.UUID
 
 data class KBEntry(
@@ -467,6 +469,17 @@ data class KnowledgeBase(
             }
             .take(topN)
     }
+
+}
+
+private fun KnowledgeBase.isGarbled(text: String): Boolean {
+    if (text.contains('\uFFFD')) return true
+    for (c in text) {
+        val code = c.code
+        if (code in 0x0000..0x0008 || code == 0x000B || code == 0x000C || code in 0x000E..0x001F) return true
+    }
+    if (Regex("[?？]{3,}").containsMatchIn(text)) return true
+    return false
 }
 
 object KnowledgeBaseManager {

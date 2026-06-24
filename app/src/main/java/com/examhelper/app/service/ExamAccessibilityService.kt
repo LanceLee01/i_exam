@@ -334,6 +334,7 @@ class ExamAccessibilityService : AccessibilityService() {
             var toggleSkipped = 0
             var confirmSkipped = 0
             val uncertainQuestions = mutableListOf<Int>()
+            val toggleFailedQuestions = mutableListOf<String>()
             for ((qNum, selections) in answerPairs) {
                 // Handle uncertain answers: default to clicking option A
                 if (ANSWER_UNCERTAIN in selections) {
@@ -385,8 +386,10 @@ class ExamAccessibilityService : AccessibilityService() {
                 }
 
                 // Find the options for this question: scan forward from optionIdx
-                val isToggle = selections.all { it == "正确" || it == "错误" }
-                    || questionTypes[qNum] == "判断"
+                val qType = questionTypes[qNum] ?: ""
+                val isToggle = (selections.all { it == "正确" || it == "错误" }
+                    || qType == "判断" || qType == "判断题")
+                    && qType != "单选" && qType != "单选题"  // 明确排除单选题
 
                 if (isToggle) {
                     // 判断题：搜索所有节点找"正确"/"错误"
@@ -403,6 +406,7 @@ class ExamAccessibilityService : AccessibilityService() {
                             toggleSkipped++
                             Log.d(TAG, "Q$qNum toggle clicked: sel=$sel → $toggleText (skip=$toggleSkipped)")
                         } else {
+                            toggleFailedQuestions.add("$qNum: toggle $sel→$toggleText NOT FOUND")
                             Log.w(TAG, "Q$qNum toggle $sel→$toggleText NOT FOUND")
                         }
                         delay(Random.nextLong(80, 200))
@@ -436,6 +440,7 @@ class ExamAccessibilityService : AccessibilityService() {
                                 toggleSkipped++
                                 Log.d(TAG, "Q$qNum inferred-toggle: sel=$sel → $toggleText (skip=$toggleSkipped)")
                             } else {
+                                toggleFailedQuestions.add("$qNum: toggle $sel→$toggleText NOT FOUND(inferred)")
                                 Log.w(TAG, "Q$qNum inferred-toggle $sel→$toggleText NOT FOUND")
                             }
                             delay(Random.nextLong(80, 200))
@@ -448,6 +453,61 @@ class ExamAccessibilityService : AccessibilityService() {
                 // If no more option nodes, fall back to toggle clicking
                 // (Q38+ are often T/F where answer is a letter but UI has 正确/错误)
                 if (optionIdx >= allOptionNodes.size) {
+                    val qTypeStr = questionTypes[qNum] ?: ""
+                    val isLikelyToggle = qTypeStr == "判断" || qTypeStr == "判断题"
+                    // 单选题/多选题：尝试从节点树全局搜索选项文字，找到可点击的父节点
+                    if (!isLikelyToggle) {
+                        Log.d(TAG, "Q$qNum no option nodes left, trying global text search for type='$qTypeStr'")
+                        val freshRoot = rootInActiveWindow ?: root
+                        val foundNodes = mutableListOf<Pair<AccessibilityNodeInfo, String>>()
+                        // 遍历所有节点，寻找匹配选项字母的文本
+                        searchAllTextNodes(freshRoot, foundNodes, 0)
+                        // 过滤：选项字母开头(A. B. C. D.) 或纯字母
+                        val optionCandidates = foundNodes.filter { (_, text) ->
+                            Regex("""^[A-D]\s*[.、:：)）]""").containsMatchIn(text)
+                        }.distinctBy { (_, text) -> text.trim().take(10) }
+                        if (optionCandidates.isNotEmpty()) {
+                            // 按字母排序
+                            val sorted = optionCandidates.sortedBy { it.second.first() }
+                            Log.d(TAG, "Q$qNum global text search found ${sorted.size} candidates: ${sorted.map { it.second.take(15) }}")
+                            // 构建屏幕选项映射，处理选项乱序
+                            val onScreenMap = sorted.mapNotNull { (_, text) ->
+                                val letter = text.firstOrNull()?.uppercaseChar()?.toString() ?: return@mapNotNull null
+                                val optionText = text.drop(1).trimStart('.', '、', '．', '：', ':', '，', ' ', '）', ')').trim()
+                                letter to optionText
+                            }
+                            val resolvedSelections = if (kbAnswerOptions.containsKey(qNum)) {
+                                val kbOpts = kbAnswerOptions[qNum]!!
+                                com.examhelper.app.util.resolveOnScreenLetters(
+                                    kbOpts, selections, onScreenMap
+                                )
+                            } else selections
+                            Log.d(TAG, "Q$qNum global text search: KB[$selections] -> screen[$resolvedSelections] map=$onScreenMap")
+                            for (sel in resolvedSelections) {
+                                val matchText = sorted.firstOrNull { (_, text) -> matchesSelection(text, sel) }
+                                if (matchText != null) {
+                                    val (node, text) = matchText
+                                    val clickableParent = findClickableAncestor(node)
+                                    if (clickableParent != null) {
+                                        Log.d(TAG, "Q$qNum clicking sel=$sel via global text search: ${text.take(20)}")
+                                        delay(Random.nextLong(80, 300))
+                                        clickableParent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                    } else {
+                                        Log.w(TAG, "Q$qNum sel=$sel found but no clickable ancestor: ${text.take(20)}")
+                                        toggleFailedQuestions.add("$qNum: sel=$sel 找到文字但無法點擊")
+                                    }
+                                } else {
+                                    toggleFailedQuestions.add("$qNum: sel=$sel NOT FOUND (global text search)")
+                                }
+                            }
+                            delay(1500)
+                            continue
+                        }
+                        toggleFailedQuestions.add("$qNum: 选项节点用尽，全局文字搜索也未找到选项，题型为${qTypeStr.ifBlank { "未知" }}")
+                        Log.w(TAG, "Q$qNum no option nodes left and global text search failed for type='$qTypeStr'")
+                        delay(1500)
+                        continue
+                    }
                     Log.d(TAG, "Q$qNum no option nodes left, falling back to toggle click")
                     val freshRoot = rootInActiveWindow ?: root
                     for (sel in selections) {
@@ -468,6 +528,7 @@ class ExamAccessibilityService : AccessibilityService() {
                                 toggleSkipped++
                                 Log.d(TAG, "Q$qNum toggle fallback raw: $sel (skip=$toggleSkipped)")
                             } else {
+                                toggleFailedQuestions.add("$qNum: toggle fallback $sel→$toggleText FAILED")
                                 Log.w(TAG, "Q$qNum toggle FALLBACK FAILED: sel=$sel")
                             }
                         }
@@ -535,8 +596,8 @@ class ExamAccessibilityService : AccessibilityService() {
 
                 // Cross-check: if source text says this is 多选 but LLM only gave 1 answer
                 // Fallback: click ALL options + confirm to advance the exam
-                val qType = questionTypes[qNum] ?: ""
-                if (qType == "多选" && effectiveSelections.size == 1 && effectiveSelections[0] in "A".."F") {
+                val qType2 = questionTypes[qNum] ?: ""
+                if (qType2 == "多选" && effectiveSelections.size == 1 && effectiveSelections[0] in "A".."F") {
                     Log.w(TAG, "Q$qNum FALLBACK: source says '多选' but answer is single letter '${effectiveSelections[0]}' — clicking ALL options")
                     for ((node, text) in qOptionNodes) {
                         Log.d(TAG, "Q$qNum fallback clicking: ${text.take(20)}")
@@ -586,6 +647,7 @@ class ExamAccessibilityService : AccessibilityService() {
                             delay(Random.nextLong(80, 300))
                             globalMatch.second.first.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         } else {
+                            toggleFailedQuestions.add("$qNum: sel=$sel NOT FOUND")
                             Log.w(TAG, "Q$qNum sel=$sel NOT FOUND in [${qOptionNodes.map { it.second.take(20) }}]")
                         }
                     }
@@ -633,6 +695,18 @@ class ExamAccessibilityService : AccessibilityService() {
                     android.widget.Toast.LENGTH_LONG
                 ).show()
                 Log.d(TAG, "Uncertain toast shown: Q$qList")
+            }
+
+            // 将填入失败的题号写入易失字段，供 MultiRoundRunner 读取
+            if (toggleFailedQuestions.isNotEmpty()) {
+                ExtractedTextBus.lastToggleFailedQuestions = toggleFailedQuestions.toList()
+                val qList = toggleFailedQuestions.sorted().joinToString(", ")
+                android.widget.Toast.makeText(
+                    this@ExamAccessibilityService,
+                    "⚠️ 以下题目自动填入失败，请手动检查：Q$qList",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                Log.d(TAG, "Toggle failed toast shown: Q$qList")
             }
         }
     }
@@ -717,6 +791,35 @@ class ExamAccessibilityService : AccessibilityService() {
                 return found
             }
             child.recycle()
+        }
+        return null
+    }
+
+    /** 遍历节点树中所有文字节点（不管是否可点击），用于在标准扫描失败时做全局回退搜索 */
+    private fun searchAllTextNodes(
+        node: AccessibilityNodeInfo,
+        results: MutableList<Pair<AccessibilityNodeInfo, String>>,
+        depth: Int
+    ) {
+        if (depth > 30) return
+        val text = node.text?.toString()?.trim()
+            ?: node.contentDescription?.toString()?.trim() ?: ""
+        if (text.isNotEmpty()) {
+            results.add(node to text)
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            searchAllTextNodes(child, results, depth + 1)
+            child.recycle()
+        }
+    }
+
+    /** 从指定节点向上查找第一个可点击的祖先节点 */
+    private fun findClickableAncestor(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current: AccessibilityNodeInfo? = node
+        while (current != null) {
+            if (current.isClickable) return current
+            current = current.parent
         }
         return null
     }
