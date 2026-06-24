@@ -331,7 +331,7 @@ class ExamAccessibilityService : AccessibilityService() {
             Log.d(TAG, "All option nodes count=${allOptionNodes.size}: ${allOptionNodes.map { it.second.second.take(15) }}")
 
             var optionIdx = 0
-            var toggleSkipped = 0
+            val toggleSkippedByText = mutableMapOf<String, Int>()
             var confirmSkipped = 0
             val uncertainQuestions = mutableListOf<Int>()
             val toggleFailedQuestions = mutableListOf<String>()
@@ -401,10 +401,11 @@ class ExamAccessibilityService : AccessibilityService() {
                             sel in "A".."F" -> if (sel == "A" || sel == "C") "正确" else "错误"
                             else -> sel
                         }
-                        val clicked = clickToggleOption(freshRoot, toggleText, toggleSkipped)
+                        val toggleSkip = toggleSkippedByText.getOrDefault(toggleText, 0)
+                        val clicked = clickToggleOption(freshRoot, toggleText, toggleSkip)
                         if (clicked) {
-                            toggleSkipped++
-                            Log.d(TAG, "Q$qNum toggle clicked: sel=$sel → $toggleText (skip=$toggleSkipped)")
+                            toggleSkippedByText[toggleText] = toggleSkip + 1
+                            Log.d(TAG, "Q$qNum toggle clicked: sel=$sel → $toggleText (skip=$toggleSkip)")
                         } else {
                             toggleFailedQuestions.add("$qNum: toggle $sel→$toggleText NOT FOUND")
                             Log.w(TAG, "Q$qNum toggle $sel→$toggleText NOT FOUND")
@@ -435,10 +436,11 @@ class ExamAccessibilityService : AccessibilityService() {
                         val freshRoot = rootInActiveWindow ?: root
                         for (sel in selections) {
                             val toggleText = if (sel == "A" || sel == "C") "正确" else "错误"
-                            val clicked = clickToggleOption(freshRoot, toggleText, toggleSkipped)
+                            val toggleSkip = toggleSkippedByText.getOrDefault(toggleText, 0)
+                            val clicked = clickToggleOption(freshRoot, toggleText, toggleSkip)
                             if (clicked) {
-                                toggleSkipped++
-                                Log.d(TAG, "Q$qNum inferred-toggle: sel=$sel → $toggleText (skip=$toggleSkipped)")
+                                toggleSkippedByText[toggleText] = toggleSkip + 1
+                                Log.d(TAG, "Q$qNum inferred-toggle: sel=$sel → $toggleText (skip=$toggleSkip)")
                             } else {
                                 toggleFailedQuestions.add("$qNum: toggle $sel→$toggleText NOT FOUND(inferred)")
                                 Log.w(TAG, "Q$qNum inferred-toggle $sel→$toggleText NOT FOUND")
@@ -462,9 +464,10 @@ class ExamAccessibilityService : AccessibilityService() {
                         val foundNodes = mutableListOf<Pair<AccessibilityNodeInfo, String>>()
                         // 遍历所有节点，寻找匹配选项字母的文本
                         searchAllTextNodes(freshRoot, foundNodes, 0)
-                        // 过滤：选项字母开头(A. B. C. D.) 或纯字母
+                        // 过滤：选项字母开头(A. B. C. D. …) 或纯字母
+                        val optLetters = ExamConstants.OPTION_LETTERS
                         val optionCandidates = foundNodes.filter { (_, text) ->
-                            Regex("""^[A-D]\s*[.、:：)）]""").containsMatchIn(text)
+                            Regex("""^[${optLetters.first}-${optLetters.last}]\s*[.、:：)）]""").containsMatchIn(text)
                         }.distinctBy { (_, text) -> text.trim().take(10) }
                         if (optionCandidates.isNotEmpty()) {
                             // 按字母排序
@@ -517,16 +520,18 @@ class ExamAccessibilityService : AccessibilityService() {
                             "C" -> "正确"; "D" -> "错误"  // Some exams use C/D
                             else -> sel
                         }
-                        val clicked = clickToggleOption(freshRoot, toggleText, toggleSkipped)
+                        val toggleSkip = toggleSkippedByText.getOrDefault(toggleText, 0)
+                        val clicked = clickToggleOption(freshRoot, toggleText, toggleSkip)
                         if (clicked) {
-                            toggleSkipped++
-                            Log.d(TAG, "Q$qNum toggle fallback: sel=$sel → $toggleText (skip=$toggleSkipped)")
+                            toggleSkippedByText[toggleText] = toggleSkip + 1
+                            Log.d(TAG, "Q$qNum toggle fallback: sel=$sel → $toggleText (skip=$toggleSkip)")
                         } else {
                             // Try the original selection as toggle text
-                            val clicked2 = clickToggleOption(freshRoot, sel, toggleSkipped)
+                            val rawSkip = toggleSkippedByText.getOrDefault(sel, 0)
+                            val clicked2 = clickToggleOption(freshRoot, sel, rawSkip)
                             if (clicked2) {
-                                toggleSkipped++
-                                Log.d(TAG, "Q$qNum toggle fallback raw: $sel (skip=$toggleSkipped)")
+                                toggleSkippedByText[sel] = rawSkip + 1
+                                Log.d(TAG, "Q$qNum toggle fallback raw: $sel (skip=$rawSkip)")
                             } else {
                                 toggleFailedQuestions.add("$qNum: toggle fallback $sel→$toggleText FAILED")
                                 Log.w(TAG, "Q$qNum toggle FALLBACK FAILED: sel=$sel")

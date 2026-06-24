@@ -42,16 +42,30 @@ internal fun appendOptionText(line: String, optionMap: Map<String, String>): Str
 internal fun parseOptionMapInline(text: String): Map<String, String> {
     val map = mutableMapOf<String, String>()
     val letters = ExamConstants.OPTION_LETTERS
-    // Normalize: replace option separators (|) with spaces for easier parsing
-    val normalized = text.replace(Regex("[|]+"), " ")
-    // Match each option label+text, stopping at next option label or end of string
+    // Split by | delimiter first, then parse each segment as "letter.separator text"
+    val segments = text.split(Regex("[|]+")).filter { it.isNotBlank() }
     val regex = Regex(
-        """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(\S{1,60}?)(?=\s*[${letters.first}-${letters.last}][.、．:：)）\-]|$)"""
+        """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(.+)"""
     )
-    regex.findAll(normalized).forEach { match ->
-        val optionText = match.groupValues[2].trim()
-        if (optionText.isNotBlank()) {
-            map[match.groupValues[1]] = optionText
+    for (segment in segments) {
+        val match = regex.find(segment.trim())
+        if (match != null) {
+            val optionText = match.groupValues[2].trim()
+            if (optionText.length in 1..60) {
+                map[match.groupValues[1]] = optionText
+            }
+        }
+    }
+    // Fallback: if | splitting didn't work, try inline matching on the whole string
+    if (map.isEmpty()) {
+        val inlineRegex = Regex(
+            """([${letters.first}-${letters.last}])[.、．:：)）\-]\s*(\S{1,60}?)(?=\s*[${letters.first}-${letters.last}][.、．:：)）\-]|$)"""
+        )
+        inlineRegex.findAll(text).forEach { match ->
+            val optionText = match.groupValues[2].trim()
+            if (optionText.isNotBlank()) {
+                map[match.groupValues[1]] = optionText
+            }
         }
     }
     return map
@@ -80,7 +94,19 @@ internal fun resolveOnScreenLetters(
     for (ansLetter in answerLetters) {
         val kbText = kbOptionMap[ansLetter]
         if (kbText == null) {
-            resolved.add(ansLetter) // fallback: keep original letter
+            // fallback: use original letter if not already used, else pick first unused screen letter
+            if (ansLetter !in usedScreenLetters) {
+                resolved.add(ansLetter)
+                usedScreenLetters.add(ansLetter)
+            } else {
+                val unused = onScreenOptions.firstOrNull { (letter, _) -> letter !in usedScreenLetters }
+                if (unused != null) {
+                    usedScreenLetters.add(unused.first)
+                    resolved.add(unused.first)
+                } else {
+                    resolved.add(ansLetter) // desperate fallback
+                }
+            }
             continue
         }
         // Find best matching on-screen option by text similarity, excluding already-matched ones
