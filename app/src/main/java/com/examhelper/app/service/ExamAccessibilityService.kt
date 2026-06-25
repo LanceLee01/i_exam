@@ -17,6 +17,7 @@ import com.examhelper.app.util.parseAnswerPairs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -64,6 +65,7 @@ class ExamAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         isConnected = false
+        scope.cancel()
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.AccessibilityDisconnected)
         Log.d(TAG, "AccessibilityService destroyed")
     }
@@ -104,9 +106,12 @@ class ExamAccessibilityService : AccessibilityService() {
             val result = toClick.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             Log.e(TAG, "performPageClick: ACTION_CLICK result=$result")
 
+            // Recycle all matched nodes
             matches.forEach { it.recycle() }
-            if (toClick != clicked) clicked.recycle()
-            root.recycle()
+            // Recycle parent if it was obtained but not used as the click target
+            if (parent != null && toClick != parent) parent.recycle()
+            // Recycle root only if not already in matches (avoid double-recycle)
+            if (root !in matches) root.recycle()
         }
     }
 
@@ -124,7 +129,8 @@ class ExamAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             searchPageButton(child, results, target)
-            child.recycle()
+            // Only recycle if child was NOT added to results (match found at this node or descendant)
+            if (child !in results) child.recycle()
         }
     }
 
@@ -495,6 +501,7 @@ class ExamAccessibilityService : AccessibilityService() {
                                         Log.d(TAG, "Q$qNum clicking sel=$sel via global text search: ${text.take(20)}")
                                         delay(Random.nextLong(80, 300))
                                         clickableParent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                        if (clickableParent != node) clickableParent.recycle()
                                     } else {
                                         Log.w(TAG, "Q$qNum sel=$sel found but no clickable ancestor: ${text.take(20)}")
                                         toggleFailedQuestions.add("$qNum: sel=$sel 找到文字但無法點擊")
@@ -733,6 +740,8 @@ class ExamAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             findAllClickable(child, result, depth + 1)
+            // Only recycle if child (and none of its descendants) ended up in result
+            if (result.none { it.first == child }) child.recycle()
         }
     }
 
@@ -745,16 +754,24 @@ class ExamAccessibilityService : AccessibilityService() {
         val candidates = mutableListOf<AccessibilityNodeInfo>()
         searchMatches(root, candidates, listOf(targetText))
         var skipped = 0
-        for (node in candidates) {
-            if (skipped < skipCount) { skipped++; continue }
-            val parent = node.parent ?: continue
-            val indicator = parent.getChild(0)
-            if (indicator != null && indicator.isClickable) {
-                indicator.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                return true
+        try {
+            for (node in candidates) {
+                if (skipped < skipCount) { skipped++; continue }
+                val parent = node.parent ?: continue
+                val indicator = parent.getChild(0)
+                if (indicator != null && indicator.isClickable) {
+                    indicator.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    indicator.recycle()
+                    parent.recycle()
+                    return true
+                }
+                parent.recycle()
+                indicator?.recycle()
             }
+            return false
+        } finally {
+            candidates.forEach { it.recycle() }
         }
-        return false
     }
 
     private fun searchMatches(
@@ -764,10 +781,13 @@ class ExamAccessibilityService : AccessibilityService() {
     ) {
         val text = node.text?.toString()?.trim()
             ?: node.contentDescription?.toString()?.trim() ?: ""
-        if (text in targets) results.add(node)
+        val matched = text in targets
+        if (matched) results.add(node)
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             searchMatches(child, results, targets)
+            // Only recycle if child (and none of its descendants) ended up in results
+            if (child !in results) child.recycle()
         }
     }
 
@@ -817,7 +837,8 @@ class ExamAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             searchAllTextNodes(child, results, depth + 1)
-            child.recycle()
+            // Only recycle if child was NOT added to results (as a text-bearing node or ancestor of one)
+            if (results.none { it.first == child }) child.recycle()
         }
     }
 
@@ -826,7 +847,9 @@ class ExamAccessibilityService : AccessibilityService() {
         var current: AccessibilityNodeInfo? = node
         while (current != null) {
             if (current.isClickable) return current
-            current = current.parent
+            val parent = current.parent
+            if (current != node) current.recycle()
+            current = parent
         }
         return null
     }
