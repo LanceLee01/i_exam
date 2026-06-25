@@ -15,6 +15,8 @@ class MultiRoundRunner(
         private const val PAGE_WAIT_MS = 800L
         private const val SOLVE_TIMEOUT_MS = 60_000L
         private const val FILL_WAIT_MS = 1000L
+        private const val MAX_PAGE_RETRIES = 3
+        private const val RETRY_INTERVAL_MS = 500L
     }
 
     private val _state = MutableStateFlow<MultiRoundState>(MultiRoundState.Idle)
@@ -51,15 +53,42 @@ class MultiRoundRunner(
 
                     // 1. Read current page
                     Log.e(TAG, "--- Round $round: reading page ---")
-                    val text = readCurrentPage()
-                    val filtered = ScanPageFilter.filter(text)
-                    val progress = ScanPageFilter.extractProgress(text)
-                    val current = progress?.first ?: round
-                    val total = progress?.second ?: -1
+                    var text = readCurrentPage()
+                    var filtered = ScanPageFilter.filter(text)
+                    var progress = ScanPageFilter.extractProgress(text)
+                    var current = progress?.first ?: round
+                    var total = progress?.second ?: -1
                     Log.e(TAG, "Round $round: page=$current/$total, filtered len=${filtered.length}")
 
-                    // Stop condition: page is stuck
-                    if (current == lastPage) { Log.w(TAG, "Page stuck at $current, stopping"); break }
+                    // ── 翻页重试机制 ──
+                    // 如果当前页与上次相同（翻页卡住），重试点击"下一页"最多 MAX_PAGE_RETRIES 次
+                    if (current == lastPage) {
+                        Log.w(TAG, "Page stuck at $current, retrying next page click...")
+                        var retried = false
+                        for (retry in 1..MAX_PAGE_RETRIES) {
+                            Log.w(TAG, "  Retry $retry/$MAX_PAGE_RETRIES: clicking '下一页'")
+                            clickNextPage()
+                            delay(RETRY_INTERVAL_MS)
+                            // 重新读取页面，检查是否翻页成功
+                            text = readCurrentPage()
+                            filtered = ScanPageFilter.filter(text)
+                            progress = ScanPageFilter.extractProgress(text)
+                            val newCurrent = progress?.first ?: round
+                            val newTotal = progress?.second ?: total
+                            if (newCurrent != lastPage) {
+                                current = newCurrent
+                                total = newTotal
+                                retried = true
+                                Log.w(TAG, "  Retry $retry: page changed to $current/$total")
+                                break
+                            }
+                            Log.w(TAG, "  Retry $retry: still stuck at $current")
+                        }
+                        if (!retried) {
+                            Log.w(TAG, "Page stuck at $current after $MAX_PAGE_RETRIES retries, stopping")
+                            break
+                        }
+                    }
                     lastPage = current
 
                     // Skip empty pages
@@ -110,10 +139,35 @@ class MultiRoundRunner(
                         break
                     }
 
-                    // 5. Next page
-                    val clicked = clickNextPage()
-                    if (!clicked) { Log.w(TAG, "No '下一页' at page $current, stopping"); break }
-                    delay(PAGE_WAIT_MS)
+                    // 5. Next page — 带重试：点击后验证页面是否真正前进
+                    var pageAdvanced = false
+                    for (retry in 1..MAX_PAGE_RETRIES) {
+                        Log.d(TAG, "  Navigating to next page (attempt $retry/$MAX_PAGE_RETRIES)")
+                        val clicked = clickNextPage()
+                        if (!clicked) {
+                            Log.w(TAG, "  Attempt $retry: '下一页' button not found")
+                            if (retry < MAX_PAGE_RETRIES) delay(RETRY_INTERVAL_MS)
+                            continue
+                        }
+                        delay(PAGE_WAIT_MS)
+
+                        // 重新读取页面，确认翻页成功
+                        val verifyText = readCurrentPage()
+                        val verifyFiltered = ScanPageFilter.filter(verifyText)
+                        val verifyProgress = ScanPageFilter.extractProgress(verifyText)
+                        val newPage = verifyProgress?.first ?: (current + 1)
+
+                        if (newPage != current) {
+                            Log.d(TAG, "  Page confirmed advanced: $current → $newPage")
+                            pageAdvanced = true
+                            break
+                        }
+                        Log.w(TAG, "  Attempt $retry: page didn't advance (still $current), retrying...")
+                    }
+                    if (!pageAdvanced) {
+                        Log.w(TAG, "Failed to advance from page $current after $MAX_PAGE_RETRIES attempts, stopping")
+                        break
+                    }
                 }
 
                 _state.value = MultiRoundState.Done(answeredCount)

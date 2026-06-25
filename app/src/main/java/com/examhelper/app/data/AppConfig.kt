@@ -31,8 +31,8 @@ class AppConfig(private val context: Context) {
         private val KEY_SIDEBAR_RUNNING = booleanPreferencesKey("sidebar_running")
         private val KEY_IS_DARK_MODE = booleanPreferencesKey("is_dark_mode")
 
-        const val DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1"
-        const val DEFAULT_API_KEY = "sk-nzwiwWiLqYyT5dxG9DXSUSAvm9uOlyYZgn4gQC5LqWNl8r5clhfqCWFZxGMOsxm7"
+        const val DEFAULT_ENDPOINT = "https://api.deepseek.com"
+        const val DEFAULT_API_KEY = "sk-3320e43f38bb438fafd4ef36fc3c1955"
         const val DEFAULT_TAVILY_API_KEY = "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"
         const val DEFAULT_MODEL = "deepseek-v4-flash"
         const val DEFAULT_TEMPERATURE = 0.3f
