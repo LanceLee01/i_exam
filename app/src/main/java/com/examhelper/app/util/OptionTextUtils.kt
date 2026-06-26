@@ -1,5 +1,7 @@
 package com.examhelper.app.util
 
+import android.util.Log
+
 /** 从题目文本中提取选项字母到选项文字的映射 */
 internal fun parseOptionMap(text: String): Map<String, String> {
     val map = mutableMapOf<String, String>()
@@ -74,14 +76,21 @@ internal fun resolveOnScreenLetters(
 ): List<String> {
     // 1. Parse KB options to get letter→text map
     val kbOptionMap = parseOptionMapInline(kbOptionsText)
-    if (kbOptionMap.isEmpty()) return answerLetters // fallback: use original letters
+    if (kbOptionMap.isEmpty()) {
+        android.util.Log.d("ResolveDebug", "kbOptionMap empty, falling back to original letters=$answerLetters")
+        return answerLetters
+    }
+
+    android.util.Log.d("ResolveDebug", "kbOptionMap=$kbOptionMap")
+    android.util.Log.d("ResolveDebug", "onScreenOptions=$onScreenOptions")
+    android.util.Log.d("ResolveDebug", "answerLetters=$answerLetters")
 
     val resolved = mutableListOf<String>()
     val usedScreenLetters = mutableSetOf<String>()
     for (ansLetter in answerLetters) {
         val kbText = kbOptionMap[ansLetter]
         if (kbText == null) {
-            // fallback: use original letter if not already used, else pick first unused screen letter
+            android.util.Log.w("ResolveDebug", "ansLetter=$ansLetter NOT FOUND in kbOptionMap, using fallback")
             if (ansLetter !in usedScreenLetters) {
                 resolved.add(ansLetter)
                 usedScreenLetters.add(ansLetter)
@@ -91,7 +100,7 @@ internal fun resolveOnScreenLetters(
                     usedScreenLetters.add(unused.first)
                     resolved.add(unused.first)
                 } else {
-                    resolved.add(ansLetter) // desperate fallback
+                    resolved.add(ansLetter)
                 }
             }
             continue
@@ -104,15 +113,22 @@ internal fun resolveOnScreenLetters(
             }
         if (bestMatch != null) {
             val similarity = computeTextSimilarity(kbText, bestMatch.second)
+            val kbTextPreview = kbText.take(40)
+            val screenTextPreview = bestMatch.second.take(40)
+            android.util.Log.d("ResolveDebug", "ansLetter=$ansLetter bestMatch=${bestMatch.first} similarity=${"%.2f".format(similarity)} kb='$kbTextPreview' screen='$screenTextPreview'")
             if (similarity >= 0.4f) {
                 usedScreenLetters.add(bestMatch.first)
                 resolved.add(bestMatch.first)
                 continue
+            } else {
+                android.util.Log.w("ResolveDebug", "ansLetter=$ansLetter bestMatch=${bestMatch.first} similarity=$similarity < 0.4, falling back")
             }
         }
         // No good match found — keep original letter as fallback
+        android.util.Log.d("ResolveDebug", "ansLetter=$ansLetter no good match, keeping original")
         resolved.add(ansLetter)
     }
+    android.util.Log.d("ResolveDebug", "final resolved=$resolved")
     return resolved
 }
 

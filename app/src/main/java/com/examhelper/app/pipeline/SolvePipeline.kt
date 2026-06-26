@@ -1192,6 +1192,13 @@ class SolvePipeline(private val context: Context) {
                 return kbAnswer
             }
 
+            // 缺失选项保护：如果屏幕选项不全（缺少 A 或选项数异常），跳过解析直接返回原始答案
+            val hasA = onScreenMap.any { it.first == "A" }
+            if (!hasA || onScreenMap.size < 2) {
+                Log.w(TAG, "resolveAnswer Q$qNum: screen options incomplete (got ${onScreenMap.map { it.first }}, missing A or too few), skipping resolution")
+                return kbAnswer
+            }
+
             // Parse KB answer into individual letters (handles both "A B C" and "ABCD" formats)
             val answerLetters = kbAnswer.uppercase().filter { it in 'A'..'F' }.map { it.toString() }
             if (answerLetters.isEmpty()) {
