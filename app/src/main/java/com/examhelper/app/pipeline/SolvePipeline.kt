@@ -81,7 +81,7 @@ class SolvePipeline(private val context: Context) {
             val resolvedQ = l1Answers.keys.filter { resolvedL1[it] != l1Answers[it] }.toSet()
             Log.d(TAG, "All ${allQ.size} matched by L1, returning, resolvedQ=$resolvedQ")
             ExtractedTextBus.updateSidebarState(
-                SidebarState.Done(text, combined, source, emptyList(), questionSources, kbAnswerOptions = l1OptionsMap, kbQuestionTexts = l1QuestionTexts, resolvedQuestions = resolvedQ)
+                SidebarState.Done(text, combined, source, emptyList(), questionSources, kbAnswerOptions = l1OptionsMap, kbQuestionTexts = l1QuestionTexts, resolvedQuestions = resolvedQ, kbOriginalAnswers = l1Answers)
             )
             return
         }
@@ -217,7 +217,7 @@ class SolvePipeline(private val context: Context) {
             val resolvedQ2 = allL1.keys.filter { resolvedAll[it] != allL1[it] }.toSet()
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(), questionSources,
-                    kbAnswerOptions = allOptions, resolvedQuestions = resolvedQ2)
+                    kbAnswerOptions = allOptions, resolvedQuestions = resolvedQ2, kbOriginalAnswers = allL1)
             )
             return
         }
@@ -327,7 +327,7 @@ class SolvePipeline(private val context: Context) {
             Log.d(TAG, "solveL1Only: ${allQ.size} questions ALL matched with text-resolution in ${System.currentTimeMillis()-startMs}ms, resolvedQ=$resolvedQ")
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, combined, AnswerSource.EXCEL_MATCH, emptyList(),
-                    questionSources, kbAnswerOptions = l1OptionsMap, kbQuestionTexts = allQuestionTexts, resolvedQuestions = resolvedQ)
+                    questionSources, kbAnswerOptions = l1OptionsMap, kbQuestionTexts = allQuestionTexts, resolvedQuestions = resolvedQ, kbOriginalAnswers = l1Answers)
             )
         } catch (e: Exception) {
             Log.e(TAG, "solveL1Only() crashed", e)
@@ -1034,7 +1034,7 @@ class SolvePipeline(private val context: Context) {
 
             ExtractedTextBus.updateSidebarState(
                 SidebarState.Done(text, finalAnswer, source, enhancement.references, questionSources,
-                    kbAnswerOptions = l1OptionsMap, kbQuestionTexts = l1QuestionTexts, resolvedQuestions = resolvedQ)
+                    kbAnswerOptions = l1OptionsMap, kbQuestionTexts = l1QuestionTexts, resolvedQuestions = resolvedQ, kbOriginalAnswers = l1Answers)
             )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e

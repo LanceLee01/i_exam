@@ -42,6 +42,9 @@ class ExamAccessibilityService : AccessibilityService() {
                     is ExtractedTextBus.Event.RequestExtract -> {
                         extractAndSendText()
                     }
+                    is ExtractedTextBus.Event.RequestExtractStatic -> {
+                        extractCurrentPageOnly()
+                    }
                     is ExtractedTextBus.Event.ClickAnswer -> {
                         performAutoClick(event.answer, event.sourceText, event.kbAnswerOptions, event.skipKbResolution)
                     }
@@ -131,6 +134,57 @@ class ExamAccessibilityService : AccessibilityService() {
             searchPageButton(child, results, target)
             // Only recycle if child was NOT added to results (match found at this node or descendant)
             if (child !in results) child.recycle()
+        }
+    }
+
+    /** Extract current visible page content WITHOUT scrolling (for multi-round page reading).
+     *  Unlike extractAndSendText(), this does NOT scroll backward/forward to capture all content,
+     *  which would interfere with multi-round page navigation. */
+    private fun extractCurrentPageOnly() {
+        Log.d(TAG, "extractCurrentPageOnly called")
+        if (!isConnected) {
+            ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Error("无障碍服务未连接"))
+            return
+        }
+        scope.launch(Dispatchers.Default) {
+            try {
+                val keywords = ExamApplication.instance.appConfig.watermarkKeywords.first()
+                var rootNode = rootInActiveWindow
+                if (rootNode == null) {
+                    for (window in windows) {
+                        val candidate = window.root
+                        if (candidate != null && candidate.childCount > 0) {
+                            rootNode = candidate; break
+                        }
+                    }
+                }
+                if (rootNode == null) {
+                    launch(Dispatchers.Main) {
+                        ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Error("未检测到文字"))
+                    }
+                    return@launch
+                }
+                // Read current visible content — ONE pass, no scrolling
+                val lines = mutableListOf<String>()
+                traverseNode(rootNode, keywords, lines)
+                if (rootNode != rootInActiveWindow) rootNode.recycle()
+                if (lines.isEmpty()) {
+                    launch(Dispatchers.Main) {
+                        ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Error("未检测到文字"))
+                    }
+                    return@launch
+                }
+                val result = cleanAndFormat(lines)
+                launch(Dispatchers.Main) {
+                    ExtractedTextBus.sendEvent(ExtractedTextBus.Event.TextExtracted(result))
+                    ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Preview(result))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "extractCurrentPageOnly error", e)
+                launch(Dispatchers.Main) {
+                    ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Error("文字提取失败: ${e.message}"))
+                }
+            }
         }
     }
 

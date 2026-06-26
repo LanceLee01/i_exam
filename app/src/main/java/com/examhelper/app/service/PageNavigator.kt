@@ -18,10 +18,10 @@ class PageNavigator {
         private const val MAX_BACK_PAGES = 100
     }
 
-    /** Read current page text: send RequestExtract, wait for Preview state */
+    /** Read current page text: send RequestExtractStatic (no-scroll), wait for Preview state */
     suspend fun readCurrentPage(): String = withContext(Dispatchers.Default) {
         var result = ""
-        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.RequestExtract)
+        ExtractedTextBus.sendEvent(ExtractedTextBus.Event.RequestExtractStatic)
 
         val deadline = System.currentTimeMillis() + 10_000
         while (result.isEmpty() && System.currentTimeMillis() < deadline) {

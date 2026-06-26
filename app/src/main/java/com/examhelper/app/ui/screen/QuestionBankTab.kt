@@ -176,7 +176,8 @@ fun QuestionBankTab(
         val kbIdx = KnowledgeBaseManager.allKBs.indexOf(KnowledgeBaseManager.activeKB)
         scope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) { isImporting = true; importProgress = 0f; importMessage = "正在准备导入..." }
-            var totalImported = 0; var totalSkipped = 0; var totalFailed = 0
+            var totalImported = 0; var totalSkipped = 0; var totalFailed = 0; var lastImportError = ""
+            try {
             for (uri in uris) {
                 try {
                     val ctx = ExamApplication.instance.applicationContext
@@ -194,18 +195,34 @@ fun QuestionBankTab(
                         val tmp = java.io.File(ctx.cacheDir, "kb_import_${System.nanoTime()}.$ext")
                         tmp.outputStream().use { inputStream.copyTo(it) }
                         withContext(Dispatchers.Main) { importProgress = 0.5f; importMessage = "导入: $fileName" }
-                        val count = KnowledgeBaseManager.allKBs.getOrNull(kbIdx)?.importExcelWithDedup(tmp.absolutePath, displayFileName = fileName) ?: -1
-                        tmp.delete()
-                        when { count == -2 -> totalSkipped++; count >= 0 -> { totalImported += count; KnowledgeBaseManager.save() }; else -> totalFailed++ }
+                        if (kbIdx < 0) {
+                            totalFailed++; lastImportError = "未选择知识库，请先创建或激活一个知识库"
+                        } else {
+                            val count = KnowledgeBaseManager.allKBs.getOrNull(kbIdx)?.importExcelWithDedup(tmp.absolutePath, displayFileName = fileName) ?: -1
+                            tmp.delete()
+                            when {
+                                count == -2 -> totalSkipped++
+                                count >= 0 -> { totalImported += count; KnowledgeBaseManager.save() }
+                                count == -3 -> { totalFailed++; lastImportError = "API Key 未配置，请在设置中填写" }
+                                count == -4 -> { totalFailed++; lastImportError = "列检测失败，可能是 API 调用异常或文件格式问题" }
+                                else -> { totalFailed++; lastImportError = "导入失败，请检查文件格式或查看日志" }
+                            }
+                        }
                     }
-                } catch (_: Exception) { totalFailed++ }
+                } catch (_: Exception) { totalFailed++; lastImportError = "处理文件时发生异常，请查看日志" }
+            }
+            } catch (e: Exception) {
+                totalFailed++; lastImportError = "导入过程异常: ${e.message?.take(60) ?: "未知错误"}"
             }
             withContext(Dispatchers.Main) {
                 isImporting = false; refreshKey++
                 val msg = buildString {
                     if (totalImported > 0) append("导入成功: $totalImported 条")
                     if (totalSkipped > 0) append(" 跳过: $totalSkipped")
-                    if (totalFailed > 0) append(" 失败: $totalFailed")
+                    if (totalFailed > 0) {
+                        append(" 失败: $totalFailed")
+                        if (lastImportError.isNotBlank()) append("\n$lastImportError")
+                    }
                     if (totalImported == 0 && totalSkipped == 0 && totalFailed == 0) append("未找到可导入的文件")
                 }
                 Toast.makeText(ExamApplication.instance, msg, Toast.LENGTH_SHORT).show()
@@ -358,7 +375,12 @@ fun QuestionBankTab(
                         remoteDownloading = null
                         if (result.success && result.localPath != null) {
                             val count = kb?.importExcelWithDedup(result.localPath, displayFileName = file.name) ?: -1
-                            if (count >= 0) { KnowledgeBaseManager.save(); refreshKey++; Toast.makeText(ExamApplication.instance, "导入成功: $count 条", Toast.LENGTH_SHORT).show() }
+                            when {
+                                count >= 0 -> { KnowledgeBaseManager.save(); refreshKey++; Toast.makeText(ExamApplication.instance, "导入成功: $count 条", Toast.LENGTH_SHORT).show() }
+                                count == -3 -> { remoteError = "API Key 未配置，请在设置中填写" }
+                                count == -4 -> { remoteError = "列检测失败，请检查文件格式" }
+                                else -> { remoteError = "导入失败($count)，请检查文件格式或稍后重试" }
+                            }
                             java.io.File(result.localPath).delete()
                         } else {
                             remoteError = result.error

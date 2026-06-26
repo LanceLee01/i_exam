@@ -26,11 +26,11 @@ class ColumnDetector {
     companion object {
         private const val TAG = "ColumnDetector"
 
-        private val QUESTION_KEYWORDS = setOf("题目", "问题", "试题", "考题", "question")
-        private val ANSWER_KEYWORDS = setOf("答案", "回答", "answer", "key")
-        private val SOURCE_KEYWORDS = setOf("来源", "出处", "source", "来源出处", "题目来源")
+        private val QUESTION_KEYWORDS = setOf("题目", "问题", "试题", "考题", "question", "题干", "题目内容", "试题内容", "题目描述", "问题描述")
+        private val ANSWER_KEYWORDS = setOf("答案", "回答", "answer", "key", "正确答案", "正确选项", "正确", "选择", "参考答案", "选项答案")
+        private val SOURCE_KEYWORDS = setOf("来源", "出处", "source", "来源出处", "题目来源", "参考", "参考资料")
         private val OPTION_KEYWORDS = setOf("选项", "备选", "备选项", "option", "选择项", "备选答案", "选择")
-        private val TYPE_KEYWORDS = setOf("题型", "类型", "题目类型", "type")
+        private val TYPE_KEYWORDS = setOf("题型", "类型", "题目类型", "type", "类别", "试题类型")
     }
 
     // ── Header-based detection ──────────────────────────────────────────────
