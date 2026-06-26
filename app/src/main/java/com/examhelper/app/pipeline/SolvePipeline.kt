@@ -301,13 +301,18 @@ class SolvePipeline(private val context: Context) {
                 // 检测是否因选项不全跳过了解析（resolved == kbAns 但屏幕选项有缺失）
                 // 检测屏幕选项是否完整（数量应与 KB 选项数一致）
                 if (kbOpts.isNotBlank()) {
-                    val kbOptCount = com.examhelper.app.util.parseOptionMapInline(kbOpts).size
                     val qText = extractSingleQuestionTextStatic(text, qNum)
-                    val screenOpts = Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE).findAll(qText).toList()
-                    if (kbOptCount > 0 && screenOpts.size < kbOptCount) {
-                        skippedQuestions.add(qNum)
+                    val qTextContainsTf = qText.contains("判断题")
+                    Log.d(TAG_DEBUG, "solveL1Only Q$qNum: kbOpts=$kbOpts, qText contains 判断题=$qTextContainsTf, qText='${qText.take(80)}'")
+                    // 判断题跳过字母选项检查（屏幕上是"正确"/"错误"无字母标签）
+                    if (!qTextContainsTf) {
+                        val kbOptCount = com.examhelper.app.util.parseOptionMapInline(kbOpts).size
+                        val screenOpts = Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE).findAll(qText).toList()
+                        if (kbOptCount > 0 && screenOpts.size < kbOptCount) {
+                            skippedQuestions.add(qNum)
                     }
                 }
+            }
                 if (resolved != kbAns && kbOpts.isNotBlank()) {
                     val failed = validateResolution(qNum, kbAns, resolved, kbOpts, text)
                     if (failed != null) {
@@ -437,7 +442,8 @@ class SolvePipeline(private val context: Context) {
                 SidebarState.Loading("题库匹配中... 已匹配 ${numberedPairs.size} 题，正在消解 ${conflictQ.size} 道冲突")
             )
             // Extract question blocks from exam text
-            val qPattern = Regex("""(\d+)[、.]""")
+            // 只匹配顿号，避免题干小数被误判为题号
+            val qPattern = Regex("""(\d+)、""")
             val qMatches = qPattern.findAll(text).toList()
             val blocks = if (qMatches.size <= 1) {
                 listOf(text)
@@ -649,7 +655,8 @@ class SolvePipeline(private val context: Context) {
         // Question numbers >200 are likely data values (e.g. "20430.25万元"), skip them
         val MAX_QUESTION_NUMBER = 200
         if (qNum > MAX_QUESTION_NUMBER) return text.take(200)
-        val questionPattern = Regex("""(\d+)[、.]""")
+        // 只匹配顿号（、），避免题干小数（如"6.8级"）被误认为题号边界
+        val questionPattern = Regex("""(\d+)、""")
         val matches = questionPattern.findAll(text).toList()
         val matchIdx = matches.indexOfFirst { it.groupValues[1].toIntOrNull() == qNum }
         if (matchIdx < 0) return text.take(200) // fallback
@@ -659,7 +666,8 @@ class SolvePipeline(private val context: Context) {
     }
 
     private fun extractUnmatchedQuestionText(text: String, matchedNumbers: Set<Int>, unmatchedNumbers: Set<Int>): String {
-        val questionPattern = Regex("""(\d+)[、.]""")
+        // 只匹配顿号，避免题干小数被误判为题号
+        val questionPattern = Regex("""(\d+)、""")
         val matches = questionPattern.findAll(text).toList()
 
         val result = StringBuilder()
@@ -683,7 +691,8 @@ class SolvePipeline(private val context: Context) {
     private fun findQuestionNumber(text: String, kbQuestion: String): Int? {
         val normalizedQuery = text.replace(Regex("（\\s*）"), "（）")
         val normalizedQuestion = kbQuestion.replace(Regex("（\\s*）"), "（）")
-        val questionPattern = Regex("""(\d+)[、.]""")
+        // 只匹配顿号，避免题干小数被误判为题号
+        val questionPattern = Regex("""(\d+)、""")
 
         // 1) Exact substring match (fast path)
         val exactIdx = normalizedQuery.indexOf(normalizedQuestion)
@@ -711,7 +720,8 @@ class SolvePipeline(private val context: Context) {
         }
 
         // 2) Fuzzy match: hybrid text similarity to find best-matching question block
-        val qPattern = Regex("""(\d+)[、.]""")
+        // 只匹配顿号，避免题干小数被误判为题号
+        val qPattern = Regex("""(\d+)、""")
         val qMatches = qPattern.findAll(normalizedQuery).toList()
         val blocks = if (qMatches.size <= 1) {
             listOf(normalizedQuery)
@@ -1205,6 +1215,21 @@ class SolvePipeline(private val context: Context) {
                 }
             }
             if (onScreenMap.isEmpty()) {
+                // 判断题特殊处理：屏幕选项是"正确"/"错误"无字母标签，映射 A→正确, B→错误
+                val hasTf = qText.contains("判断题")
+                val firstLetter = kbAnswer.uppercase().firstOrNull()
+                Log.d(TAG, "resolveAnswer Q$qNum: DEBUG onScreenMap empty, qText contains 判断题=$hasTf, kbAnswer=$kbAnswer, firstLetter=$firstLetter")
+                if (hasTf) {
+                    val tfAnswer = when (firstLetter) {
+                        'A' -> "正确"
+                        'B' -> "错误"
+                        else -> null
+                    }
+                    if (tfAnswer != null) {
+                        Log.d(TAG, "resolveAnswer Q$qNum: 判断题 detected, mapping '$kbAnswer' → '$tfAnswer'")
+                        return tfAnswer
+                    }
+                }
                 Log.d(TAG, "resolveAnswer Q$qNum: no on-screen options found from text='${qText.take(80)}', keeping original")
                 return kbAnswer
             }
@@ -1319,13 +1344,17 @@ class SolvePipeline(private val context: Context) {
         private fun extractSingleQuestionTextStatic(text: String, qNum: Int): String {
             val MAX_QUESTION_NUMBER = 200
             if (qNum > MAX_QUESTION_NUMBER) return text.take(200)
-            val questionPattern = Regex("""(\d+)[、.]""")
+            // 以题号（N、）为起始位置
+            val questionPattern = Regex("""(\d+)、""")
             val matches = questionPattern.findAll(text).toList()
             val matchIdx = matches.indexOfFirst { it.groupValues[1].toIntOrNull() == qNum }
             if (matchIdx < 0) return text.take(200)
             val start = matches[matchIdx].range.first
-            val end = if (matchIdx + 1 < matches.size) matches[matchIdx + 1].range.first else text.length
-            return text.substring(start, end).trim().take(800)  // 800 to capture all options including D
+            // 以 "上一页"、"下一页" 或文本结尾为终止边界，避免题干中的数字被误判为题号
+            val pageEndPattern = Regex("""上一页|下一页""")
+            val pageEndMatch = pageEndPattern.find(text, start + 1)
+            val end = if (pageEndMatch != null) pageEndMatch.range.first else text.length
+            return text.substring(start, end).trim().take(800)
         }
 
         /** Format sorted question numbers into ranges: [1,2,3,5,6,10] → "1-3, 5-6, 10" */

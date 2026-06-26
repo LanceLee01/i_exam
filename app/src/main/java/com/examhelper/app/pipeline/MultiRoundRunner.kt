@@ -226,6 +226,8 @@ class MultiRoundRunner(
 
     private suspend fun readCurrentPage(): String = withContext(Dispatchers.Default) {
         var result = ""
+        // 重置为 Idle 以避免读到先前提取的过期 Preview 状态
+        ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Idle)
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.RequestExtractStatic)
 
         val deadline = System.currentTimeMillis() + 10_000
