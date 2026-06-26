@@ -294,10 +294,20 @@ class SolvePipeline(private val context: Context) {
             // 同时做反向验证：解析后的屏幕文字必须与KB选项文字高度相似
             val resolvedL1 = mutableMapOf<Int, String>()
             val resolutionErrors = mutableListOf<String>()
+            val skippedQuestions = mutableListOf<Int>()  // 跟踪因选项不全跳过解析的题目
             for ((qNum, kbAns) in l1Answers) {
                 val kbOpts = l1OptionsMap[qNum] ?: ""
                 val resolved = resolveAnswerForDisplay(qNum, kbAns, kbOpts, text)
-                // 如果答案字母变了，做反向验证
+                // 检测是否因选项不全跳过了解析（resolved == kbAns 但屏幕选项有缺失）
+                // 检测屏幕选项是否完整（数量应与 KB 选项数一致）
+                if (kbOpts.isNotBlank()) {
+                    val kbOptCount = com.examhelper.app.util.parseOptionMapInline(kbOpts).size
+                    val qText = extractSingleQuestionTextStatic(text, qNum)
+                    val screenOpts = Regex("""^[A-F]\s*[.、:：)）]""", RegexOption.MULTILINE).findAll(qText).toList()
+                    if (kbOptCount > 0 && screenOpts.size < kbOptCount) {
+                        skippedQuestions.add(qNum)
+                    }
+                }
                 if (resolved != kbAns && kbOpts.isNotBlank()) {
                     val failed = validateResolution(qNum, kbAns, resolved, kbOpts, text)
                     if (failed != null) {
@@ -305,6 +315,13 @@ class SolvePipeline(private val context: Context) {
                     }
                 }
                 resolvedL1[qNum] = resolved
+            }
+
+            if (skippedQuestions.isNotEmpty()) {
+                val errMsg = "⚠️ 屏幕读取不全，第 ${skippedQuestions.joinToString(", ")} 题缺少选项，请重新读取屏幕后重试"
+                Log.e(TAG, "solveL1Only: screen options incomplete for questions: $skippedQuestions")
+                ExtractedTextBus.updateSidebarState(SidebarState.Error(errMsg))
+                return
             }
 
             if (resolutionErrors.isNotEmpty()) {

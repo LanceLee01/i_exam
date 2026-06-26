@@ -148,6 +148,8 @@ class ExamAccessibilityService : AccessibilityService() {
         }
         scope.launch(Dispatchers.Default) {
             try {
+                // 等页面渲染稳定，确保所有选项已加载
+                delay(400)
                 val keywords = ExamApplication.instance.appConfig.watermarkKeywords.first()
                 var rootNode = rootInActiveWindow
                 if (rootNode == null) {
