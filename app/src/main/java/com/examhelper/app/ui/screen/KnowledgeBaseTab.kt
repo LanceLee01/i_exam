@@ -43,8 +43,7 @@ fun KnowledgeBaseTab(isDarkMode: Boolean) {
     var refreshKey by remember { mutableStateOf(0L) }
     var selectedPageUid by remember { mutableStateOf<String?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
-    var llmAnswer by remember { mutableStateOf<com.examhelper.app.knowledge.LlmAnswer?>(null) }
-    var isAsking by remember { mutableStateOf(false) }
+
 
     var allPages by remember { mutableStateOf<List<WikiPage>>(emptyList()) }
     var searchResults by remember { mutableStateOf<List<WikiPage>?>(null) }
@@ -125,20 +124,7 @@ fun KnowledgeBaseTab(isDarkMode: Boolean) {
         // Search + AI Q&A + import
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(modifier = Modifier.weight(1f)) {
-                SearchBar(query = searchQuery, onQueryChange = { searchQuery = it; llmAnswer = null }, placeholder = "输入问题或关键词...", colors = colors, height = 44, radius = 12)
-            }
-            // AI 问答 button
-            Box(
-                modifier = Modifier.height(44.dp).clip(RoundedCornerShape(12.dp)).background(colors.primary).clickable(enabled = searchQuery.length >= 2 && !isAsking) {
-                    isAsking = true; llmAnswer = null
-                    scope.launch(Dispatchers.IO) {
-                        val answer = kbEngine.answerQuestion(searchQuery)
-                        withContext(Dispatchers.Main) { llmAnswer = answer; isAsking = false }
-                    }
-                }.padding(horizontal = 14.dp), contentAlignment = Alignment.Center,
-            ) {
-                if (isAsking) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = androidx.compose.ui.graphics.Color.White, strokeWidth = 2.dp)
-                else Text("AI 问答", color = androidx.compose.ui.graphics.Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                SearchBar(query = searchQuery, onQueryChange = { searchQuery = it }, placeholder = "输入问题或关键词...", colors = colors, height = 44, radius = 12)
             }
             // Import button
             Box(
@@ -159,35 +145,6 @@ fun KnowledgeBaseTab(isDarkMode: Boolean) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(importProgress, fontSize = 12.sp, color = colors.onSurfaceSecondary)
             }
-        }
-
-        // LLM Answer card
-        if (llmAnswer != null) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = colors.primary.copy(alpha = 0.04f)),
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🤖", fontSize = 16.sp); Spacer(modifier = Modifier.width(6.dp))
-                        Text("AI 回答", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(llmAnswer!!.answer, fontSize = 13.sp, color = colors.onSurface, lineHeight = 22.sp)
-                    if (llmAnswer!!.references.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        HorizontalDivider(color = colors.outline)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("📎 参考页面", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceSecondary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        llmAnswer!!.references.forEach { (uid, title) ->
-                            Text("· $title", fontSize = 12.sp, color = colors.primary, modifier = Modifier.clickable { selectedPageUid = uid }.padding(vertical = 2.dp))
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
         }
 
         // Category chips

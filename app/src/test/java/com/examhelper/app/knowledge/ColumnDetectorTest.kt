@@ -1,17 +1,8 @@
 package com.examhelper.app.knowledge
 
-import com.examhelper.app.ExamApplication
-import com.examhelper.app.data.AppConfig
-import com.examhelper.app.data.ConfigSnapshot
-import com.examhelper.app.network.LLMClient
 import io.mockk.clearAllMocks
-import io.mockk.coEvery
-import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkConstructor
-import io.mockk.mockkObject
-import kotlinx.coroutines.runBlocking
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.Row
 import org.apache.poi.ss.usermodel.Sheet
@@ -19,7 +10,6 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
-import java.io.IOException
 
 class ColumnDetectorTest {
 
@@ -39,7 +29,7 @@ class ColumnDetectorTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // detectByHeader tests (6)
+    // detectByHeader tests
     // ═════════════════════════════════════════════════════════════════════════
 
     @Test
@@ -137,126 +127,6 @@ class ColumnDetectorTest {
         every { sheet.getRow(2) } returns null
 
         val result = detector.detectByHeader(sheet)
-
-        assertNull(result)
-    }
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // detectByLLM tests (5) — suspend functions, use runBlocking
-    // ═════════════════════════════════════════════════════════════════════════
-
-    private fun mockAppConfigForLLM(apiKey: String = "test-key"): Pair<ExamApplication, AppConfig> {
-        val mockApplication = mockk<ExamApplication>(relaxed = true)
-        val mockAppConfig = mockk<AppConfig>()
-        val config = ConfigSnapshot(
-            apiEndpoint = "https://test.api.com",
-            apiKey = apiKey,
-            tavilyApiKey = "",
-            modelName = "test-model",
-            temperature = 0.3f,
-            maxTokens = 2048,
-            systemPrompt = "test prompt",
-            watermarkKeywords = emptySet()
-        )
-        mockkObject(ExamApplication.Companion)
-        every { ExamApplication.instance } returns mockApplication
-        every { mockApplication.appConfig } returns mockAppConfig
-        coEvery { mockAppConfig.getSnapshot() } returns config
-        return mockApplication to mockAppConfig
-    }
-
-    private fun mockMinimalSheet(): Sheet {
-        val sheet = mockk<Sheet>()
-        val row = mockk<Row>()
-        every { row.lastCellNum } returns 3
-        every { row.getCell(any<Int>()) } returns null
-        every { row.getCell(0) } returns createCell("Question")
-        every { row.getCell(1) } returns createCell("Answer")
-        every { sheet.getRow(0) } returns row
-        every { sheet.getRow(1) } returns null
-        every { sheet.getRow(2) } returns null
-        every { sheet.getRow(3) } returns null
-        every { sheet.getRow(4) } returns null
-        every { sheet.getRow(5) } returns null
-        return sheet
-    }
-
-    @Test
-    fun `should call LLM when header returns null`() {
-        val sheet = mockMinimalSheet()
-        mockAppConfigForLLM()
-
-        mockkConstructor(LLMClient::class)
-        coEvery {
-            anyConstructed<LLMClient>().chatSync(any(), any(), any(), any(), any(), any(), any())
-        } returns LLMClient.Result.Success("""{"questionCol": 0, "answerCol": 1, "sourceCol": null}""")
-
-        runBlocking {
-            detector.detectByLLM(sheet)
-        }
-
-        coVerify(exactly = 1) {
-            anyConstructed<LLMClient>().chatSync(any(), any(), any(), any(), any(), any(), any())
-        }
-    }
-
-    @Test
-    fun `should parse LLM JSON response`() {
-        val sheet = mockMinimalSheet()
-        mockAppConfigForLLM()
-
-        mockkConstructor(LLMClient::class)
-        coEvery {
-            anyConstructed<LLMClient>().chatSync(any(), any(), any(), any(), any(), any(), any())
-        } returns LLMClient.Result.Success("""{"questionCol": 0, "answerCol": 2, "sourceCol": null}""")
-
-        val result = runBlocking { detector.detectByLLM(sheet) }
-
-        assertEquals(ColumnMapping(0, 2, null), result)
-    }
-
-    @Test
-    fun `should reject out-of-bounds LLM response`() {
-        val sheet = mockMinimalSheet()
-        mockAppConfigForLLM()
-
-        mockkConstructor(LLMClient::class)
-        coEvery {
-            anyConstructed<LLMClient>().chatSync(any(), any(), any(), any(), any(), any(), any())
-        } returns LLMClient.Result.Success("""{"questionCol": 99, "answerCol": 2, "sourceCol": null}""")
-
-        val result = runBlocking { detector.detectByLLM(sheet) }
-
-        assertNull(result)
-    }
-
-    @Test
-    fun `should skip LLM when API key is empty`() {
-        val sheet = mockk<Sheet>() // No sheet stubbing needed — returns early
-        mockAppConfigForLLM(apiKey = "")
-
-        mockkConstructor(LLMClient::class)
-
-        val result = runBlocking { detector.detectByLLM(sheet) }
-
-        assertNull(result)
-        // Verify no chatSync call was made
-        coVerify(inverse = true) {
-            anyConstructed<LLMClient>().chatSync(any(), any(), any(), any(), any(), any(), any())
-        }
-    }
-
-    @Test
-    fun `should handle LLM network error`() {
-        val sheet = mockMinimalSheet()
-        mockAppConfigForLLM()
-
-        mockkConstructor(LLMClient::class)
-        coEvery {
-            anyConstructed<LLMClient>().chatSync(any(), any(), any(), any(), any(), any(), any())
-        } throws IOException("Network error")
-
-        val result = runBlocking { detector.detectByLLM(sheet) }
 
         assertNull(result)
     }

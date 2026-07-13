@@ -4,16 +4,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import com.examhelper.app.network.Reference
 
 object ExtractedTextBus {
 
-    @Volatile
-    var lastTokensPerSec: Float = 0f
-    @Volatile
-    var lastPromptTokens: Int = 0
-    @Volatile
-    var lastTtftMs: Long = 0L
     /** 最近一次自动填入中失败的题号和原因，例如 "81: toggle A→正确 NOT FOUND" */
     @Volatile
     var lastToggleFailedQuestions: List<String> = emptyList()
@@ -30,11 +23,9 @@ object ExtractedTextBus {
 
     sealed class SidebarState {
         data object Idle : SidebarState()
-        data class Loading(val message: String, val startTimeMs: Long = 0L, val maxTokens: Int = 2048) : SidebarState()
+        data class Loading(val message: String, val startTimeMs: Long = 0L) : SidebarState()
         data class Preview(val text: String) : SidebarState()
-        data class Streaming(val text: String, val partialAnswer: String, val progress: Float, val startTimeMs: Long, val maxTokens: Int = 2048) : SidebarState()
-        data class Answering(val text: String) : SidebarState()
-        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.LLM_DIRECT, val references: List<Reference> = emptyList(), val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap(), val kbQuestionTexts: Map<Int, String> = emptyMap(), val toggleFailedQuestions: List<Int> = emptyList(), val resolvedQuestions: Set<Int> = emptySet(), val kbOriginalAnswers: Map<Int, String> = emptyMap()) : SidebarState()
+        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.EXCEL_MATCH, val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap(), val kbQuestionTexts: Map<Int, String> = emptyMap(), val toggleFailedQuestions: List<Int> = emptyList(), val resolvedQuestions: Set<Int> = emptySet(), val kbOriginalAnswers: Map<Int, String> = emptyMap()) : SidebarState()
         data class Error(val message: String) : SidebarState()
 
         // ── 多轮自动答题状态 ──
@@ -55,10 +46,7 @@ object ExtractedTextBus {
 
     enum class AnswerSource(val label: String) {
         EXCEL_MATCH("\uD83D\uDCCB 题库匹配"),
-        KB_MATCH("\uD83D\uDCD6 知识库匹配"),
-        KB_INFER("\uD83D\uDCD6 知识库推断"),
-        SEARCH_MATCH("\uD83D\uDD0D 网络搜索"),
-        LLM_DIRECT("\uD83E\uDD16 AI解答")
+        KB_MATCH("\uD83D\uDCD6 知识库匹配")
     }
 
     private val _events = MutableSharedFlow<Event>(extraBufferCapacity = 16)

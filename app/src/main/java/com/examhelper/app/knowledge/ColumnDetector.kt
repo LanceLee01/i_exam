@@ -2,7 +2,6 @@ package com.examhelper.app.knowledge
 
 import android.util.Log
 import com.examhelper.app.ExamApplication
-import com.examhelper.app.network.LLMClient
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,7 +16,7 @@ import java.io.FileInputStream
  *
  * Uses two strategies in order:
  * 1. [detectByHeader] — keyword matching on header rows (0-2)
- * 2. [detectByLLM] — LLM-based analysis of header + data rows
+ * 2. 基于启发式规则检测列
  */
 class ColumnDetector {
 
@@ -102,90 +101,13 @@ class ColumnDetector {
         return if (maxCol >= 0) maxCol else null
     }
 
-    // ── LLM-based detection ─────────────────────────────────────────────────
-
-    /**
-     * Uses an LLM to identify question/answer/source columns from header and sample data.
-     * Returns `null` when the API key is unset, the LLM call fails, or the response
-     * cannot be parsed / validated.
-     */
-    suspend fun detectByLLM(sheet: Sheet): ColumnMapping? {
-        val config = ExamApplication.instance.appConfig.getSnapshot()
-        if (config.apiKey.isBlank()) {
-            Log.d(TAG, "detectByLLM: API key not configured, skipping")
-            return null
-        }
-
-        val lastColIndex = getLastColumnIndex(sheet) ?: return null
-
-        val headersFormatted = buildHeadersString(sheet.getRow(0), lastColIndex)
-        val dataRowsFormatted = buildDataRowsString(sheet)
-        val prompt = buildPrompt(headersFormatted, dataRowsFormatted)
-
-        return try {
-            val llmClient = LLMClient()
-            val result = llmClient.chatSync(
-                endpoint = config.apiEndpoint,
-                apiKey = config.apiKey,
-                model = config.modelName,
-                temperature = 0.1f,
-                maxTokens = config.maxTokens,
-                systemPrompt = "You are a precise data extraction assistant. Respond only with JSON.",
-                userMessage = prompt
-            )
-
-            val jsonStr = when (result) {
-                is LLMClient.Result.Success -> result.content.trim()
-                else -> {
-                    Log.w(TAG, "detectByLLM: LLM call failed → $result")
-                    return null
-                }
-            }
-
-            val cleanJson = extractJsonFromResponse(jsonStr)
-            val response = gson.fromJson(cleanJson, LLMColumnResponse::class.java)
-                ?: return null.also { Log.w(TAG, "detectByLLM: JSON parse returned null") }
-
-            // Bounds validation
-            if (response.questionCol !in 0..lastColIndex) {
-                Log.w(TAG, "detectByLLM: questionCol ${response.questionCol} out of bounds [0..$lastColIndex]")
-                return null
-            }
-            if (response.answerCol !in 0..lastColIndex) {
-                Log.w(TAG, "detectByLLM: answerCol ${response.answerCol} out of bounds [0..$lastColIndex]")
-                return null
-            }
-            if (response.sourceCol != null && response.sourceCol !in 0..lastColIndex) {
-                Log.w(TAG, "detectByLLM: sourceCol ${response.sourceCol} out of bounds [0..$lastColIndex]")
-                return null
-            }
-            if (response.optionsCol != null && response.optionsCol !in 0..lastColIndex) {
-                Log.w(TAG, "detectByLLM: optionsCol ${response.optionsCol} out of bounds [0..$lastColIndex]")
-                return null
-            }
-
-            ColumnMapping(
-                questionCol = response.questionCol,
-                answerCol = response.answerCol,
-                sourceCol = response.sourceCol,
-                optionsCol = response.optionsCol,
-                typeCol = response.typeCol
-            ).also {
-                Log.d(TAG, "detectByLLM: succeeded → $it")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "detectByLLM: unexpected error", e)
-            null
-        }
-    }
-
     // ── Public entry point ──────────────────────────────────────────────────
 
     /**
-     * Opens the Excel file at [filePath], reads the first sheet, and attempts
-     * column detection via [detectByHeader] first, then [detectByLLM] as fallback.
+     * 打开 Excel 文件，读取第一个 sheet，通过表头匹配检测列。
+     * 不再依赖 LLM 兜底。
      *
-     * @throws ColumnDetectionException when both detection methods fail.
+     * @throws ColumnDetectionException 当检测失败时抛出。
      */
     suspend fun detectColumns(filePath: String): ColumnMapping = withContext(Dispatchers.IO) {
         val stream = FileInputStream(filePath)
@@ -198,15 +120,9 @@ class ColumnDetector {
         try {
             val sheet = workbook.getSheetAt(0)
 
-            // 1. Try header-based detection
+            // 基于表头的检测
             detectByHeader(sheet)?.let {
                 Log.d(TAG, "detectColumns: header detection selected → $it")
-                return@withContext it
-            }
-
-            // 2. Fall back to LLM
-            detectByLLM(sheet)?.let {
-                Log.d(TAG, "detectColumns: LLM detection selected → $it")
                 return@withContext it
             }
 

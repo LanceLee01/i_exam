@@ -4,14 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import com.examhelper.app.ExamApplication
 import com.examhelper.app.knowledge.db.AppDatabase
 import com.examhelper.app.knowledge.db.SourceFile
 import com.examhelper.app.knowledge.db.WikiPage
 import com.examhelper.app.knowledge.db.Wikilink
-import com.examhelper.app.network.LLMClient
-import com.examhelper.app.network.EmbeddingClient
-import com.examhelper.app.knowledge.db.WikiPageEmbedding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.security.MessageDigest
@@ -30,16 +26,9 @@ data class SearchResult(
     val trigramPages: List<WikiPage> = emptyList()
 )
 
-data class LlmAnswer(
-    val question: String,
-    val answer: String,
-    val references: List<Pair<String, String>>  // (pageUid, pageTitle)
-)
-
 class KBEngine(private val context: Context) {
 
     private val db = AppDatabase.getInstance(context)
-    private val llmClient = LLMClient()
 
     fun createImportIntent(): Intent {
         return Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -62,73 +51,78 @@ class KBEngine(private val context: Context) {
             val hash = computeSHA256(content)
             val path = uri.toString()
 
-            // Primary dedup: check by content hash (same file content, regardless of path)
+            // 根据内容哈希去重（相同内容不重复导入）
             val existingByHash = db.sourceFileDao().getByHash(hash)
             if (existingByHash != null) {
-                Log.d(TAG, "SHA256 match, skipping reimport: $path (same as ${existingByHash.filePath})")
+                Log.d(TAG, "SHA256匹配，跳过重复导入: $path (与 ${existingByHash.filePath} 相同)")
                 return@withContext ImportResult(true, skipped = true)
             }
 
             val fileName = getFileName(uri)
-            // Reuse existing source ID if path was previously imported (file updated)
+            // 如果路径已导入过（文件更新），复用已有来源ID
             val existingByPath = db.sourceFileDao().getByPath(path)
             val sourceId = existingByPath?.id ?: UUID.randomUUID().toString()
 
-            val config = ExamApplication.instance.appConfig.getSnapshot()
-            val systemPrompt = buildWikiPrompt()
+            // 直接使用原始文本，无需LLM处理
             val truncated = if (content.length > MAX_DOC_CHARS) {
                 content.take(MAX_DOC_CHARS) + "\n\n[文档过长，已截断]"
             } else content
 
-            val result = llmClient.chatSync(
-                endpoint = config.apiEndpoint,
-                apiKey = config.apiKey,
-                model = config.modelName,
-                temperature = 0.3f,
-                maxTokens = config.maxTokens,
-                systemPrompt = systemPrompt,
-                userMessage = truncated
-            )
+            // 将原始文本按段落分割为知识页面
+            val rawTitle = fileName.removeSuffix(".pptx").removeSuffix(".ppt").removeSuffix(".pdf")
+                .removeSuffix(".xlsx").removeSuffix(".xls").removeSuffix(".txt").removeSuffix(".md")
 
-            val pages = when (result) {
-                is LLMClient.Result.Success -> {
-                    Log.d(TAG, "LLM response received (${result.content.length} chars)")
-                    parseWikiPages(result.content, sourceId)
+            // 尝试按常见分隔符拆分内容为多个段落
+            val sections = splitIntoSections(truncated)
+
+            val pages = if (sections.size > 1) {
+                sections.mapIndexed { idx, section ->
+                    val sectionTitle = extractSectionTitle(section) ?: "${rawTitle} - 第${idx + 1}部分"
+                    val sectionSummary = section.lines().firstOrNull()?.take(200)?.trim() ?: "知识段落"
+                    WikiPage(
+                        title = sectionTitle,
+                        content = section.take(MAX_CONTENT_LENGTH),
+                        summary = sectionSummary,
+                        pageType = "concept",
+                        tags = "知识, 文档",
+                        sources = sourceId
+                    )
                 }
-                is LLMClient.Result.Error -> {
-                    Log.e(TAG, "LLM error: ${result.message}")
-                    return@withContext ImportResult(false, error = "LLM 出错: ${result.message}")
-                }
-                is LLMClient.Result.NetworkError -> {
-                    Log.e(TAG, "Network error")
-                    return@withContext ImportResult(false, error = "网络连接失败")
-                }
+            } else {
+                // 单段落作为整体页面
+                listOf(WikiPage(
+                    title = rawTitle.ifBlank { "未命名文档" },
+                    content = truncated.take(MAX_CONTENT_LENGTH),
+                    summary = truncated.lines().firstOrNull()?.take(200)?.trim() ?: "知识页面",
+                    pageType = "concept",
+                    tags = "知识, 文档",
+                    sources = sourceId
+                ))
             }
 
-            // Fallback: if parser produced 0 pages, use full response as a single page
+            // 如果解析结果为空，创建兜底页面
             val finalPages = if (pages.isEmpty()) {
-                Log.w(TAG, "Parser returned 0 pages, creating fallback page from raw response")
+                Log.w(TAG, "解析结果为空，创建兜底页面")
                 listOf(WikiPage(
-                    title = fileName.removeSuffix(".pptx").removeSuffix(".ppt").removeSuffix(".pdf")
-                        .removeSuffix(".xlsx").removeSuffix(".xls").removeSuffix(".txt").removeSuffix(".md"),
-                    content = result.content.take(4000),
-                    summary = result.content.lines().firstOrNull()?.take(200) ?: "知识页面",
+                    title = rawTitle.ifBlank { "未命名文档" },
+                    content = truncated.take(MAX_CONTENT_LENGTH),
+                    summary = truncated.lines().firstOrNull()?.take(200)?.trim() ?: "知识页面",
                     pageType = "concept",
                     tags = "知识, 文档",
                     sources = sourceId
                 ))
             } else pages
 
-            // Truncate content to guard against excessively large pages
+            // 截断过长的页面内容
             val truncatedPages = finalPages.map { page ->
                 if (page.content.length > MAX_CONTENT_LENGTH) {
-                    Log.w(TAG, "Truncating page '${page.title}' content from ${page.content.length} to $MAX_CONTENT_LENGTH chars")
+                    Log.w(TAG, "截断页面 '${page.title}' 内容：${page.content.length} -> $MAX_CONTENT_LENGTH 字符")
                     page.copy(content = page.content.take(MAX_CONTENT_LENGTH))
                 } else page
             }
 
             db.wikiPageDao().insertAll(truncatedPages)
-            Log.d(TAG, "Inserted ${truncatedPages.size} wiki pages")
+            Log.d(TAG, "已插入 ${truncatedPages.size} 个知识页面")
 
             val sourceFile = SourceFile(
                 id = sourceId,
@@ -140,6 +134,7 @@ class KBEngine(private val context: Context) {
             )
             db.sourceFileDao().insert(sourceFile)
 
+            // 提取并插入页面间的Wiki链接
             val allTitles = truncatedPages.map { it.uid to it.title }.toMap()
             val links = mutableListOf<Wikilink>()
             for (page in truncatedPages) {
@@ -157,79 +152,50 @@ class KBEngine(private val context: Context) {
             }
             if (links.isNotEmpty()) {
                 db.wikilinkDao().insertAll(links)
-                Log.d(TAG, "Inserted ${links.size} wikilinks")
-            }
-
-            // Generate embeddings for new pages
-            try {
-                val embConfig = ExamApplication.instance.appConfig.getSnapshot()
-                if (embConfig.apiKey.isNotBlank()) {
-                    val embClient = EmbeddingClient(embConfig.apiKey)
-                    for (page in finalPages) {
-                        try {
-                            val embText = page.title + " " + page.summary
-                            val result = embClient.embed(embText)
-                            if (result != null) {
-                                val bytes = WikiPageEmbedding.floatArrayToBytes(result.values)
-                                db.wikiPageEmbeddingDao().insert(
-                                    WikiPageEmbedding(pageId = page.id, embedding = bytes)
-                                )
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to embed page ${page.title}: ${e.message}")
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Embedding generation failed, pages imported without vectors: ${e.message}")
+                Log.d(TAG, "已插入 ${links.size} 个Wiki链接")
             }
 
             ImportResult(success = true, pagesGenerated = truncatedPages.size)
         } catch (e: Exception) {
-            Log.e(TAG, "importFile failed", e)
+            Log.e(TAG, "导入文件失败", e)
             ImportResult(false, error = e.message ?: "未知错误")
         }
     }
 
     suspend fun searchByQuestion(questionText: String): SearchResult {
-        // 1. Get embedding client
-        val config = ExamApplication.instance.appConfig.getSnapshot()
-        val embeddingClient = if (config.apiKey.isNotBlank()) {
-            EmbeddingClient(config.apiKey)
-        } else null
+        // 使用纯文本搜索（FTS + SQL LIKE），无embedding
+        val ftsPages = try {
+            db.wikiPageDao().searchByTitleLike(questionText)
+        } catch (e: Exception) {
+            Log.w(TAG, "标题搜索失败: ${e.message}")
+            emptyList()
+        }
 
-        // 2. Try embedding search first
-        if (embeddingClient != null) {
-            try {
-                val result = embeddingClient.embed(questionText)
-                if (result != null) {
-                    val allEmbeddings = db.wikiPageEmbeddingDao().getAll()
-                    if (allEmbeddings.isNotEmpty()) {
-                        // Convert to (pageId, floatArray) pairs
-                        val candidates = allEmbeddings.map { emb ->
-                            emb.pageId to WikiPageEmbedding.bytesToFloatArray(emb.embedding)
-                        }
-                        val topResults = EmbeddingClient.topK(result.values, candidates, 10)
-                        // Load pages for top results
-                        val pages = topResults.mapNotNull { (pageId, _) ->
-                            db.wikiPageDao().getById(pageId)
-                        }
-                        return SearchResult(pages = pages)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Embedding search failed, falling back to text search: ${e.message}")
+        // 使用FTS全文搜索
+        val fullTextPages = try {
+            val query = buildFtsQuery(questionText)
+            db.wikiPageDao().searchFts(query)
+        } catch (e: Exception) {
+            Log.w(TAG, "全文搜索失败: ${e.message}")
+            emptyList<WikiPage>()
+        }
+
+        // 合并去重
+        val seen = mutableSetOf<Long>()
+        val allPages = mutableListOf<WikiPage>()
+        val mergedPages = ftsPages + fullTextPages
+        for (page in mergedPages) {
+            if (page.id !in seen) {
+                seen.add(page.id)
+                allPages.add(page)
             }
         }
 
-        // 3. Fallback: simple text search using SQL LIKE
-        val fallbackPages = try {
-            db.wikiPageDao().searchByTitleLike(questionText)
-        } catch (e: Exception) {
-            Log.w(TAG, "Text search failed: ${e.message}")
-            emptyList()
-        }
-        return SearchResult(pages = fallbackPages)
+        return SearchResult(
+            pages = allPages.take(10),
+            ftsPages = ftsPages,
+            trigramPages = fullTextPages
+        )
     }
 
     suspend fun canAnswerFromKB(questionText: String, pages: List<WikiPage>): Boolean {
@@ -238,52 +204,9 @@ class KBEngine(private val context: Context) {
 
     suspend fun getAnswerFromKB(questionText: String, pages: List<WikiPage>): String? {
         if (pages.isEmpty()) return null
+        // 直接拼接匹配页面的内容返回，无需LLM
         return pages.joinToString("\n\n") { page ->
             "【${page.title}】\n${page.summary}\n${page.content.take(500)}"
-        }
-    }
-
-    /** LLM-powered natural language Q&A over wiki knowledge base */
-    suspend fun answerQuestion(question: String): LlmAnswer {
-        // Step 1: Hybrid search for relevant pages
-        val searchResult = searchByQuestion(question)
-        val topPages = searchResult.pages.take(5)
-        if (topPages.isEmpty()) return LlmAnswer("", "知识库中没有相关内容", emptyList())
-
-        // Step 2: Build context from top pages
-        val context = topPages.joinToString("\n\n---\n\n") { page ->
-            "【标题】${page.title}\n【类型】${page.pageType}\n【标签】${page.tags}\n【摘要】${page.summary}\n【正文】${page.content.take(800)}"
-        }
-
-        // Step 3: Call LLM
-        val config = ExamApplication.instance.appConfig.getSnapshot()
-        val systemPrompt = """你是知识库问答助手。根据提供的知识库页面内容回答问题。
-如果答案在提供的页面中找不到，如实说"知识库中暂无相关信息"。
-回答时引用具体页面标题。格式：先给出简洁答案，然后列出参考页面。"""
-
-        val userMessage = "知识库内容：\n$context\n\n问题：$question\n\n请根据上述知识库内容回答问题，并列出参考的页面标题。"
-
-        val result = llmClient.chatSync(
-            endpoint = config.apiEndpoint,
-            apiKey = config.apiKey,
-            model = config.modelName,
-            temperature = 0.3f,
-            maxTokens = 1024,
-            systemPrompt = systemPrompt,
-            userMessage = userMessage
-        )
-
-        return when (result) {
-            is LLMClient.Result.Success -> {
-                Log.d(TAG, "LLM answer received (${result.content.length} chars)")
-                LlmAnswer(
-                    question = question,
-                    answer = result.content,
-                    references = topPages.map { it.uid to it.title }
-                )
-            }
-            is LLMClient.Result.Error -> LlmAnswer(question, "问答出错: ${result.message}", emptyList())
-            is LLMClient.Result.NetworkError -> LlmAnswer(question, "网络连接失败", emptyList())
         }
     }
 
@@ -322,13 +245,12 @@ class KBEngine(private val context: Context) {
                 else -> context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "readFileContent failed for $name", e)
+            Log.e(TAG, "读取文件内容失败: $name", e)
             null
         }
     }
 
     private fun readPdfContent(uri: Uri): String {
-        // PDF text extraction using PDFBox Android port
         val sb = StringBuilder()
         try {
             context.contentResolver.openInputStream(uri)?.use { stream ->
@@ -339,8 +261,7 @@ class KBEngine(private val context: Context) {
                 document.close()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "PDF extraction failed, trying raw text", e)
-            // Fallback: try reading as raw bytes
+            Log.w(TAG, "PDF提取失败，尝试原始文本读取", e)
             try {
                 context.contentResolver.openInputStream(uri)?.bufferedReader().use {
                     val text = it?.readText() ?: ""
@@ -359,7 +280,6 @@ class KBEngine(private val context: Context) {
                 for ((idx, slide) in it.slides.withIndex()) {
                     sb.appendLine("## 第${idx + 1}页")
                     val texts = slide.shapes.filterIsInstance<org.apache.poi.xslf.usermodel.XSLFTextShape>()
-                    // First text shape with larger font is likely the title
                     val title = texts.firstOrNull { t ->
                         t.textParagraphs.any { p -> p.textRuns.any { r -> r.fontSize > 18.0 || r.isBold } }
                     } ?: texts.firstOrNull()
@@ -370,7 +290,6 @@ class KBEngine(private val context: Context) {
                     for (shape in body) {
                         val text = shape.text.trim()
                         if (text.isNotBlank() && text.length > 2) {
-                            // Bullet points
                             for (line in text.lines()) {
                                 val trimmed = line.trim()
                                 if (trimmed.isNotBlank()) sb.appendLine("- $trimmed")
@@ -382,7 +301,6 @@ class KBEngine(private val context: Context) {
             }
         }
         return sb.toString().ifBlank {
-            // Fallback: simple text extraction
             val fallback = StringBuilder()
             context.contentResolver.openInputStream(uri)?.use { s ->
                 val p = org.apache.poi.xslf.usermodel.XMLSlideShow(s)
@@ -461,105 +379,47 @@ class KBEngine(private val context: Context) {
         return hash.joinToString("") { "%02x".format(it) }
     }
 
-    private fun buildWikiPrompt(): String {
-        return """
-你是知识库构建助手。请分析以下资料，提取核心知识点，为每个知识点生成 Wiki 页面。
-
-资料可能是 PPT 幻灯片（每页以"## 第N页"标记，标题在"###"后，正文为"- "列表），也可能是纯文本或 Markdown。
-
-每个页面用 --- 分隔，格式如下：
-
----
-type: 规程
-title: 知识点标题
-tags: 标签1, 标签2
-summary: 一句话概述
----
-
-## 概述
-简要说明该知识点是什么
-
-## 详细内容
-详细解释，可包含步骤、要点、注意事项等
-
-## 相关概念
-- [[相关概念]] — 关系说明
-
-要求：
-1. 每个独立知识点生成一个页面，type 选 concept/entity/procedure/definition
-2. tags 用 3-5 个中文标签
-3. [[ ]] 标注关联知识点
-4. 中文输出
-5. 内容少则生成 1-3 页，内容多则多页
-        """.trimIndent()
-    }
-
-    private fun parseWikiPages(text: String, sourceId: String): List<WikiPage> {
-        val pages = mutableListOf<WikiPage>()
-
-        val blocks = text.split(Regex("---+\n?")).filter { it.isNotBlank() }
-
-        for (block in blocks) {
-            val trimmed = block.trim()
-            if (trimmed.isEmpty()) continue
-
-            val frontmatter = mutableMapOf<String, String>()
-            val contentStart = extractFrontmatter(trimmed, frontmatter)
-
-            val title = frontmatter["title"]
-            if (title.isNullOrBlank()) continue
-
-            val pageType = frontmatter["type"] ?: "concept"
-            val tags = frontmatter["tags"] ?: ""
-            val summary = frontmatter["summary"] ?: ""
-
-            val content = if (contentStart < trimmed.length) {
-                trimmed.substring(contentStart).trim()
-            } else ""
-
-            pages.add(
-                WikiPage(
-                    title = title,
-                    content = content,
-                    summary = summary,
-                    pageType = pageType,
-                    tags = tags,
-                    sources = sourceId
-                )
-            )
+    /**
+     * 将原始文本按常见分隔符拆分为多个段落
+     * 支持PPT格式（## 第N页）、Markdown标题（#）、双换行分段
+     */
+    private fun splitIntoSections(text: String): List<String> {
+        // 先尝试按PPT幻灯片格式拆分
+        val slidePattern = Regex("""(?=## 第\d+页)""")
+        val slideSections = text.split(slidePattern).filter { it.trim().isNotEmpty() }
+        if (slideSections.size > 1) {
+            return slideSections.map { it.trim() }
         }
 
-        Log.d(TAG, "Parsed ${pages.size} wiki pages from LLM response")
-        return pages
+        // 再尝试按Markdown标题拆分（二级标题及以上）
+        val headingPattern = Regex("""(?=^#{1,3}\s)""", RegexOption.MULTILINE)
+        val headingSections = text.split(headingPattern).filter { it.trim().isNotEmpty() }
+        if (headingSections.size > 1) {
+            return headingSections.map { it.trim() }
+        }
+
+        // 最后按双换行分段
+        val paraSections = text.split(Regex("""\n{2,}""")).filter { it.trim().isNotEmpty() }
+        if (paraSections.size > 1) {
+            return paraSections.map { it.trim() }
+        }
+
+        return listOf(text.trim())
     }
 
-    private fun extractFrontmatter(text: String, out: MutableMap<String, String>): Int {
-        // Find first --- delimiter
-        val firstDelim = text.indexOf("---")
-        if (firstDelim < 0) return 0
-
-        // Find second --- delimiter (after the first)
-        val secondDelim = text.indexOf("---", firstDelim + 3)
-        if (secondDelim < 0) return 0
-
-        // Parse YAML key-value pairs between the delimiters
-        val fmBlock = text.substring(firstDelim + 3, secondDelim).trim()
-        for (line in fmBlock.lines()) {
+    /**
+     * 从段落中提取标题（优先取第一行 ## 或 ### 后的文本）
+     */
+    private fun extractSectionTitle(section: String): String? {
+        val lines = section.lines()
+        for (line in lines) {
             val trimmed = line.trim()
-            val colonIdx = trimmed.indexOf(':')
-            if (colonIdx > 0) {
-                val key = trimmed.substring(0, colonIdx).trim().lowercase()
-                val value = trimmed.substring(colonIdx + 1).trim()
-                if (key in setOf("type", "title", "tags", "summary")) {
-                    out[key] = value
-                }
+            val match = Regex("""^#{1,3}\s+(.+)""").find(trimmed)
+            if (match != null) {
+                return match.groupValues[1].trim()
             }
         }
-
-        // Return position after the second --- and its trailing newline
-        var pos = secondDelim + 3
-        while (pos < text.length && text[pos] == '\n') pos++
-        return pos
+        return null
     }
 
     private fun extractWikilinks(content: String): List<Pair<String, String>> {
@@ -575,7 +435,7 @@ summary: 一句话概述
 
     private fun buildFtsQuery(text: String): String {
         val cleaned = text
-            .replace(Regex("""[.,，。、；;：:！!？?（）()\[\]【】《》'"“”\s]+"""), " ")
+            .replace(Regex("""[.,，。、；;：:！!？?（）()\[\]【】《》'"'"'"\s]+"""), " ")
             .trim()
         if (cleaned.isBlank()) return "*"
         return cleaned.split(" ")

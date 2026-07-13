@@ -1,5 +1,6 @@
 package com.examhelper.app.ui.sidebar
 
+import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -13,43 +14,62 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessibilityNew
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import com.examhelper.app.ExamApplication
 import com.examhelper.app.knowledge.KBEntry
+import com.examhelper.app.util.MarkdownConverter
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.examhelper.app.knowledge.KnowledgeBaseManager
 import com.examhelper.app.pipeline.SolvePipeline
-import com.examhelper.app.pipeline.MultiRoundRunner
-import com.examhelper.app.ui.theme.LocalExamHelperColors
+import com.examhelper.app.ui.theme.TextCorrect
+import com.examhelper.app.ui.theme.TextError
 import com.examhelper.app.ui.theme.TextSecondary
 import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun SidebarPanel(onHide: () -> Unit) {
@@ -57,17 +77,8 @@ fun SidebarPanel(onHide: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
-    // MultiRoundRunner now uses ExtractedTextBus events (no direct service reference needed)
-    val multiRoundRunner = remember { MultiRoundRunner(pipeline) }
-    var multiRoundRunning by remember { mutableStateOf(false) }
-    val colors = LocalExamHelperColors.current
 
     val isAccessibilityConnected by ExtractedTextBus.accessibilityConnected.collectAsState()
-
-    var lastAnswer: String by remember { mutableStateOf("") }
-    var lastExamText: String by remember { mutableStateOf("") }
-    var lastKbAnswerOptions: Map<Int, String> by remember { mutableStateOf(emptyMap()) }
-    var lastResolvedQuestions: Set<Int> by remember { mutableStateOf(emptySet()) }
 
     Column(
         modifier = Modifier
@@ -91,28 +102,28 @@ fun SidebarPanel(onHide: () -> Unit) {
             Icon(
                 imageVector = Icons.Filled.Psychology,
                 contentDescription = null,
-                tint = colors.Primary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp)
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "i考助手",
+                text = "考试助手",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = colors.OnSurface
+                color = Color.White
             )
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onHide, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = "关闭",
-                    tint = colors.OnSurfaceMuted,
+                    tint = Color.White.copy(alpha = 0.6f),
                     modifier = Modifier.size(20.dp)
                 )
             }
         }
 
-        HorizontalDivider(color = colors.Outline)
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
         // ── 主内容区 ──
         Column(
@@ -132,84 +143,281 @@ fun SidebarPanel(onHide: () -> Unit) {
             }
 
             // 读取屏幕按钮
-            ReadScreenButton(
-                isAccessibilityConnected = isAccessibilityConnected,
-                isPending = state is SidebarState.Loading
-            )
-
-            // 解答按钮 — 识别到文字后显示，放在 AnimatedContent 外避免动画重叠
-            if (state is SidebarState.Preview) {
-                val previewText = (state as SidebarState.Preview).text
-                SolveButton(onClick = {
-                    Log.d("SidebarPanel", "SolveButton clicked, text length=${previewText.length}")
-                    scope.launch(Dispatchers.Default) { pipeline.solve(previewText) }
-                })
-            }
-
-            // 自动填入按钮（有答案时显示在读取屏幕下方）
-            if (lastAnswer.isNotEmpty()) {
-                AutoFillButton(
-                    lastAnswer = lastAnswer,
-                    lastExamText = lastExamText,
-                    lastKbAnswerOptions = lastKbAnswerOptions,
-                    lastResolvedQuestions = lastResolvedQuestions
-                )
-            }
-
-            // 多轮自动答题按钮
-            Spacer(Modifier.height(8.dp))
-            MultiRoundButton(
-                isRunning = multiRoundRunning,
+            val isPending = state is SidebarState.Loading
+            Button(
                 onClick = {
-                    if (multiRoundRunning) {
-                        multiRoundRunner.cancel()
-                        multiRoundRunning = false
-                    } else {
-                        multiRoundRunning = true
-                        multiRoundRunner.start(scope)
+                    if (!isAccessibilityConnected) {
+                        ExtractedTextBus.updateSidebarState(
+                            SidebarState.Error("请先开启无障碍服务")
+                        )
+                        return@Button
                     }
+                    ExtractedTextBus.updateSidebarState(
+                        SidebarState.Loading("正在读取屏幕...")
+                    )
+                    ExtractedTextBus.sendEvent(ExtractedTextBus.Event.RequestExtract)
                 },
-                onStop = {
-                    multiRoundRunner.cancel()
-                    multiRoundRunning = false
+                enabled = !isPending,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                if (isPending) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("读取中...", fontSize = 15.sp)
+                } else {
+                    Icon(
+                        Icons.Filled.Visibility,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("读取屏幕", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
-            )
+            }
 
             // 根据状态显示内容
-            SidebarStateRenderer(
-                state = state,
-                onRework = { text ->
-                    ExtractedTextBus.updateSidebarState(
-                        SidebarState.Preview(text)
-                    )
-                },
-                onSaveToKB = { text, answer ->
-                    scope.launch(Dispatchers.IO) {
-                        val kb = KnowledgeBaseManager.activeKB
-                        if (kb == null) {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(ExamApplication.instance, "请先激活知识库", Toast.LENGTH_SHORT).show()
-                            }
-                            return@launch
-                        }
-                        kb.entries.add(KBEntry(text, answer))
-                        KnowledgeBaseManager.save()
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(ExamApplication.instance, "已保存到「${kb.name}」(${kb.count}条)", Toast.LENGTH_SHORT).show()
+            when (val s = state) {
+                is SidebarState.Idle -> {
+                    Spacer(Modifier.height(32.dp))
+                    StatusHint("空闲检测中...")
+                }
+
+                is SidebarState.Loading -> {
+                    var elapsedSec by remember { mutableIntStateOf(0) }
+                    LaunchedEffect(s.startTimeMs) {
+                        while (true) {
+                            elapsedSec = if (s.startTimeMs > 0)
+                                ((System.currentTimeMillis() - s.startTimeMs) / 1000).toInt() else 0
+                            delay(1000)
                         }
                     }
-                },
-                onDoneState = { answer, text, kbOptions, resolvedQuestions ->
-                    lastAnswer = answer
-                    lastExamText = text
-                    lastKbAnswerOptions = kbOptions
-                    lastResolvedQuestions = resolvedQuestions
+                    Spacer(Modifier.height(24.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("${s.message}（${elapsedSec}s）", color = TextSecondary, fontSize = 13.sp)
+                    }
                 }
-            )
+
+                is SidebarState.Preview -> {
+                    Spacer(Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { scope.launch { pipeline.solve(s.text) } },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF22C55E)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Filled.Psychology,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("解答", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // ── 导出 Markdown ──
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = {
+                                scope.launch(Dispatchers.IO) {
+                                    try {
+                                        val ctx = ExamApplication.instance
+                                        val md = MarkdownConverter.convert(s.text)
+                                        val timestamp = SimpleDateFormat(
+                                            "yyyyMMdd_HHmmss", Locale.getDefault()
+                                        ).format(Date())
+                                        val file = File(ctx.cacheDir, "iExam_$timestamp.md")
+                                        file.writeText(md, Charsets.UTF_8)
+                                        val uri = FileProvider.getUriForFile(
+                                            ctx,
+                                            "${ctx.packageName}.fileprovider",
+                                            file
+                                        )
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/markdown"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        val chooser = Intent.createChooser(intent, "导出 Markdown")
+                                        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        withContext(Dispatchers.Main) {
+                                            ctx.startActivity(chooser)
+                                        }
+                                    } catch (e: Exception) {
+                                        val errMsg = "导出失败: ${e.message}"
+                                        withContext(Dispatchers.Main) {
+                                            ExtractedTextBus.updateSidebarState(
+                                                SidebarState.Error(errMsg)
+                                            )
+                                            try {
+                                                Toast.makeText(
+                                                    ExamApplication.instance, errMsg,
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            } catch (_: Exception) {}
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.Description,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("导出 Markdown", fontSize = 13.sp)
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    SectionHeader("识别结果")
+                    Text(
+                        text = s.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .padding(12.dp),
+                        lineHeight = 22.sp
+                    )
+                }
+
+                is SidebarState.Done -> {
+                    Log.d("SidebarPanel", "Done state rendered, answer length=${s.answer.length}")
+                    Spacer(Modifier.height(12.dp))
+                    SectionHeader("答案")
+                    Text(
+                        text = "来源: ${s.source.label}",
+                        color = Color(0xFF22C55E).copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    val lines = s.answer.lines()
+                    lines.forEach { line ->
+                        val isAnswerLine = line.contains("✓") ||
+                            Regex("""^\s*[\[【]?\d+[\]】]?\s*[A-Da-d]\b""").containsMatchIn(line)
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            fontWeight = if (isAnswerLine) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.padding(vertical = 2.dp),
+                            lineHeight = 22.sp
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            ExtractedTextBus.updateSidebarState(
+                                SidebarState.Preview(s.text)
+                            )
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Filled.Psychology,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("重新解答", fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            scope.launch(Dispatchers.IO) {
+                                val kb = KnowledgeBaseManager.activeKB
+                                if (kb == null) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(ExamApplication.instance, "请先激活知识库", Toast.LENGTH_SHORT).show()
+                                    }
+                                    return@launch
+                                }
+                                kb.entries.add(KBEntry(s.text, s.answer))
+                                KnowledgeBaseManager.save()
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(ExamApplication.instance, "已保存到「${kb.name}」(${kb.count}条)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF59E0B)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("保存到题库", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(s.answer, s.text))
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF22C55E)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("自动填入", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                is SidebarState.Error -> {
+                    Log.d("SidebarPanel", "Error state: ${s.message}")
+                    Spacer(Modifier.height(24.dp))
+                    StatusHint(s.message, isError = true)
+                }
+
+                is SidebarState.MultiRound -> {
+                    // 多轮状态由 SidebarStateRenderer 统一渲染
+                }
+            }
         }
 
         // ── 底部状态栏 ──
-        HorizontalDivider(color = colors.Outline)
+        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -222,16 +430,8 @@ fun SidebarPanel(onHide: () -> Unit) {
                     is SidebarState.Loading -> "● ${(state as SidebarState.Loading).message}"
                     is SidebarState.Preview -> "● 已识别内容"
                     is SidebarState.Done -> "● 作答完成"
-                    is SidebarState.Streaming -> "● 作答中..."
-                    is SidebarState.Answering -> "● 解答中..."
+                    is SidebarState.MultiRound -> "● 多轮答题"
                     is SidebarState.Error -> "● 异常"
-                    is SidebarState.MultiRound -> when ((state as SidebarState.MultiRound).phase) {
-                        SidebarState.MultiPhase.SCANNING -> "● 扫描中"
-                        SidebarState.MultiPhase.SOLVING -> "● 解答中"
-                        SidebarState.MultiPhase.FILLING -> "● 填入中"
-                        SidebarState.MultiPhase.DONE -> "● 多轮完成"
-                        SidebarState.MultiPhase.ERROR -> "● 多轮异常"
-                    }
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondary,
@@ -239,15 +439,6 @@ fun SidebarPanel(onHide: () -> Unit) {
             )
         }
     }
-
-    // 监听多轮答题状态变化，完成后自动重置按钮
-    LaunchedEffect(state) {
-        if (state is SidebarState.MultiRound) {
-            val s = state as SidebarState.MultiRound
-            if (s.phase == SidebarState.MultiPhase.DONE ||
-                s.phase == SidebarState.MultiPhase.ERROR) {
-                multiRoundRunning = false
-            }
-        }
-    }
 }
+
+

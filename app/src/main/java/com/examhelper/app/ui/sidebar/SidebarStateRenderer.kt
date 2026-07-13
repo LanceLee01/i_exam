@@ -27,23 +27,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.examhelper.app.network.Reference
 import com.examhelper.app.ui.theme.AnswerLabel
 import com.examhelper.app.ui.theme.LocalExamHelperColors
-import com.examhelper.app.util.ExtractedTextBus
 import com.examhelper.app.util.ExtractedTextBus.SidebarState
-import com.examhelper.app.util.ReferenceFormatter
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -79,20 +74,11 @@ fun SidebarStateRenderer(
                         delay(1000)
                     }
                 }
-                val speed = if (ExtractedTextBus.lastTokensPerSec > 0) ExtractedTextBus.lastTokensPerSec else 35f
-                val ttftSec = if (ExtractedTextBus.lastTtftMs > 0) ExtractedTextBus.lastTtftMs / 1000f else 2f
-                val promptTokens = ExtractedTextBus.lastPromptTokens
-                val totalTokens = (s.maxTokens.coerceAtLeast(1) + promptTokens)
-                val generatedEst = (elapsedSec - ttftSec.toInt()).coerceAtLeast(0) * speed.toInt()
-                val progress = (generatedEst.toFloat() / totalTokens).coerceIn(0.05f, 0.95f)
-                val etaSec = if (speed > 0 && generatedEst > 0)
-                    ((totalTokens - generatedEst) / speed).toInt() else 0
-                val promptInfo = if (promptTokens > 0) " [prompt:${promptTokens}tok]" else ""
-                val etaInfo = if (etaSec > 0) " 剩余约 ${etaSec}s" else ""
 
                 Spacer(Modifier.height(16.dp))
 
-                // Progress bar
+                // 简单进度条（缓慢增长表示处理中）
+                val progress = (elapsedSec * 0.02f).coerceIn(0.05f, 0.95f)
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier
@@ -105,7 +91,7 @@ fun SidebarStateRenderer(
 
                 Spacer(Modifier.height(12.dp))
 
-                // Status text
+                // 状态文字 + 计时
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
@@ -113,20 +99,11 @@ fun SidebarStateRenderer(
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            "${s.message}（${elapsedSec}s）$promptInfo",
-                            color = colors.OnSurfaceSecondary,
-                            fontSize = 14.sp
-                        )
-                        if (etaInfo.isNotBlank() && elapsedSec > ttftSec.toInt()) {
-                            Text(
-                                etaInfo,
-                                color = colors.OnSurfaceMuted,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
+                    Text(
+                        "${s.message}（${elapsedSec}s）",
+                        color = colors.OnSurfaceSecondary,
+                        fontSize = 14.sp
+                    )
                 }
             }
 
@@ -148,21 +125,20 @@ fun SidebarStateRenderer(
             }
 
             is SidebarState.Done -> Column {
-                Log.d("SidebarPanel", "Done state rendered, answer length=${s.answer.length}")
+                Log.d("SidebarPanel", "完成状态渲染，答案长度=${s.answer.length}")
                 onDoneState(s.answer, s.text, s.kbAnswerOptions, s.resolvedQuestions)
 
                 Spacer(Modifier.height(12.dp))
                 SectionHeader("答案")
 
-                // Source chips
+                // 来源标签（仅保留题库匹配来源）
                 if (s.questionSources.isNotEmpty()) {
-                    val l1Questions = s.questionSources.filterValues { it.contains("题库") }.keys.sorted()
-                    val l4Questions = s.questionSources.filterValues { it.contains("AI") || it.contains("LLM") }.keys.sorted()
-                    val others = s.questionSources.filterValues { !it.contains("题库") && !it.contains("AI") && !it.contains("LLM") }
+                    val kbQuestions = s.questionSources.filterValues { it.contains("题库") }.keys.sorted()
+                    val others = s.questionSources.filterValues { !it.contains("题库") }
                     FlowRow(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                     ) {
-                        if (l1Questions.isNotEmpty()) {
+                        if (kbQuestions.isNotEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
@@ -170,28 +146,13 @@ fun SidebarStateRenderer(
                                     .padding(horizontal = 7.dp, vertical = 3.dp)
                             ) {
                                 Text(
-                                    text = "📋 ${formatRange(l1Questions)}",
+                                    text = "题库 ${formatRange(kbQuestions)}",
                                     color = colors.Success,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
                             Spacer(Modifier.width(4.dp))
-                        }
-                        if (l4Questions.isNotEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(colors.Info.copy(alpha = 0.15f))
-                                    .padding(horizontal = 7.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = "🤖 ${formatRange(l4Questions)}",
-                                    color = colors.Info,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
                         }
                         others.forEach { (q, label) ->
                             Box(
@@ -219,7 +180,7 @@ fun SidebarStateRenderer(
                     )
                 }
 
-                // Answer lines
+                // 答案逐行显示
                 val lines = s.answer.lines()
                 lines.forEachIndexed { idx, line ->
                     val trimmed = line.trim()
@@ -255,7 +216,7 @@ fun SidebarStateRenderer(
                     }
                 }
 
-                // Toggle failed warning banner
+                // 填入失败警告横幅
                 if (s.toggleFailedQuestions.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Box(
@@ -266,7 +227,7 @@ fun SidebarStateRenderer(
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "⚠️ 以下题目自动填入失败，请手动检查：${s.toggleFailedQuestions.sorted().joinToString(", ")}",
+                            text = "以下题目自动填入失败，请手动检查：${s.toggleFailedQuestions.sorted().joinToString(", ")}",
                             color = Color(0xFFFF5252),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
@@ -275,72 +236,15 @@ fun SidebarStateRenderer(
                     }
                 }
 
-                // Tavily reference
-                val llmQuestionNumbers = s.questionSources
-                    .filter { (_, source) -> source != "题库匹配" }
-                    .keys.sorted().toList()
-                ReferenceFormatter.formatSingleReference(s.references, llmQuestionNumbers)?.let { refText ->
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = refText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.OnSurfaceSecondary,
-                        modifier = Modifier.padding(horizontal = 15.dp, vertical = 4.dp),
-                        lineHeight = 22.sp
-                    )
-                }
                 Spacer(Modifier.height(16.dp))
                 ReworkButton(onClick = { onRework(s.text) })
                 Spacer(Modifier.height(8.dp))
                 SaveToKBButton(onClick = { onSaveToKB(s.text, s.answer) })
             }
 
-            is SidebarState.Streaming -> Column {
-                Log.d("SidebarPanel", "Streaming state, partialAnswer length=${s.partialAnswer.length}")
-                Spacer(Modifier.height(8.dp))
-
-                Text(
-                    text = s.partialAnswer,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.OnSurface,
-                    modifier = Modifier.fillMaxWidth(),
-                    lineHeight = 22.sp
-                )
-
-                // Shimmer skeleton below streaming content
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    colors.Outline,
-                                    colors.SurfaceCardHover,
-                                    colors.Outline
-                                )
-                            )
-                        )
-                )
-            }
-
-            is SidebarState.Answering -> Column {
-                Spacer(Modifier.height(24.dp))
-                StatusHint(s.text, isError = false)
-            }
-
-            is SidebarState.Error -> Column {
-                Log.d("SidebarPanel", "Error state: ${s.message}")
-                Spacer(Modifier.height(24.dp))
-                StatusHint(s.message, isError = true)
-            }
-
             is SidebarState.MultiRound -> Column {
-                // Placeholder — will be fully rendered in Task 5
                 Spacer(Modifier.height(12.dp))
-                SectionHeader("🔄 多轮答题")
+                SectionHeader("多轮答题")
                 Text(
                     when (s.phase) {
                         SidebarState.MultiPhase.SCANNING -> "扫描中... 第 ${s.currentPage} 页"
@@ -361,11 +265,16 @@ fun SidebarStateRenderer(
                     fontSize = 14.sp
                 )
             }
+
+            is SidebarState.Error -> Column {
+                Spacer(Modifier.height(24.dp))
+                StatusHint(s.message, isError = true)
+            }
         }
     }
 }
 
-/** Format sorted question numbers into ranges: [1,2,3,5,6] → "1-3 5-6" */
+/** 格式化排序后的题号为范围：[1,2,3,5,6] -> "1-3 5-6" */
 private fun formatRange(nums: List<Int>): String {
     if (nums.isEmpty()) return ""
     val result = StringBuilder()

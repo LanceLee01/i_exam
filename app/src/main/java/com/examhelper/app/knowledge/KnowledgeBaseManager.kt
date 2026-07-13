@@ -238,8 +238,7 @@ data class KnowledgeBase(
             } else {
                 val detected = autoDetectColumns(path)
                 if (detected == null) {
-                    val config = runBlocking { ExamApplication.instance.appConfig.getSnapshot() }
-                    return if (config.apiKey.isBlank()) -3 else -4
+                    return -3
                 }
                 effectiveMapping = detected
             }
@@ -286,8 +285,7 @@ data class KnowledgeBase(
             } else {
                 val detected = autoDetectColumns(path)
                 if (detected == null) {
-                    val config = runBlocking { ExamApplication.instance.appConfig.getSnapshot() }
-                    return if (config.apiKey.isBlank()) -3 else -4
+                    return -3
                 }
                 effectiveMapping = detected
             }
