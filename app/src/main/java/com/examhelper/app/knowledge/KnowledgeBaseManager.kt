@@ -339,7 +339,7 @@ data class KnowledgeBase(
         }
     }
 
-    fun search(query: String, options: String = "", topN: Int = 300): List<Pair<KBEntry, Float>> {
+    fun search(query: String, options: String = "", topN: Int = 30): List<Pair<KBEntry, Float>> {
         if (entries.isEmpty()) return emptyList()
 
         // 规范化括号内空格，兼容不同数量的空格

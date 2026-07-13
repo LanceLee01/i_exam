@@ -138,8 +138,7 @@ class ExamAccessibilityService : AccessibilityService() {
     }
 
     /** Extract current visible page content WITHOUT scrolling (for multi-round page reading).
-     *  Unlike extractAndSendText(), this does NOT scroll backward/forward to capture all content,
-     *  which would interfere with multi-round page navigation. */
+     *  取消所有滚动操作，直接提取当前可见节点文字。 */
     private fun extractCurrentPageOnly() {
         Log.d(TAG, "extractCurrentPageOnly called")
         if (!isConnected) {
@@ -148,8 +147,8 @@ class ExamAccessibilityService : AccessibilityService() {
         }
         scope.launch(Dispatchers.Default) {
             try {
-                // 等页面渲染稳定
-                delay(400)
+                // 短暂等待页面渲染稳定
+                delay(200)
                 val keywords = ExamApplication.instance.appConfig.watermarkKeywords.first()
                 var rootNode = rootInActiveWindow
                 if (rootNode == null) {
@@ -167,48 +166,17 @@ class ExamAccessibilityService : AccessibilityService() {
                     return@launch
                 }
 
-                var lines = emptyList<String>()
-                val allLines = linkedSetOf<String>()
-                try {
-                    // 1 次 backward scroll 回到顶部
-                    withContext(Dispatchers.Main) {
-                        val s = rootInActiveWindow?.let { findScrollableParent(it) }
-                        if (s != null) { s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD); s.recycle() }
-                    }
-                    delay(300)
+                val lines = mutableListOf<String>()
+                traverseNode(rootNode, keywords, lines)
+                val allLines = lines.map { it.trim() }.filter { it.isNotEmpty() }
 
-                    // 2 次 forward scroll 覆盖选项区
-                    var captureRoot = rootInActiveWindow
-                    for (scrollRound in 0..2) {
-                        delay(300)
-                        captureRoot = rootInActiveWindow ?: break
-                        val roundLines = mutableListOf<String>()
-                        traverseNode(captureRoot, keywords, roundLines)
-                        for (line in roundLines) {
-                            val trimmed = line.trim()
-                            if (trimmed.isNotEmpty()) allLines.add(trimmed)
-                        }
-                        if (scrollRound < 2) {
-                            withContext(Dispatchers.Main) {
-                                val s = captureRoot?.let { findScrollableParent(it) }
-                                s?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-                                s?.recycle()
-                            }
-                        }
-                    }
-                    if (captureRoot != rootInActiveWindow) captureRoot?.recycle()
-                } catch (e: Exception) {
-                    Log.w(TAG, "extractCurrentPageOnly scroll step failed", e)
-                }
-                lines = allLines.toList()
-
-                if (lines.isEmpty()) {
+                if (allLines.isEmpty()) {
                     launch(Dispatchers.Main) {
                         ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Error("未检测到文字"))
                     }
                     return@launch
                 }
-                val result = cleanAndFormat(lines)
+                val result = cleanAndFormat(allLines)
                 launch(Dispatchers.Main) {
                     ExtractedTextBus.sendEvent(ExtractedTextBus.Event.TextExtracted(result))
                     ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Preview(result))

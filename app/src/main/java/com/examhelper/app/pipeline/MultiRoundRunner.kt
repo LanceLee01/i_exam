@@ -13,11 +13,11 @@ class MultiRoundRunner(
     companion object {
         private const val TAG = "MultiRoundRunner"
         private const val MAX_PAGES = 100
-        private const val PAGE_WAIT_MS = 800L
+        private const val PAGE_WAIT_MS = 400L
         private const val SOLVE_TIMEOUT_MS = 60_000L
-        private const val FILL_WAIT_MS = 1000L
+        private const val FILL_WAIT_MS = 500L
         private const val MAX_PAGE_RETRIES = 3
-        private const val RETRY_INTERVAL_MS = 500L
+        private const val RETRY_INTERVAL_MS = 200L
     }
 
     private val _state = MutableStateFlow<MultiRoundState>(MultiRoundState.Idle)
@@ -245,7 +245,7 @@ class MultiRoundRunner(
     private suspend fun clickNextPage(): Boolean = withContext(Dispatchers.Main) {
         Log.d(TAG, "clickNextPage: sending ClickPage event")
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("下一页"))
-        delay(600)
+        delay(300)
         true
     }
 
@@ -253,7 +253,7 @@ class MultiRoundRunner(
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText, kbAnswerOptions, cachedResolvedQuestions))
         // Wait for auto-click to finish
         val answerCount = answer.lines().size.coerceAtLeast(1)
-        delay(1500L * answerCount + 2000L)
+        delay(800L * answerCount + 500L)
     }
 
     // ── Helpers ──
