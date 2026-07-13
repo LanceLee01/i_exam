@@ -25,7 +25,7 @@ object ExtractedTextBus {
         data object Idle : SidebarState()
         data class Loading(val message: String, val startTimeMs: Long = 0L) : SidebarState()
         data class Preview(val text: String) : SidebarState()
-        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.EXCEL_MATCH, val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap(), val kbQuestionTexts: Map<Int, String> = emptyMap(), val toggleFailedQuestions: List<Int> = emptyList(), val resolvedQuestions: Set<Int> = emptySet(), val kbOriginalAnswers: Map<Int, String> = emptyMap()) : SidebarState()
+        data class Done(val text: String, val answer: String, val source: AnswerSource = AnswerSource.EXCEL_MATCH, val questionSources: Map<Int, String> = emptyMap(), val kbAnswerOptions: Map<Int, String> = emptyMap(), val kbQuestionTexts: Map<Int, String> = emptyMap(), val toggleFailedQuestions: List<Int> = emptyList(), val resolvedQuestions: Set<Int> = emptySet(), val kbOriginalAnswers: Map<Int, String> = emptyMap(), val currentQuestionSummary: String = "") : SidebarState()
         data class Error(val message: String) : SidebarState()
 
         // ── 多轮自动答题状态 ──

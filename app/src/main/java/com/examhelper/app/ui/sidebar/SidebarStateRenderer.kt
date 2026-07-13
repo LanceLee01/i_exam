@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -236,6 +237,23 @@ fun SidebarStateRenderer(
                     }
                 }
 
+                // 题库原题 + 选项 + 解析后答案 (持久显示，与 MultiRound 共享)
+                if (s.currentQuestionSummary.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    Surface(
+                        color = colors.SurfaceCard,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            s.currentQuestionSummary,
+                            color = colors.OnSurface,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
                 ReworkButton(onClick = { onRework(s.text) })
                 Spacer(Modifier.height(8.dp))
@@ -243,27 +261,37 @@ fun SidebarStateRenderer(
             }
 
             is SidebarState.MultiRound -> Column {
+                Log.d("SidebarPanel", "MultiRound state rendered: phase=${s.phase} summaryLen=${s.currentQuestionSummary.length}")
                 Spacer(Modifier.height(12.dp))
                 SectionHeader("多轮答题")
                 Text(
                     when (s.phase) {
                         SidebarState.MultiPhase.SCANNING -> "扫描中... 第 ${s.currentPage} 页"
                         SidebarState.MultiPhase.SOLVING -> "解答中..."
-                        SidebarState.MultiPhase.FILLING -> buildString {
-                            append("填入中... ${s.answeredCount}/${s.totalPages}")
-                            if (s.currentQuestionSummary.isNotBlank()) {
-                                append("\n")
-                                append(s.currentQuestionSummary)
-                            } else {
-                                append("\n(摘要为空)")
-                            }
-                        }
+                        SidebarState.MultiPhase.FILLING -> "填入中... ${s.answeredCount}/${s.totalPages}"
                         SidebarState.MultiPhase.DONE -> "完成! 共 ${s.totalPages} 题"
                         SidebarState.MultiPhase.ERROR -> s.errorMessage.ifBlank { "未知错误" }
                     },
                     color = colors.OnSurface,
                     fontSize = 14.sp
                 )
+                // Persistently display the latest question summary across all phases,
+                // so the user can read the KB question + options + screen resolution.
+                if (s.currentQuestionSummary.isNotBlank() && s.phase != SidebarState.MultiPhase.ERROR) {
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        color = colors.SurfaceCard,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            s.currentQuestionSummary,
+                            color = colors.OnSurface,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
             }
 
             is SidebarState.Error -> Column {

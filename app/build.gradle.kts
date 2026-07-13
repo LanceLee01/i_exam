@@ -13,8 +13,8 @@ android {
         applicationId = "com.examhelper.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "0.4.2"
+        versionCode = 24
+        versionName = "0.4.12"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SidebarPanel(onHide: () -> Unit) {
     val state by ExtractedTextBus.sidebarState.collectAsState()
+    Log.d("SidebarPanel", "Sidebar collect: state=${state::class.simpleName} (will re-render)")
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
@@ -434,7 +435,13 @@ fun SidebarPanel(onHide: () -> Unit) {
                 }
 
                 is SidebarState.MultiRound -> {
-                    // 多轮状态由 SidebarStateRenderer 统一渲染
+                    // Render multi-round summary using shared SidebarStateRenderer
+                    SidebarStateRenderer(
+                        state = s,
+                        onDoneState = { _, _, _, _ -> },
+                        onSaveToKB = { _, _ -> },
+                        onRework = { _ -> }
+                    )
                 }
             }
         }

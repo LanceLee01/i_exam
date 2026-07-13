@@ -13,11 +13,11 @@ class MultiRoundRunner(
     companion object {
         private const val TAG = "MultiRoundRunner"
         private const val MAX_PAGES = 100
-        private const val PAGE_WAIT_MS = 400L
+        private const val PAGE_WAIT_MS = 800L
         private const val SOLVE_TIMEOUT_MS = 60_000L
-        private const val FILL_WAIT_MS = 500L
+        private const val FILL_WAIT_MS = 1000L
         private const val MAX_PAGE_RETRIES = 3
-        private const val RETRY_INTERVAL_MS = 200L
+        private const val RETRY_INTERVAL_MS = 500L
     }
 
     private val _state = MutableStateFlow<MultiRoundState>(MultiRoundState.Idle)
@@ -29,6 +29,7 @@ class MultiRoundRunner(
     private var cachedKbQuestionTexts: Map<Int, String> = emptyMap()
     private var cachedKbOriginalAnswers: Map<Int, String> = emptyMap()
     private var cachedResolvedQuestions: Set<Int> = emptySet()
+    private var lastQuestionSummary: String = ""
 
     sealed class MultiRoundState {
         data object Idle : MultiRoundState()
@@ -44,6 +45,7 @@ class MultiRoundRunner(
         cachedKbQuestionTexts = emptyMap()
         cachedKbOriginalAnswers = emptyMap()
         cachedResolvedQuestions = emptySet()
+        lastQuestionSummary = ""
         cancelled = false
         job = scope.launch(Dispatchers.Default) {
             Log.e(TAG, "=== MultiRound coroutine STARTED ===")
@@ -124,6 +126,7 @@ class MultiRoundRunner(
                     // 3. Fill answers on current page
                     answeredCount++
                     val qSummary = buildQuestionSummary(filtered, answer, cachedKbQuestionTexts)
+                    lastQuestionSummary = qSummary  // cache so SCANNING/SOLVING next round still shows last answer
                     Log.e(TAG, "qSummary=[$qSummary]")
                     Log.e(TAG, "Round $round: filling page $current/$total")
                     _state.value = MultiRoundState.Filling(current, total, answeredCount)
@@ -226,8 +229,12 @@ class MultiRoundRunner(
 
     private suspend fun readCurrentPage(): String = withContext(Dispatchers.Default) {
         var result = ""
-        // 重置为 Idle 以避免读到先前提取的过期 Preview 状态
-        ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Idle)
+        // Capture the current Preview (from previous round) so we can ignore it.
+        // We need a NEW Preview emitted by the upcoming RequestExtractStatic call.
+        val previousPreview: String? = (ExtractedTextBus.sidebarState.value as? ExtractedTextBus.SidebarState.Preview)?.text
+
+        // Don't reset sidebar state here — keep it on MultiRound to avoid flashing
+        // 'Idle' (空闲检测中) between rounds.
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.RequestExtractStatic)
 
         val deadline = System.currentTimeMillis() + 10_000
@@ -235,7 +242,10 @@ class MultiRoundRunner(
             delay(100)
             val state = ExtractedTextBus.sidebarState.value
             if (state is ExtractedTextBus.SidebarState.Preview) {
-                result = state.text
+                // Accept only NEW Preview text (different from previous round)
+                if (state.text != previousPreview) {
+                    result = state.text
+                }
             }
         }
         if (result.isEmpty()) Log.w(TAG, "readCurrentPage timed out")
@@ -245,7 +255,7 @@ class MultiRoundRunner(
     private suspend fun clickNextPage(): Boolean = withContext(Dispatchers.Main) {
         Log.d(TAG, "clickNextPage: sending ClickPage event")
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickPage("下一页"))
-        delay(300)
+        delay(600)
         true
     }
 
@@ -253,7 +263,7 @@ class MultiRoundRunner(
         ExtractedTextBus.sendEvent(ExtractedTextBus.Event.ClickAnswer(answer, sourceText, kbAnswerOptions, cachedResolvedQuestions))
         // Wait for auto-click to finish
         val answerCount = answer.lines().size.coerceAtLeast(1)
-        delay(800L * answerCount + 500L)
+        delay(1500L * answerCount + 2000L)
     }
 
     // ── Helpers ──
@@ -263,96 +273,7 @@ class MultiRoundRunner(
      *  Shows KB answer TEXT (from options) instead of bare screen letter to avoid
      *  confusion between KB letter labels and on-screen letter labels. */
     private fun buildQuestionSummary(filtered: String, answer: String, kbQuestionTexts: Map<Int, String>): String {
-        // Parse first question number from filtered text
-        val qPattern = Regex("""(\d+)[、.]""")
-        val firstQMatch = qPattern.find(filtered)
-        val firstQNum = firstQMatch?.groupValues?.get(1)?.toIntOrNull()
-
-        // Check for KB original data
-        if (firstQNum != null && firstQNum in kbQuestionTexts) {
-            val kbQuestion = kbQuestionTexts[firstQNum] ?: ""
-            val kbOptions = cachedKbAnswerOptions[firstQNum] ?: ""
-            val kbOrigAnswer = cachedKbOriginalAnswers[firstQNum] ?: ""
-
-            // Build answer display: show KB answer TEXT extracted from options,
-            // rather than the bare screen-resolved letter
-            val ansDisplay = buildKbAnswerDisplay(firstQNum, kbOrigAnswer, kbOptions, answer)
-
-            return buildString {
-                append("📝 $kbQuestion")
-                if (kbOptions.isNotBlank()) append("\n📋 $kbOptions")
-                if (ansDisplay.isNotBlank()) append("\n✅ $ansDisplay")
-            }
-        }
-
-        // Fallback: extract from filtered exam text (no KB data available)
-        val lines = filtered.lines().map { it.trim() }.filter { it.isNotBlank() }
-        val stopWords = setOf("上一页", "下一页", "开始考试", "提交答案")
-        val optionPattern = Regex("""^[A-F]\s*[.、:：)）]""")
-        val stemLines = lines
-            .dropWhile {
-                it.startsWith("单选题") || it.startsWith("多选题") || it.startsWith("判断题") ||
-                Regex("""^\d+[、.]""").matches(it) ||
-                Regex("""^\d+-\S+""").matches(it)
-            }
-            .takeWhile { !optionPattern.containsMatchIn(it) && it !in stopWords && it != "正确" && it != "错误" }
-        val stem = stemLines.joinToString(" ").take(100)
-            .ifBlank { filtered.lines().firstOrNull()?.take(60) ?: filtered.take(40) }
-        val optionLines = lines
-            .filter { Regex("""^[A-F]\s*[.、:：)）]""").containsMatchIn(it) || it == "正确" || it == "错误" }
-        val ansLine = answer.lines().firstOrNull { Regex("""[\[【]?\d+[\]】]?""").containsMatchIn(it) }?.trim()?.take(30) ?: ""
-        return buildString {
-            append("📝 $stem")
-            if (optionLines.isNotEmpty()) append("\n📋 ${optionLines.joinToString("  ").take(80)}")
-            if (ansLine.isNotBlank()) append("\n✅ $ansLine")
-        }
-    }
-
-    /** Build the answer display line using KB answer TEXT extracted from options.
-     *  When KB and screen labels differ due to option shuffling, both are shown.
-     *  Example output: "安全培训" or "安全培训 (题库:C → 屏幕:B)" */
-    private fun buildKbAnswerDisplay(
-        qNum: Int,
-        kbOrigAnswer: String,
-        kbOptions: String,
-        answer: String
-    ): String {
-        // 判断题: show the answer text directly
-        if (kbOrigAnswer in listOf("正确", "错误", "对", "错")) return kbOrigAnswer
-
-        // Extract KB answer text from options
-        val kbAnswerLetters = kbOrigAnswer.uppercase().filter { it in 'A'..'F' }.map { it.toString() }
-        if (kbAnswerLetters.isEmpty()) {
-            // No letter-based answer — fall back to the resolved answer line
-            return answer.lines().firstOrNull {
-                it.contains("[$qNum]") || it.contains("$qNum]") || it.contains("[$qNum")
-            }?.trim()?.take(60) ?: ""
-        }
-
-        // Parse KB options to get letter→text map
-        val kbOptionMap = parseOptionMapInline(kbOptions)
-        val kbAnswerTexts = kbAnswerLetters.mapNotNull { kbOptionMap[it] }
-
-        // Extract the resolved screen answer letter for comparison
-        val screenAnsLine = answer.lines().firstOrNull {
-            it.contains("[$qNum]") || it.contains("$qNum]") || it.contains("[$qNum")
-        }?.trim()?.take(60) ?: ""
-        val screenLetter = Regex("""^[\[【]?\d+[\]】]?\s*[.、:：)）]?\s*(.+)""").find(screenAnsLine)
-            ?.groupValues?.get(1)?.trim() ?: ""
-        val screenLetters = screenLetter.uppercase().filter { it in 'A'..'F' }.map { it.toString() }
-
-        if (kbAnswerTexts.isNotEmpty()) {
-            val answerText = kbAnswerTexts.joinToString(" ")
-            // Show answer text; add mapping info when KB and screen labels differ
-            return if (screenLetters.isNotEmpty() && screenLetters.joinToString("") != kbAnswerLetters.joinToString("")) {
-                "$answerText (题库:${kbAnswerLetters.joinToString("")} → 屏幕:${screenLetters.joinToString("")})"
-            } else {
-                answerText
-            }
-        }
-
-        // If we can't extract KB answer text, fall back to the resolved line
-        return screenAnsLine.ifBlank { kbOrigAnswer }
+        return buildQuestionSummaryForUI(filtered, answer, kbQuestionTexts, cachedKbAnswerOptions, cachedKbOriginalAnswers)
     }
 
     private fun updateSidebarMulti(
@@ -362,8 +283,9 @@ class MultiRoundRunner(
         progress: Float = 0f,
         answeredCount: Int = 0,
         errorMessage: String = "",
-        currentQuestionSummary: String = ""
+        currentQuestionSummary: String = lastQuestionSummary
     ) {
+        Log.d(TAG, "updateSidebarMulti: phase=$phase page=$currentPage/$totalPages answered=$answeredCount summaryLen=${currentQuestionSummary.length}")
         ExtractedTextBus.updateSidebarState(
             SidebarState.MultiRound(
                 phase = phase,

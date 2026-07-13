@@ -138,7 +138,8 @@ class ExamAccessibilityService : AccessibilityService() {
     }
 
     /** Extract current visible page content WITHOUT scrolling (for multi-round page reading).
-     *  取消所有滚动操作，直接提取当前可见节点文字。 */
+     *  Unlike extractAndSendText(), this does NOT scroll backward/forward to capture all content,
+     *  which would interfere with multi-round page navigation. */
     private fun extractCurrentPageOnly() {
         Log.d(TAG, "extractCurrentPageOnly called")
         if (!isConnected) {
@@ -147,8 +148,8 @@ class ExamAccessibilityService : AccessibilityService() {
         }
         scope.launch(Dispatchers.Default) {
             try {
-                // 短暂等待页面渲染稳定
-                delay(200)
+                // 等页面渲染稳定
+                delay(400)
                 val keywords = ExamApplication.instance.appConfig.watermarkKeywords.first()
                 var rootNode = rootInActiveWindow
                 if (rootNode == null) {
@@ -166,17 +167,48 @@ class ExamAccessibilityService : AccessibilityService() {
                     return@launch
                 }
 
-                val lines = mutableListOf<String>()
-                traverseNode(rootNode, keywords, lines)
-                val allLines = lines.map { it.trim() }.filter { it.isNotEmpty() }
+                var lines = emptyList<String>()
+                val allLines = linkedSetOf<String>()
+                try {
+                    // 1 次 backward scroll 回到顶部
+                    withContext(Dispatchers.Main) {
+                        val s = rootInActiveWindow?.let { findScrollableParent(it) }
+                        if (s != null) { s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD); s.recycle() }
+                    }
+                    delay(300)
 
-                if (allLines.isEmpty()) {
+                    // 2 次 forward scroll 覆盖选项区
+                    var captureRoot = rootInActiveWindow
+                    for (scrollRound in 0..2) {
+                        delay(300)
+                        captureRoot = rootInActiveWindow ?: break
+                        val roundLines = mutableListOf<String>()
+                        traverseNode(captureRoot, keywords, roundLines)
+                        for (line in roundLines) {
+                            val trimmed = line.trim()
+                            if (trimmed.isNotEmpty()) allLines.add(trimmed)
+                        }
+                        if (scrollRound < 2) {
+                            withContext(Dispatchers.Main) {
+                                val s = captureRoot?.let { findScrollableParent(it) }
+                                s?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                                s?.recycle()
+                            }
+                        }
+                    }
+                    if (captureRoot != rootInActiveWindow) captureRoot?.recycle()
+                } catch (e: Exception) {
+                    Log.w(TAG, "extractCurrentPageOnly scroll step failed", e)
+                }
+                lines = allLines.toList()
+
+                if (lines.isEmpty()) {
                     launch(Dispatchers.Main) {
                         ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Error("未检测到文字"))
                     }
                     return@launch
                 }
-                val result = cleanAndFormat(allLines)
+                val result = cleanAndFormat(lines)
                 launch(Dispatchers.Main) {
                     ExtractedTextBus.sendEvent(ExtractedTextBus.Event.TextExtracted(result))
                     ExtractedTextBus.updateSidebarState(ExtractedTextBus.SidebarState.Preview(result))
@@ -368,11 +400,30 @@ class ExamAccessibilityService : AccessibilityService() {
     }
 
     private fun performAutoClick(answer: String, sourceText: String, kbAnswerOptions: Map<Int, String> = emptyMap(), skipKbResolution: Set<Int> = emptySet()) {
+        Log.d(TAG, "performAutoClick called: answer='${answer.take(80)}' sourceLen=${sourceText.length}")
         scope.launch(Dispatchers.Main) {
-            val root = rootInActiveWindow ?: return@launch
+            var root: AccessibilityNodeInfo? = rootInActiveWindow
+            if (root == null) {
+                Log.w(TAG, "performAutoClick: rootInActiveWindow is NULL, trying getWindows() fallback")
+                for (window in windows) {
+                    val candidate = window.root
+                    if (candidate != null && candidate.childCount > 0) {
+                        root = candidate
+                        Log.w(TAG, "performAutoClick: fallback from window.type=${window.type} childCount=${candidate.childCount}")
+                        break
+                    }
+                }
+            } else {
+                Log.d(TAG, "performAutoClick: root OK, childCount=${root.childCount}")
+            }
+            if (root == null) {
+                Log.e(TAG, "performAutoClick: NO root node available — aborting")
+                return@launch
+            }
+            val resolvedRoot = root
 
             val nodes = mutableListOf<Pair<AccessibilityNodeInfo, String>>()
-            findAllClickable(root, nodes, 0)
+            findAllClickable(resolvedRoot, nodes, 0)
             nodes.sortBy { (node, _) ->
                 val bounds = android.graphics.Rect()
                 node.getBoundsInScreen(bounds)
@@ -754,7 +805,7 @@ class ExamAccessibilityService : AccessibilityService() {
             }
 
             nodes.forEach { (node, _) -> node.recycle() }
-            if (root != rootInActiveWindow && root != null) root.recycle()
+            if (resolvedRoot != rootInActiveWindow && resolvedRoot != null) resolvedRoot.recycle()
 
             // Warn about questions answered with default A
             if (uncertainQuestions.isNotEmpty()) {
