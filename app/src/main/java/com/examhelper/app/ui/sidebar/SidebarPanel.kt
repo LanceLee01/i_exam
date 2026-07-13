@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,6 +64,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.examhelper.app.knowledge.KnowledgeBaseManager
+import com.examhelper.app.pipeline.MultiRoundRunner
 import com.examhelper.app.pipeline.SolvePipeline
 import com.examhelper.app.ui.theme.TextCorrect
 import com.examhelper.app.ui.theme.TextError
@@ -77,6 +79,8 @@ fun SidebarPanel(onHide: () -> Unit) {
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
     val pipeline = remember { SolvePipeline(ExamApplication.instance) }
+    val multiRoundRunner = remember { MultiRoundRunner(pipeline) }
+    var multiRoundRunning by remember { mutableStateOf(false) }
 
     val isAccessibilityConnected by ExtractedTextBus.accessibilityConnected.collectAsState()
 
@@ -182,6 +186,25 @@ fun SidebarPanel(onHide: () -> Unit) {
                     Text("读取屏幕", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
+
+            // 多轮自动答题按钮
+            Spacer(Modifier.height(8.dp))
+            MultiRoundButton(
+                isRunning = multiRoundRunning,
+                onClick = {
+                    if (multiRoundRunning) {
+                        multiRoundRunner.cancel()
+                        multiRoundRunning = false
+                    } else {
+                        multiRoundRunning = true
+                        multiRoundRunner.start(scope)
+                    }
+                },
+                onStop = {
+                    multiRoundRunner.cancel()
+                    multiRoundRunning = false
+                }
+            )
 
             // 根据状态显示内容
             when (val s = state) {
@@ -430,13 +453,30 @@ fun SidebarPanel(onHide: () -> Unit) {
                     is SidebarState.Loading -> "● ${(state as SidebarState.Loading).message}"
                     is SidebarState.Preview -> "● 已识别内容"
                     is SidebarState.Done -> "● 作答完成"
-                    is SidebarState.MultiRound -> "● 多轮答题"
+                    is SidebarState.MultiRound -> when ((state as SidebarState.MultiRound).phase) {
+                        SidebarState.MultiPhase.SCANNING -> "● 扫描中"
+                        SidebarState.MultiPhase.SOLVING -> "● 解答中"
+                        SidebarState.MultiPhase.FILLING -> "● 填入中"
+                        SidebarState.MultiPhase.DONE -> "● 多轮完成"
+                        SidebarState.MultiPhase.ERROR -> "● 多轮异常"
+                    }
                     is SidebarState.Error -> "● 异常"
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondary,
                 modifier = Modifier.weight(1f)
             )
+        }
+    }
+
+    // 监听多轮答题状态变化，完成后自动重置按钮
+    LaunchedEffect(state) {
+        if (state is SidebarState.MultiRound) {
+            val s = state as SidebarState.MultiRound
+            if (s.phase == SidebarState.MultiPhase.DONE ||
+                s.phase == SidebarState.MultiPhase.ERROR) {
+                multiRoundRunning = false
+            }
         }
     }
 }
